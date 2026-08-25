@@ -1,0 +1,14 @@
+name: Roblox Local Qwen
+version: 1.0.0
+schema: v1
+
+models:
+  - name: Qwen Roblox Coder
+    provider: openai
+    model: qwen2.5-coder-7b-instruct
+    apiBase: http://127.0.0.1:1234/v1
+    apiKey: lm-studio
+    roles:
+      - apply
+      - chat
+      - edit

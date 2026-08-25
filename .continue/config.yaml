@@ -1,0 +1,23 @@
+name: Roblox Local Qwen
+version: 1.0.0
+schema: v1
+
+models:
+  - name: Qwen Roblox Coder
+    provider: openai
+    model: qwen2.5-coder-7b-instruct
+    apiBase: http://127.0.0.1:1234/v1
+    apiKey: lm-studio
+    roles:
+      - chat
+      - edit
+      - apply
+
+mcpServers:
+  - name: Project filesystem
+    type: stdio
+    command: 'C:\Windows\System32\cmd.exe'
+    args:
+      - /d
+      - /c
+      - 'C:\Users\james\Documents\GitHub\Roblox_World_1\.continue\mcpServers\start-workspace-files.cmd'

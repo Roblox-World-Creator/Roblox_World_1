@@ -1,0 +1,117 @@
+{
+  "name": "Roblox_World_1",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Shared": {
+        "$path": "src/ReplicatedStorage/Shared"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "CombatRemote": { "$className": "RemoteEvent" },
+        "AbilityRemote": { "$className": "RemoteEvent" },
+        "CombatFeedback": { "$className": "RemoteEvent" },
+        "EvolutionRemote": { "$className": "RemoteEvent" }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "SpawnLocation": {
+        "$className": "SpawnLocation",
+        "$properties": {
+          "Anchored": true,
+          "Position": [0, 1, 0],
+          "Size": [12, 1, 12]
+        }
+      },
+      "Arena": {
+        "$className": "Folder",
+        "ArenaFloor": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "CanCollide": true,
+            "Size": [180, 1, 180],
+            "Position": [0, 0, 0],
+            "Color": [35, 42, 58],
+            "Material": "Slate"
+          }
+        },
+        "NorthWall": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "Size": [70, 5, 2],
+            "Position": [0, 2.5, -70],
+            "Color": [75, 82, 105],
+            "Material": "Brick"
+          }
+        },
+        "SouthWall": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "Size": [70, 5, 2],
+            "Position": [0, 2.5, 70],
+            "Color": [75, 82, 105],
+            "Material": "Brick"
+          }
+        },
+        "EastWall": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "Size": [2, 5, 70],
+            "Position": [70, 2.5, 0],
+            "Color": [75, 82, 105],
+            "Material": "Brick"
+          }
+        },
+        "WestWall": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": true,
+            "Size": [2, 5, 70],
+            "Position": [-70, 2.5, 0],
+            "Color": [75, 82, 105],
+            "Material": "Brick"
+          }
+        }
+      },
+      "DefenseCore": {
+        "$className": "Part",
+        "$properties": {
+          "Anchored": true,
+          "CanCollide": true,
+          "Size": [8, 10, 8],
+          "Position": [0, 4, 0],
+          "Color": [70, 220, 255],
+          "Material": "Neon"
+        }
+      },
+      "EnemySpawns": {
+        "$className": "Folder",
+        "Spawn01": { "$className": "Part", "$properties": { "Anchored": true, "CanCollide": false, "Size": [6, 0.4, 6], "Position": [57.98, 3, 57.98], "Color": [255, 75, 100], "Material": "Neon", "Transparency": 0.2 } },
+        "Spawn02": { "$className": "Part", "$properties": { "Anchored": true, "CanCollide": false, "Size": [6, 0.4, 6], "Position": [0, 3, 82], "Color": [255, 75, 100], "Material": "Neon", "Transparency": 0.2 } },
+        "Spawn03": { "$className": "Part", "$properties": { "Anchored": true, "CanCollide": false, "Size": [6, 0.4, 6], "Position": [-57.98, 3, 57.98], "Color": [255, 75, 100], "Material": "Neon", "Transparency": 0.2 } },
+        "Spawn04": { "$className": "Part", "$properties": { "Anchored": true, "CanCollide": false, "Size": [6, 0.4, 6], "Position": [-82, 3, 0], "Color": [255, 75, 100], "Material": "Neon", "Transparency": 0.2 } },
+        "Spawn05": { "$className": "Part", "$properties": { "Anchored": true, "CanCollide": false, "Size": [6, 0.4, 6], "Position": [-57.98, 3, -57.98], "Color": [255, 75, 100], "Material": "Neon", "Transparency": 0.2 } },
+        "Spawn06": { "$className": "Part", "$properties": { "Anchored": true, "CanCollide": false, "Size": [6, 0.4, 6], "Position": [0, 3, -82], "Color": [255, 75, 100], "Material": "Neon", "Transparency": 0.2 } },
+        "Spawn07": { "$className": "Part", "$properties": { "Anchored": true, "CanCollide": false, "Size": [6, 0.4, 6], "Position": [57.98, 3, -57.98], "Color": [255, 75, 100], "Material": "Neon", "Transparency": 0.2 } },
+        "Spawn08": { "$className": "Part", "$properties": { "Anchored": true, "CanCollide": false, "Size": [6, 0.4, 6], "Position": [82, 3, 0], "Color": [255, 75, 100], "Material": "Neon", "Transparency": 0.2 } }
+      }
+    }
+  }
+}

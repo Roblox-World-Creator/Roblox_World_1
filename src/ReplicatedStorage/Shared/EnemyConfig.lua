@@ -1,0 +1,38 @@
+return {
+	Basic = {
+		DisplayName = "Rift Runner",
+		Health = 100,
+		Damage = 12,
+		Speed = 10,
+		RewardXP = 10,
+		RewardCoins = 5,
+		Color = Color3.fromRGB(80, 190, 255),
+	},
+	Fast = {
+		DisplayName = "Gale Stalker",
+		Health = 60,
+		Damage = 8,
+		Speed = 17,
+		RewardXP = 15,
+		RewardCoins = 8,
+		Color = Color3.fromRGB(120, 255, 180),
+	},
+	Tank = {
+		DisplayName = "Ironback",
+		Health = 350,
+		Damage = 28,
+		Speed = 6,
+		RewardXP = 40,
+		RewardCoins = 20,
+		Color = Color3.fromRGB(255, 160, 70),
+	},
+	Boss = {
+		DisplayName = "Stone Destroyer",
+		Health = 2500,
+		Damage = 60,
+		Speed = 5,
+		RewardXP = 1000,
+		RewardCoins = 500,
+		Color = Color3.fromRGB(255, 80, 110),
+	},
+}

@@ -1,0 +1,12 @@
+name: Roblox Workspace Files
+version: 0.0.1
+schema: v1
+
+mcpServers:
+  - name: Project filesystem
+    type: stdio
+    command: 'C:\Windows\System32\cmd.exe'
+    args:
+      - /d
+      - /c
+      - 'C:\Users\james\Documents\GitHub\Roblox_World_1\.continue\mcpServers\start-workspace-files.cmd'

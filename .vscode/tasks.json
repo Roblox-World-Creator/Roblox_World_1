@@ -1,0 +1,80 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Roblox: Start live sync",
+      "type": "shell",
+      "command": "\"${env:USERPROFILE}\\.aftman\\bin\\rojo.exe\" serve default.project.json",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      }
+    },
+    {
+      "label": "Roblox: Open platformer place",
+      "type": "process",
+      "command": "C:\\Users\\james\\AppData\\Local\\Roblox\\Versions\\version-a57f2f633baf4a86\\RobloxStudioBeta.exe",
+      "args": [
+        "C:\\Users\\james\\Documents\\platformer.rbxl"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "never"
+      }
+    },
+    {
+      "label": "Roblox: Build place model",
+      "type": "shell",
+      "command": "\"${env:USERPROFILE}\\.aftman\\bin\\rojo.exe\" build default.project.json -o build\\${workspaceFolderBasename}.rbxlx",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Roblox: Validate project",
+      "type": "shell",
+      "command": "\"${env:USERPROFILE}\\.aftman\\bin\\rojo.exe\" sourcemap default.project.json",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Local AI: Start coding model",
+      "type": "shell",
+      "command": "$lms = \"${env:USERPROFILE}\\.lmstudio\\bin\\lms.exe\"; $loaded = (& $lms ps | Out-String); if ($loaded -notmatch 'qwen2.5-coder-7b-instruct') { & $lms load \"qwen2.5-coder-7b-instruct\" --gpu max --context-length 8192 --ttl 3600 -y }; & $lms server start --bind 127.0.0.1",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      }
+    },
+    {
+      "label": "Local AI: Check model server",
+      "type": "shell",
+      "command": "Invoke-RestMethod -Uri http://127.0.0.1:1234/v1/models | ConvertTo-Json -Depth 5",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Local AI: Chat with Qwen",
+      "type": "shell",
+      "command": "& \"${env:USERPROFILE}\\.lmstudio\\bin\\lms.exe\" chat \"qwen2.5-coder-7b-instruct\"",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true,
+        "clear": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+return {
+	MaxPlayers = 8,
+	IntermissionSeconds = 5,
+	StartingWave = 1,
+	MaximumPrototypeWave = 10,
+	PlayersPerHealthScale = 0.5,
+	BaseCoreHealth = 10000,
+	CorePosition = Vector3.new(0, 4, 0),
+	ArenaRadius = 90,
+	WaypointCount = 8,
+	WaypointRadius = 55,
+	EnemySpawnRadius = 82,
+	EnemyHeight = 3,
+	WaveHealthGrowth = 0.18,
+	WaveDamageGrowth = 0.12,
+	WaveSpeedGrowth = 0.15,
+	MaximumSpeedBonus = 8,
+}

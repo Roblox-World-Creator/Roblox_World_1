@@ -1,0 +1,23 @@
+return {
+	StartingLevel = 1,
+	StartingXP = 0,
+	StartingCoins = 0,
+	StartingAttack = 25,
+	StartingMaxHealth = 100,
+	XPBase = 100,
+	XPPerLevel = 75,
+	LevelHealthBonus = 10,
+	LevelAttackBonus = 3,
+	MeleeRange = 11,
+	MeleeDamage = 25,
+	Abilities = {
+		EnergyBlast = {Cooldown = 2, EnergyCost = 10, Damage = 50, Range = 80, Radius = 7},
+		FlameBurst = {Cooldown = 6, EnergyCost = 25, Damage = 150, Range = 80, Radius = 15},
+		ThunderStrike = {Cooldown = 8, EnergyCost = 30, Damage = 250, Range = 80, Radius = 10},
+		WindCutter = {Cooldown = 7, EnergyCost = 35, Damage = 80, Range = 80, Radius = 12},
+		MeteorCrash = {Cooldown = 15, EnergyCost = 60, Damage = 400, Range = 80, Radius = 25},
+		EnergyBeam = {Cooldown = 20, EnergyCost = 80, Damage = 550, Range = 80, Radius = 10},
+		VoidExplosion = {Cooldown = 30, EnergyCost = 100, Damage = 800, Range = 80, Radius = 35},
+		UltimateNova = {Cooldown = 60, EnergyCost = 150, Damage = 1200, Range = 80, Radius = 45},
+	},
+}

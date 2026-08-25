@@ -1,0 +1,8 @@
+{
+  "files.associations": {
+    "*.lua": "lua"
+  },
+  "luau-lsp.require.mode": "relative",
+  "luau-lsp.platform.type": "roblox",
+  "rojo.projectFile": "default.project.json"
+}

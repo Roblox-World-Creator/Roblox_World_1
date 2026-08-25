@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "evaera.vscode-rojo",
+    "nightrains.robloxlsp",
+    "danielayecodesense.roblox-lsp-plus-knit",
+    "kampfkarren.roblox-lua-autofills",
+    "evaera.roblox-api-explorer"
+  ],
+  "unwantedRecommendations": [
+    "spoorloos.rbxexecute"
+  ]
+}
