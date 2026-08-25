@@ -51,16 +51,16 @@ styleButton(openButton, Color3.fromRGB(70, 125, 190))
 openButton.Parent = gui
 
 local panel = Instance.new("Frame")
-panel.AnchorPoint = Vector2.new(0.5, 0.5)
-panel.Position = UDim2.fromScale(0.5, 0.5)
-panel.Size = UDim2.new(0.94, 0, 0.84, 0)
+panel.AnchorPoint = Vector2.new(1, 0.5)
+panel.Position = UDim2.new(1, -18, 0.55, 0)
+panel.Size = UDim2.new(0.68, 0, 0.78, 0)
 panel.BackgroundColor3 = Color3.fromRGB(17, 22, 34)
 panel.BorderSizePixel = 0
 panel.Visible = false
 panel.Parent = gui
 round(panel, 13)
 local constraint = Instance.new("UISizeConstraint")
-constraint.MinSize, constraint.MaxSize = Vector2.new(330, 390), Vector2.new(900, 570)
+constraint.MinSize, constraint.MaxSize = Vector2.new(330, 390), Vector2.new(760, 540)
 constraint.Parent = panel
 
 local header = Instance.new("TextLabel")

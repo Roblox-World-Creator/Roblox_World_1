@@ -1,6 +1,6 @@
 # Development Status
 
-Current playable milestone: live-sync startup and CoreGui repair (`v0.11.1`).
+Current playable milestone: unobstructed docked UI and persistent CoreGui suppression (`v0.11.2`).
 
 ## Complete (Phase 1 scope)
 
@@ -48,6 +48,7 @@ Current playable milestone: live-sync startup and CoreGui repair (`v0.11.1`).
 - [COMPLETE] Schema-v3 persistence for power mastery, quest progress/claims, and effect/camera/damage-number settings
 - [COMPLETE] Self-healing remote bootstrap prevents missing live-sync instances from blocking combat, powers, enemies, quests, inventory, or settings
 - [COMPLETE] Custom CoreGui policy removes overlapping Roblox player-list/backpack popups and controller Start-button conflicts
+- [COMPLETE] Right-docked inventory/quest panels preserve combat HUD visibility; CoreGui/top-bar suppression survives initialization and respawn
 
 ## Partial
 

@@ -42,6 +42,8 @@ The Ascendant Quest Board and `J` open a five-objective campaign covering normal
 
 Revision `0.11.1` makes the server bootstrap create and repair every required remote before any gameplay service starts. This prevents a partially synced Studio place from blocking inventory startup—and therefore combat and waves—when newly declared remotes have not yet been created by Rojo. The custom UI disables Roblox's overlapping PlayerList, Backpack, Health, and Emotes CoreGui surfaces.
 
+Revision `0.11.2` docks inventory and quests to the right so the combat HUD remains visible. CoreGui suppression is repeatedly applied during client initialization and after respawn, and the Roblox top bar is hidden to prevent its persistent overlay from covering health/resources.
+
 Studio tests use quiet in-memory session data by default, so unpublished places do not generate DataStore errors. Published live servers automatically use persistent DataStores. To test persistence in Studio, publish the experience, enable **Game Settings → Security → Enable Studio Access to API Services**, and set `EnableInStudio = true` in `SaveConfig.lua`.
 
 ## Studio developer commands

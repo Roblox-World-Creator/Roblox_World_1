@@ -29,12 +29,12 @@ round(open, 7)
 open.Parent = gui
 
 local panel = Instance.new("Frame")
-panel.AnchorPoint, panel.Position, panel.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.new(0.9, 0, 0.78, 0)
+panel.AnchorPoint, panel.Position, panel.Size = Vector2.new(1, 0.5), UDim2.new(1, -18, 0.55, 0), UDim2.new(0.58, 0, 0.72, 0)
 panel.BackgroundColor3, panel.BorderSizePixel, panel.Visible = Color3.fromRGB(18, 22, 35), 0, false
 round(panel, 12)
 panel.Parent = gui
 local constraint = Instance.new("UISizeConstraint")
-constraint.MinSize, constraint.MaxSize = Vector2.new(310, 350), Vector2.new(650, 520)
+constraint.MinSize, constraint.MaxSize = Vector2.new(310, 350), Vector2.new(600, 500)
 constraint.Parent = panel
 local title = Instance.new("TextLabel")
 title.Position, title.Size, title.BackgroundTransparency = UDim2.fromOffset(16, 10), UDim2.new(1, -70, 0, 34), 1
