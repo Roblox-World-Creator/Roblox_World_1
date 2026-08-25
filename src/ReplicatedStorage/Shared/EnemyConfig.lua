@@ -6,6 +6,8 @@ return {
 		Speed = 10,
 		RewardXP = 10,
 		RewardCoins = 5,
+		KnockbackResistance = 0,
+		StunResistance = 0,
 		Color = Color3.fromRGB(80, 190, 255),
 	},
 	Fast = {
@@ -15,6 +17,8 @@ return {
 		Speed = 17,
 		RewardXP = 15,
 		RewardCoins = 8,
+		KnockbackResistance = 0,
+		StunResistance = 0.1,
 		Color = Color3.fromRGB(120, 255, 180),
 	},
 	Tank = {
@@ -24,6 +28,8 @@ return {
 		Speed = 6,
 		RewardXP = 40,
 		RewardCoins = 20,
+		KnockbackResistance = 0.5,
+		StunResistance = 0.45,
 		Color = Color3.fromRGB(255, 160, 70),
 	},
 	Boss = {
@@ -33,6 +39,8 @@ return {
 		Speed = 5,
 		RewardXP = 1000,
 		RewardCoins = 500,
+		KnockbackResistance = 0.85,
+		StunResistance = 0.8,
 		Color = Color3.fromRGB(255, 80, 110),
 	},
 }

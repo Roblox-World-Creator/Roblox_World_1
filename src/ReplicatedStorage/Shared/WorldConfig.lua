@@ -1,5 +1,5 @@
 return {
-	WorldName = "Roblox World 1",
-	Version = "0.4.4",
+	WorldName = "Evolution Ascendant",
+	Version = "0.11.1",
 	SpawnColor = Color3.fromRGB(255, 81, 80),
 }

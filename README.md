@@ -1,50 +1,70 @@
-# Roblox World 1
+# Evolution Ascendant
 
-This is a Rojo-managed Roblox Studio project. Edit Luau files in VS Code, let Rojo sync them into Studio, and use Studio's Play/Test controls to verify the result.
+Evolution Ascendant is an original Roblox action-RPG and wave-defense prototype managed with Rojo. The current build is a playable combat slice: players defend a multi-level fort, fight pathfinding enemies with an Iron Blade and energy abilities, dash with stamina, earn persistent XP/gold, and progress toward evolution.
 
-## One-time setup
+## Run in Roblox Studio
 
-1. Open this folder in VS Code.
-2. Install Rojo from the Rojo extension's command palette menu: `Rojo: Install Rojo`.
-3. In Roblox Studio, install the Rojo plugin from the same command palette menu: `Rojo: Install Roblox Studio plugin`.
-4. Open a new Baseplate or the place you want to develop.
-5. Run the VS Code task `Roblox: Start live sync`.
-6. In Studio, click the Rojo plugin button and connect to the project.
+1. Install Rojo 7.7 (`aftman install` if Aftman is available).
+2. Run `rojo serve default.project.json` from this directory.
+3. Open a Roblox Studio place, connect the Rojo plugin to `localhost:34872`, and sync.
+4. Start a Play test. Use M1 for the sword combo; `1`/`2` for Energy Bolt/Burst; `Z`, `X`, and `C` for Energy Beam, Gravity Pulse, and Chain Lightning; `Q` to dash; `Shift` to dodge; and hold `F` to block. Press `B` for inventory/crafting/store, `J` for quests, and `3`/`4`/`5` for quick consumables.
 
-The first sync creates `LiveSyncMarker` in Workspace and prints `Roblox World 1 loaded through Rojo` in the Studio Output window. Change `WorldConfig.lua` and save to see the marker update without manually copying scripts.
+Players spawn on the north upper battlement. Ramps reach the lower core deck, and cyan trusses on the four corner towers reach the upper ring. Enemies telegraph attacks with red warning effects; moving out of range during the windup avoids the hit.
 
-## Daily workflow
+Waves now progress through 50 before looping. Completion grants XP and gold, elites begin appearing from wave 3, and every tenth wave includes a multi-phase boss. Boss rewards require meaningful participation rather than the final hit.
 
-- Use `Ctrl+Shift+B` or the task picker for `Roblox: Start live sync`.
-- Edit files under `src/`; the `default.project.json` file maps them to Roblox services.
-- Use Studio Play/Test for live behavior checks.
-- Use `Roblox: Build place model` when a standalone `.rbxlx` file is needed.
-- Use `Roblox: Validate project` to inspect the generated Rojo sourcemap.
+Boss waves rotate between the Stone Destroyer, Rift Tyrant, and Storm Colossus. Stone emphasizes arena slams, Rift adds a telegraphed gravity vortex, and Storm marks player positions before lightning strikes. All special damage honors dodge invulnerability, god mode, and equipment defense.
 
-Copilot can work in this workflow by editing the files in this repository. Rojo then delivers those edits to the connected Studio session. Studio remains the authority for running and testing the game.
+The gear button in the upper-right toggles effect quality, camera shake, and damage numbers. Blocking shortly before an enemy strike triggers a perfect block; repeatedly tapping block cannot continuously reset that timing window.
 
-## Installed Roblox extensions
+The **ADMIN** button opens locked server controls. After entering the configured lock code, an authorized session can target a player by name/UserId, kick, toggle god mode, heal/refill resources, apply capped speed or temporary damage boosts, unlock power gates, grant allowlisted items, select the next wave, and create controlled practice enemies. Authorization resets when the player leaves the server. A shared numeric code is appropriate for private testing, but production releases should replace it with a private user-ID allowlist and rotate the code.
 
-The workspace recommends the installed Rojo, Luau LSP, autocomplete, and API Explorer extensions. The Roblox Editor extension can read and write scripts through Roblox Open Cloud, but it requires a Roblox API key with Engine (Beta), Read, and Write access and cannot update scripts that are currently open in Studio. It is best kept as a fallback for remote script editing, not the live-sync path.
+## Inventory, loot, and store
 
-The `rbxexecute` extension is intentionally not part of this workflow. Its README requires a third-party executor and a websocket autoexec script; that is outside the supported Roblox Studio development path and is not needed for Rojo.
+Revision `0.10.0` adds a persistent, migration-safe item loop. Enemies roll weighted consumable/material/equipment drops, elites gain a bonus table, and participating boss fighters receive a guaranteed Boss Core plus rare-drop rolls. The bag supports search, category filters, rarity sorting, favorites, locks, equipping, comparison, consumable use, crafting, buying, and selling. Equipped health, MP, attack, power, defense, speed, and critical stats feed directly into combat.
 
-## OpenRouter free usage
+The Fort Supply kiosk points players to the Store tab. Starter supplies and selected gear can be bought with gold; rare boss and artifact items remain drop goals. The source icon atlas is at `assets/evolution-ascendant-item-atlas-v1.png`. Upload and slice it through Roblox asset tools before replacing the built-in procedural icon fallback with `rbxassetid://` references.
 
-OpenRouter's official free options are:
+## Powers, mastery, and quests
 
-- `openrouter/free`, which routes to an available free model.
-- Any model listed at <https://openrouter.ai/models?max_price=0>, using its `:free` variant where supported.
+Five combat powers now unlock through level/evolution progression. Every successful cast and damage event grants persistent mastery XP. Ten mastery ranks improve damage and reduce MP cost, and the HUD shows each power's current mastery rank.
 
-According to the current OpenRouter FAQ, new users receive a small free allowance. Free-model API use is limited to 50 requests per day without purchased credits, or 1,000 requests per day after purchasing at least $10 in credits. Free models have low limits and may be unsuitable for production. There are no legitimate permanent free API-key links; create a key in your own OpenRouter account and keep it outside this repository.
+The Ascendant Quest Board and `J` open a five-objective campaign covering normal enemies, elites, waves, boss participation, and material collection. Completed quests have server-authoritative claimable XP, gold, consumable, material, and Boss Core rewards. Quest progress, claims, mastery, inventory, equipment, and visual settings use save schema v3 with defaults for older profiles.
 
-The `.env.example` file shows the variable names for future local tooling. Never commit a real `OPENROUTER_API_KEY`. Official pages:
+## Xbox-style controller
 
-- <https://openrouter.ai/keys>
-- <https://openrouter.ai/models?max_price=0>
-- <https://openrouter.ai/docs/faq>
-- <https://openrouter.ai/docs/api-reference/overview>
+- `X`: melee attack; `RT`: cast selected power; `LB`/`RB`: cycle powers.
+- `B`: dash; `LT`: block; left-stick click: dodge; `Y`: evolve.
+- View/Back: bag; right-stick click: settings; hold `LT` and press D-pad up for admin. Keyboard admin shortcut: `F8`.
+- D-pad left/down/right: Health Core, Mana Crystal, and Battle Serum.
+- D-pad up: quest log.
+- While the bag is open, `LB`/`RB` change tabs, `A` activates the selected control, and `B` closes it.
 
-## Roblox credentials
+Revision `0.11.1` makes the server bootstrap create and repair every required remote before any gameplay service starts. This prevents a partially synced Studio place from blocking inventory startup—and therefore combat and waves—when newly declared remotes have not yet been created by Rojo. The custom UI disables Roblox's overlapping PlayerList, Backpack, Health, and Emotes CoreGui surfaces.
 
-For the Roblox Editor extension only, create an API key at <https://create.roblox.com/dashboard/credentials?activeTab=ApiKeysTab> with Engine (Beta), the target experience, Read, and Write operations. Store it in the extension's secure prompt or credential storage, never in this repository.
+Studio tests use quiet in-memory session data by default, so unpublished places do not generate DataStore errors. Published live servers automatically use persistent DataStores. To test persistence in Studio, publish the experience, enable **Game Settings → Security → Enable Studio Access to API Services**, and set `EnableInStudio = true` in `SaveConfig.lua`.
+
+## Studio developer commands
+
+These chat commands are available to everyone in Studio. In production, only user IDs listed in `DebugConfig.lua` are authorized.
+
+- `!setlevel 10`
+- `!givexp 500`
+- `!givegold 1000`
+- `!refillhp`
+- `!refillmp`
+- `!refillstamina`
+- `!setwave 10` (sets the next wave; useful for boss testing)
+
+## Repository layout
+
+- `src/ReplicatedStorage/Shared`: balance and runtime configuration.
+- `src/ServerScriptService/Systems`: authoritative gameplay services.
+- `src/StarterPlayer/StarterPlayerScripts`: input, HUD, and client presentation.
+- `default.project.json`: Rojo DataModel mapping and prototype arena.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md), [GAME_SYSTEMS.md](GAME_SYSTEMS.md), [BALANCE.md](BALANCE.md), and [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) for implementation details and roadmap status.
+
+## Revisions
+
+Every playable update increments `WorldConfig.Version`. The HUD reads that replicated revision directly; it no longer carries a second hardcoded version that can drift out of sync.

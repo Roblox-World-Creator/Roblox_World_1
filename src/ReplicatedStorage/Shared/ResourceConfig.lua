@@ -1,0 +1,16 @@
+return {
+	BaseWalkSpeed = 36,
+	MaxMP = 100,
+	MPRegenPerSecond = 4,
+	MPRegenInterval = 0.25,
+	MaxStamina = 100,
+	StaminaRegenPerSecond = 24,
+	StaminaRegenDelay = 0.8,
+	DashCost = 25,
+	DashCooldown = 1.25,
+	DashDistance = 22,
+	DodgeCost = 20,
+	DodgeCooldown = 1,
+	DodgeDistance = 14,
+	DodgeInvulnerability = 0.32,
+}

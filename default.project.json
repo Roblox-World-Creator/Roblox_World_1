@@ -1,5 +1,5 @@
 {
-  "name": "Roblox_World_1",
+  "name": "EvolutionAscendant",
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
@@ -11,8 +11,18 @@
         "$className": "Folder",
         "CombatRemote": { "$className": "RemoteEvent" },
         "AbilityRemote": { "$className": "RemoteEvent" },
+        "AbilityEffects": { "$className": "RemoteEvent" },
         "CombatFeedback": { "$className": "RemoteEvent" },
-        "EvolutionRemote": { "$className": "RemoteEvent" }
+        "EvolutionRemote": { "$className": "RemoteEvent" },
+        "DashRemote": { "$className": "RemoteEvent" },
+        "DodgeRemote": { "$className": "RemoteEvent" },
+        "AdminRemote": { "$className": "RemoteFunction" },
+        "InventoryRemote": { "$className": "RemoteFunction" },
+        "InventoryEvent": { "$className": "RemoteEvent" },
+        "StoreRemote": { "$className": "RemoteFunction" },
+        "QuestRemote": { "$className": "RemoteFunction" },
+        "QuestEvent": { "$className": "RemoteEvent" },
+        "SettingsRemote": { "$className": "RemoteEvent" }
       }
     },
     "ServerScriptService": {
@@ -28,6 +38,9 @@
     },
     "Workspace": {
       "$className": "Workspace",
+      "$properties": {
+        "StreamingEnabled": true
+      },
       "SpawnLocation": {
         "$className": "SpawnLocation",
         "$properties": {

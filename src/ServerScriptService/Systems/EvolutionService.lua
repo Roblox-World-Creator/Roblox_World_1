@@ -35,7 +35,7 @@ local function addEvolutionGlow(character)
 	end
 end
 
-function EvolutionService.Start(config)
+function EvolutionService.Start(config, progressionConfig, progression, resourceConfig)
 	local remotes = ReplicatedStorage:FindFirstChild("Remotes") or Instance.new("Folder")
 	remotes.Name = "Remotes"
 	remotes.Parent = ReplicatedStorage
@@ -70,10 +70,12 @@ function EvolutionService.Start(config)
 		player:SetAttribute("HealthMultiplier", requirement.HealthMultiplier)
 		player:SetAttribute("EnergyMultiplier", requirement.EnergyMultiplier)
 		player:SetAttribute("SpeedMultiplier", requirement.SpeedMultiplier)
-		local maxHealth = player:GetAttribute("MaxHealth") or 100
-		player:SetAttribute("MaxHealth", maxHealth * requirement.HealthMultiplier)
-		player:SetAttribute("AttackPower", (player:GetAttribute("AttackPower") or 25) * requirement.AttackMultiplier)
-		player:SetAttribute("MaxEnergy", (player:GetAttribute("MaxEnergy") or 100) * requirement.EnergyMultiplier)
+		progression.RefreshStats(player, progressionConfig)
+		local maxMP = math.floor(resourceConfig.MaxMP * requirement.EnergyMultiplier) + (player:GetAttribute("EquipmentMP") or 0)
+		player:SetAttribute("MaxMP", maxMP)
+		player:SetAttribute("MP", maxMP)
+		player:SetAttribute("MaxEnergy", maxMP)
+		player:SetAttribute("Energy", maxMP)
 		player:SetAttribute("EvolutionTransforming", true)
 		addEvolutionGlow(character)
 		for _, scaleName in ipairs({"BodyDepthScale", "BodyHeightScale", "BodyWidthScale", "HeadScale"}) do
@@ -89,7 +91,8 @@ function EvolutionService.Start(config)
 		humanoid.WalkSpeed = 0
 		task.wait(config.TransformationSeconds)
 		if humanoid.Parent and humanoid.Health > 0 then
-			humanoid.WalkSpeed = 16 * requirement.SpeedMultiplier
+			humanoid.WalkSpeed = player:GetAttribute("AdminSpeedOverride")
+				or resourceConfig.BaseWalkSpeed * requirement.SpeedMultiplier + (player:GetAttribute("EquipmentSpeed") or 0)
 			humanoid.MaxHealth = player:GetAttribute("MaxHealth") or humanoid.MaxHealth
 			humanoid.Health = humanoid.MaxHealth
 		end
@@ -120,7 +123,7 @@ function EvolutionService.Start(config)
 				refresh(player)
 			end
 		end)
-	end)
+	end
 
 	Players.PlayerRemoving:Connect(function(player)
 		busy[player] = nil
