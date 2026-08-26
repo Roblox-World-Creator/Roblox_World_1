@@ -7,7 +7,7 @@ Evolution Ascendant is an original Roblox action-RPG and wave-defense prototype 
 1. Install Rojo 7.7 (`aftman install` if Aftman is available).
 2. Run `rojo serve default.project.json` from this directory.
 3. Open a Roblox Studio place, connect the Rojo plugin to `localhost:34872`, and sync.
-4. Start a Play test. Use M1 for the sword combo; `1`/`2` for Energy Bolt/Burst; `Z`, `X`, and `C` for Energy Beam, Gravity Pulse, and Chain Lightning; `Q` to dash; `Shift` to dodge; and hold `F` to block. Press `B` for inventory/crafting/store, `J` for quests, and `3`/`4`/`5` for quick consumables.
+4. Start a Play test. Use M1 for the sword combo; `1`/`2` for Energy Bolt/Burst; `Z`, `X`, `C`, and `V` for Energy Beam, Gravity Pulse, Chain Lightning, and Rift Tornado; `Q` to dash; `Shift` to dodge; and hold `F` to block. Press `B` for inventory/crafting/store, `P` for powers and mastery loadouts, `J` for quests, and `3`/`4`/`5` for quick consumables.
 
 Players spawn on the north upper battlement. Ramps reach the lower core deck, and cyan trusses on the four corner towers reach the upper ring. Enemies telegraph attacks with red warning effects; moving out of range during the windup avoids the hit.
 
@@ -27,7 +27,7 @@ The Fort Supply kiosk points players to the Store tab. Starter supplies and sele
 
 ## Powers, mastery, and quests
 
-Five combat powers now unlock through level/evolution progression. Every successful cast and damage event grants persistent mastery XP. Ten mastery ranks improve damage and reduce MP cost, and the HUD shows each power's current mastery rank.
+Six combat attacks now unlock through level/evolution progression, including Rift Tornado. Every successful cast and damage event grants persistent mastery XP. The Powers panel shows unlock gates and mastery ranks, and lets players choose six attacks plus two movement powers for the active loadout. The server validates every active slot.
 
 The Ascendant Quest Board and `J` open a five-objective campaign covering normal enemies, elites, waves, boss participation, and material collection. Completed quests have server-authoritative claimable XP, gold, consumable, material, and Boss Core rewards. Quest progress, claims, mastery, inventory, equipment, and visual settings use save schema v3 with defaults for older profiles.
 
@@ -38,6 +38,7 @@ The Ascendant Quest Board and `J` open a five-objective campaign covering normal
 - View/Back: bag; right-stick click: settings; hold `LT` and press D-pad up for admin. Keyboard admin shortcut: `F8`.
 - D-pad left/down/right: Health Core, Mana Crystal, and Battle Serum.
 - D-pad up: quest log.
+- The on-screen Powers panel shows the active six attacks and two movement powers; select it with the mouse/touch UI or keyboard `P`.
 - While the bag is open, `LB`/`RB` change tabs, `A` activates the selected control, and `B` closes it.
 
 Revision `0.11.1` makes the server bootstrap create and repair every required remote before any gameplay service starts. This prevents a partially synced Studio place from blocking inventory startup—and therefore combat and waves—when newly declared remotes have not yet been created by Rojo. The custom UI disables Roblox's overlapping PlayerList, Backpack, Health, and Emotes CoreGui surfaces.

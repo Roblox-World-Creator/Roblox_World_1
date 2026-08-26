@@ -60,7 +60,7 @@ panel.Visible = false
 panel.Parent = gui
 round(panel, 13)
 local constraint = Instance.new("UISizeConstraint")
-constraint.MinSize, constraint.MaxSize = Vector2.new(330, 390), Vector2.new(760, 540)
+constraint.MinSize, constraint.MaxSize = Vector2.new(330, 680), Vector2.new(760, 760)
 constraint.Parent = panel
 
 local header = Instance.new("TextLabel")
@@ -162,6 +162,25 @@ itemIcon.Font = Enum.Font.GothamBlack
 itemIcon.TextSize = 36
 round(itemIcon, 12)
 itemIcon.Parent = detail
+local itemImage = Instance.new("ImageLabel")
+itemImage.Size = UDim2.fromScale(1, 1)
+itemImage.BackgroundTransparency = 1
+itemImage.Visible = false
+itemImage.Parent = itemIcon
+
+local equippedSummary = Instance.new("TextLabel")
+equippedSummary.Position = UDim2.fromOffset(12, 266)
+equippedSummary.Size = UDim2.new(1, -24, 0, 90)
+equippedSummary.BackgroundColor3 = Color3.fromRGB(21, 28, 42)
+equippedSummary.TextColor3 = Color3.fromRGB(205, 220, 240)
+equippedSummary.TextWrapped = true
+equippedSummary.TextXAlignment = Enum.TextXAlignment.Left
+equippedSummary.TextYAlignment = Enum.TextYAlignment.Top
+equippedSummary.Font = Enum.Font.Gotham
+equippedSummary.TextSize = 12
+equippedSummary.Text = "EQUIPPED LOADOUT\nLoading..."
+round(equippedSummary, 7)
+equippedSummary.Parent = detail
 
 local itemName = Instance.new("TextLabel")
 itemName.Position = UDim2.fromOffset(10, 92)
@@ -175,7 +194,7 @@ itemName.Parent = detail
 
 local description = Instance.new("TextLabel")
 description.Position = UDim2.fromOffset(12, 126)
-description.Size = UDim2.new(1, -24, 0, 132)
+description.Size = UDim2.new(1, -24, 0, 128)
 description.BackgroundTransparency = 1
 description.Text = "Items, recipes, and store supplies appear here."
 description.TextColor3 = Color3.fromRGB(180, 195, 220)
@@ -257,12 +276,61 @@ local function statText(stats)
 	return #parts > 0 and table.concat(parts, "  |  ") or "No equipment stats"
 end
 
+local function statDeltaText(stats, equippedStats)
+	local parts = {}
+	for _, name in ipairs({"Attack", "Health", "Defense", "Power", "Speed", "MP", "CriticalChance", "CriticalDamage"}) do
+		local delta = (stats and stats[name] or 0) - (equippedStats and equippedStats[name] or 0)
+		if delta ~= 0 then
+			local shown = string.find(name, "Critical") and string.format("%+.0f%%", delta * 100) or string.format("%+g", delta)
+			table.insert(parts, name .. " " .. shown)
+		end
+	end
+	return #parts > 0 and table.concat(parts, "  |  ") or "No stat change"
+end
+
+local function setIcon(icon, definition)
+	local image = icon == itemIcon and itemImage or icon:FindFirstChild("IconImage")
+	if image and image:IsA("ImageLabel") and definition.Icon and definition.Icon ~= "" then
+		image.Image = definition.Icon
+		image.Visible = true
+		if icon:IsA("TextLabel") or icon:IsA("TextButton") then icon.Text = "" end
+		return
+	elseif image and image:IsA("ImageLabel") then
+		image.Visible = false
+	end
+	if definition.Icon and definition.Icon ~= "" and (icon:IsA("ImageLabel") or icon:IsA("ImageButton")) then
+		icon.Text = ""
+		icon.Image = definition.Icon
+		icon.BackgroundTransparency = 0.08
+	elseif icon:IsA("TextLabel") or icon:IsA("TextButton") then
+		icon.Text = symbols[definition.Category] or "◇"
+		icon.BackgroundTransparency = 0
+	elseif icon:IsA("ImageLabel") or icon:IsA("ImageButton") then
+		icon.Image = ""
+		icon.BackgroundTransparency = 0
+	end
+end
+
+local function refreshEquippedSummary()
+	local lines = {"EQUIPPED LOADOUT"}
+	for _, slot in ipairs({"Weapon", "SecondaryWeapon", "Head", "Chest", "Legs", "Boots", "Gloves", "Artifact1", "Artifact2", "Artifact3", "Core", "Cape"}) do
+		local itemId = state.Equipment and state.Equipment[slot]
+		local definition = itemId and config.Items[itemId]
+		if definition then
+			table.insert(lines, string.format("%s: %s  [%s]", slot, definition.DisplayName, statText(definition.Stats)))
+		else
+			table.insert(lines, slot .. ": Empty")
+		end
+	end
+	equippedSummary.Text = table.concat(lines, "\n")
+end
+
 local refresh
 local function selectItem(itemId)
 	selectedItem = itemId
 	local definition = config.Items[itemId]
 	if not definition then return end
-	itemIcon.Text = symbols[definition.Category] or "◇"
+	setIcon(itemIcon, definition)
 	itemIcon.BackgroundColor3 = categoryColors[definition.Category] or Color3.fromRGB(45, 56, 78)
 	itemName.Text, itemName.TextColor3 = definition.DisplayName, config.RarityColors[definition.Rarity]
 	local equippedSlot
@@ -281,7 +349,7 @@ local function selectItem(itemId)
 			for index = 1, 3 do if state.Equipment["Artifact" .. index] ~= "" then compareId = state.Equipment["Artifact" .. index] break end end
 		else compareId = state.Equipment[definition.EquipSlot] end
 		local compareDefinition = compareId and config.Items[compareId]
-		if compareDefinition then compareText = "\nCompared with " .. compareDefinition.DisplayName .. ": " .. statText(compareDefinition.Stats) end
+		if compareDefinition then compareText = "\nCompared with " .. compareDefinition.DisplayName .. ": " .. statDeltaText(definition.Stats, compareDefinition.Stats) end
 	end
 	description.Text = string.format("%s • %s%s\n%s\n\n%s%s%s", definition.Rarity, definition.Category, equippedSlot and (" • Equipped: " .. equippedSlot) or "", definition.Description, statText(definition.Stats), compareText, recipeText)
 	if currentTab == "Store" then
@@ -290,11 +358,17 @@ local function selectItem(itemId)
 		actions.PRIMARY.Text = definition.Consumable and "USE" or definition.EquipSlot and "EQUIP" or "DETAILS"
 		actions.PRIMARY.Visible = definition.Consumable ~= nil or definition.EquipSlot ~= nil
 	end
+	if not selectedItem then
+		for _, item in ipairs(state.Items or {}) do
+			if config.Items[item.Id] then selectedItem = item.Id break end
+		end
+	end
 	actions.FAVORITE.Visible = currentTab == "Inventory"
 	actions.LOCK.Visible = currentTab == "Inventory"
 	actions.CRAFT.Visible = currentTab ~= "Store" and recipe ~= nil
 	actions.SELL.Visible = currentTab == "Inventory" and definition.BuyPrice ~= nil
 	actions.UNEQUIP.Visible = currentTab == "Inventory" and equippedSlot ~= nil
+	refreshEquippedSummary()
 end
 
 local function clearList()
@@ -319,10 +393,17 @@ local function addCard(itemId, subtitle, clickAction)
 	icon.Position = UDim2.fromOffset(13, 7)
 	icon.Size = UDim2.fromOffset(42, 42)
 	icon.BackgroundColor3 = categoryColors[definition.Category] or Color3.fromRGB(65, 75, 95)
-	icon.Text, icon.TextColor3 = symbols[definition.Category] or "◇", Color3.new(1, 1, 1)
+	icon.TextColor3 = Color3.new(1, 1, 1)
 	icon.Font, icon.TextSize = Enum.Font.GothamBlack, 23
+	setIcon(icon, definition)
 	round(icon, 8)
 	icon.Parent = card
+	local iconImage = Instance.new("ImageLabel")
+	iconImage.Name = "IconImage"
+	iconImage.Size = UDim2.fromScale(1, 1)
+	iconImage.BackgroundTransparency = 1
+	iconImage.Visible = false
+	iconImage.Parent = icon
 	local label = Instance.new("TextLabel")
 	label.Position = UDim2.fromOffset(64, 7)
 	label.Size = UDim2.new(1, -70, 0, 44)
@@ -405,7 +486,7 @@ local function toggle()
 	panel.Visible = not panel.Visible
 	if panel.Visible then
 		local result = invoke(inventoryRemote, "GetState")
-		if result then refresh() end
+		if result then refresh(); if selectedItem then selectItem(selectedItem) end end
 		GuiService.SelectedObject = tabButtons[currentTab]
 	else
 		GuiService.SelectedObject = nil

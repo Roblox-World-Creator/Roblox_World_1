@@ -97,7 +97,7 @@ local function authorize(player, suppliedCode, config)
 	return response(true, "Admin controls unlocked for this server session")
 end
 
-function AdminService.Start(config, waveDefense, inventoryService, itemConfig)
+function AdminService.Start(config, waveDefense, inventoryService, itemConfig, evolutionService)
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local remote = remotes:FindFirstChild("AdminRemote")
 	if not remote then
@@ -142,6 +142,9 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig)
 				table.insert(names, {Name = target.Name, DisplayName = target.DisplayName, UserId = target.UserId})
 			end
 			return response(true, string.format("%d player(s) online", #names), names)
+		end
+		if action == "GetSpawnCatalog" then
+			return response(true, "Spawn catalog loaded", waveDefense.GetSpawnCatalog and waveDefense.GetSpawnCatalog() or {})
 		end
 
 		local target = resolveTarget(player, payload.Target)
@@ -208,6 +211,10 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig)
 			end
 			target:SetAttribute("AdminAllPowersUnlocked", true)
 			return response(true, "All current and future power gates unlocked for " .. target.Name)
+		elseif action == "ForceEvolution" then
+			if not target or not evolutionService then return response(false, "Target player or evolution service unavailable") end
+			local success, message = evolutionService.ForceEvolve(target)
+			return response(success, message)
 		elseif action == "GrantItem" then
 			if not target then
 				return response(false, "Target player not found or ambiguous")
@@ -227,7 +234,12 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig)
 				return response(false, "Spawn action cooling down")
 			end
 			local enemyType = tostring(payload.EnemyType)
-			if not config.AllowedEnemyTypes[enemyType] then
+			local bossId = string.match(enemyType, "^Boss:(.+)$")
+			local allowedBoss = false
+			if bossId and waveDefense.GetSpawnCatalog then
+				for _, entry in ipairs(waveDefense.GetSpawnCatalog()) do if entry.Id == enemyType then allowedBoss = true break end end
+			end
+			if not config.AllowedEnemyTypes[enemyType] and not allowedBoss then
 				return response(false, "Enemy type is not allowed")
 			end
 			spawnReadyAt[player] = now + config.SpawnCooldown

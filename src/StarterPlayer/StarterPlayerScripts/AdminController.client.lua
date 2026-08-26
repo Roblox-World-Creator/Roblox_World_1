@@ -4,6 +4,7 @@ local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 
 local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("AdminRemote")
+local itemConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ItemConfig"))
 local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
 local colors = {
@@ -188,6 +189,7 @@ local function setStatus(message, success)
 end
 
 local busy = false
+local spawnCatalog
 local function invoke(action, payload)
 	if busy then
 		return nil
@@ -215,7 +217,12 @@ local function actionButton(parent, text, action, payloadFactory, color)
 		if action ~= "GetPlayers" then
 			payload.Target = targetBox.Text
 		end
-		invoke(action, payload)
+		local result = invoke(action, payload)
+		if action == "GetSpawnCatalog" and result and type(result.Data) == "table" and spawnCatalog then
+			local lines = {}
+			for _, entry in ipairs(result.Data) do table.insert(lines, string.format("%s | HP %d | DMG %d | ACTIVE %d", entry.Name, entry.Health, entry.Damage, entry.Count)) end
+			spawnCatalog.Text = table.concat(lines, "\n")
+		end
 	end)
 	return button
 end
@@ -237,6 +244,8 @@ actionButton(rowPowers, "UNLOCK ALL POWERS", "UnlockPowers", nil, colors.Accent)
 actionButton(rowPowers, "GRANT 5 POTIONS", "GrantItem", function()
 	return {ItemId = "HealthPotion", Quantity = 5}
 end)
+local rowEvolution = createRow()
+actionButton(rowEvolution, "FORCE NEXT EVOLUTION", "ForceEvolution", nil, colors.Accent)
 
 local spawnTitle = Instance.new("TextLabel")
 spawnTitle.Size = UDim2.new(1, -6, 0, 24)
@@ -254,6 +263,16 @@ actionButton(row5, "SPAWN FAST", "SpawnEnemy", function() return {EnemyType = "F
 local row6 = createRow()
 actionButton(row6, "SPAWN TANK", "SpawnEnemy", function() return {EnemyType = "Tank"} end)
 actionButton(row6, "SPAWN BOSS", "SpawnEnemy", function() return {EnemyType = "Boss"} end, colors.Danger)
+spawnCatalog = Instance.new("TextLabel")
+spawnCatalog.Size = UDim2.new(1, -6, 0, 70)
+spawnCatalog.BackgroundColor3 = colors.PanelLight
+spawnCatalog.TextColor3 = colors.Text
+spawnCatalog.TextWrapped = true
+spawnCatalog.TextXAlignment = Enum.TextXAlignment.Left
+spawnCatalog.TextYAlignment = Enum.TextYAlignment.Top
+spawnCatalog.Text = "CREATURE CATALOG: press LIST SPAWNS"
+spawnCatalog.Parent = controls
+local spawnListButton = actionButton(createRow(), "LIST SPAWNS + COUNTS", "GetSpawnCatalog")
 
 local waveBox = createTextBox("Next wave (1-50)", "10")
 local row7 = createRow()
@@ -271,10 +290,61 @@ itemTitle.TextSize = 13
 itemTitle.Parent = controls
 local itemBox = createTextBox("IronBlade / HealthPotion / ManaPotion / EvolutionShard", "HealthPotion")
 local quantityBox = createTextBox("Quantity (1-25 per grant)", "1")
+itemBox.Visible = false
+local grantCategories = {"Weapon", "Armor", "Artifact", "Consumable", "Material"}
+local grantCategoryIndex = 4
+local grantItemIds = {}
+local grantItemIndex = 1
+local grantPlayers = {{Name = "me", DisplayName = "Me", UserId = 0}}
+local grantPlayerIndex = 1
+local function choiceButton(text)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, -6, 0, 38)
+	button.Text = text
+	styleButton(button, colors.PanelLight)
+	button.Parent = controls
+	return button
+end
+local categoryButton = choiceButton("TYPE: CONSUMABLE")
+local itemChoiceButton = choiceButton("ITEM: HEALTH CORE")
+local targetChoiceButton = choiceButton("TARGET: ME")
+local function refreshGrantItems()
+	grantItemIds = {}
+	local category = grantCategories[grantCategoryIndex]
+	for itemId, definition in pairs(require(ReplicatedStorage.Shared.ItemConfig).Items) do
+		if definition.Category == category then table.insert(grantItemIds, itemId) end
+	end
+	table.sort(grantItemIds)
+	grantItemIndex = math.clamp(grantItemIndex, 1, math.max(1, #grantItemIds))
+	local itemId = grantItemIds[grantItemIndex]
+	itemBox.Text = itemId or ""
+	local definition = itemId and itemConfig.Items[itemId]
+	local symbol = ({Weapon = "SWORD", Armor = "ARMOR", Artifact = "CORE", Consumable = "POTION", Material = "MATERIAL"})[definition and definition.Category] or "ITEM"
+	itemChoiceButton.Text = string.format("%s: %s | %s", symbol, definition and definition.DisplayName or "NONE", definition and (definition.Stats and "STATS " .. tostring(definition.Stats.Attack or definition.Stats.Power or definition.Stats.Health or 0) or "NO STATS") or "")
+end
+categoryButton.Activated:Connect(function()
+	grantCategoryIndex = grantCategoryIndex % #grantCategories + 1
+	categoryButton.Text = "TYPE: " .. string.upper(grantCategories[grantCategoryIndex])
+	refreshGrantItems()
+end)
+itemChoiceButton.Activated:Connect(function()
+	if #grantItemIds == 0 then return end
+	grantItemIndex = grantItemIndex % #grantItemIds + 1
+	refreshGrantItems()
+end)
+targetChoiceButton.Activated:Connect(function()
+	local result = invoke("GetPlayers")
+	if result and type(result.Data) == "table" and #result.Data > 0 then grantPlayers = result.Data end
+	grantPlayerIndex = grantPlayerIndex % #grantPlayers + 1
+	local target = grantPlayers[grantPlayerIndex]
+	targetBox.Text = target.UserId == 0 and "me" or tostring(target.UserId)
+	targetChoiceButton.Text = "TARGET: " .. (target.DisplayName or target.Name)
+end)
 local itemRow = createRow()
 actionButton(itemRow, "GRANT ITEM", "GrantItem", function()
 	return {ItemId = itemBox.Text, Quantity = quantityBox.Text}
 end, colors.Accent)
+refreshGrantItems()
 
 openButton.Activated:Connect(function()
 	panel.Visible = not panel.Visible

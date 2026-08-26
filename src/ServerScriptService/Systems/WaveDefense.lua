@@ -112,7 +112,48 @@ local function createPickup(parent, name, position, color, attribute, amount)
 	end
 end
 
-local function createWorldDecor(config, arena, core)
+local function createWarpPad(parent, name, position, destination, color)
+	local pad = createPart(parent, name, Vector3.new(8, 0.35, 8), position, color, Enum.Material.Neon)
+	pad.CanCollide = false
+	pad:SetAttribute("WarpDestination", destination)
+	addLabel(pad, name .. " WARP", Vector3.new(0, 2.5, 0))
+	if not pad:GetAttribute("WarpConnected") then
+		pad:SetAttribute("WarpConnected", true)
+		pad.Touched:Connect(function(hit)
+			local character = hit.Parent
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local player = humanoid and Players:GetPlayerFromCharacter(character)
+			if not player or humanoid.Health <= 0 or os.clock() < (player:GetAttribute("WarpReadyAt") or 0) then return end
+			player:SetAttribute("WarpReadyAt", os.clock() + 1.5)
+			character:PivotTo(CFrame.new(destination + Vector3.new(0, 4, 0)))
+		end)
+	end
+	return pad
+end
+
+local function createItemPickup(parent, name, position, color, itemId, inventoryService)
+	local pickup = createPart(parent, name, Vector3.new(2.5, 2.5, 2.5), position, color, Enum.Material.Neon)
+	pickup.Shape = Enum.PartType.Ball
+	pickup.CanCollide = false
+	addLabel(pickup, itemId .. " PICKUP", Vector3.new(0, 2.5, 0))
+	if not pickup:GetAttribute("ItemPickupConnected") then
+		pickup:SetAttribute("ItemPickupConnected", true)
+		pickup.Touched:Connect(function(hit)
+			local character = hit.Parent
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local player = humanoid and Players:GetPlayerFromCharacter(character)
+			if not player or pickup:GetAttribute("CollectedAt") and os.clock() - pickup:GetAttribute("CollectedAt") < 8 then return end
+			local success = inventoryService and inventoryService.Grant(player, itemId, 1)
+			if success then
+				pickup:SetAttribute("CollectedAt", os.clock())
+				pickup.Transparency = 1
+				task.delay(8, function() if pickup.Parent then pickup.Transparency = 0 end end)
+			end
+		end)
+	end
+end
+
+local function createWorldDecor(config, arena, core, inventoryService)
 	local structures = getOrCreateFolder(arena, "Structures")
 	local fort = getOrCreateFolder(structures, "AscendantFort")
 	local items = getOrCreateFolder(arena, "DefaultItems")
@@ -194,6 +235,9 @@ local function createWorldDecor(config, arena, core)
 	createPickup(items, "EnergyCrystal", Vector3.new(12, 2, 12), Color3.fromRGB(80, 180, 255), "Energy", 35)
 	createPickup(items, "HealthCrystal2", Vector3.new(-12, 2, -12), Color3.fromRGB(255, 75, 105), "Health", 35)
 	createPickup(items, "EnergyCrystal2", Vector3.new(12, 2, -12), Color3.fromRGB(80, 180, 255), "Energy", 35)
+	createItemPickup(items, "HealthCorePickup", Vector3.new(-88, 2, 0), Color3.fromRGB(255, 80, 110), "HealthPotion", inventoryService)
+	createItemPickup(items, "ManaCrystalPickup", Vector3.new(88, 2, 0), Color3.fromRGB(80, 180, 255), "ManaPotion", inventoryService)
+	createItemPickup(items, "RiftShardPickup", Vector3.new(0, 2, 88), Color3.fromRGB(185, 100, 255), "EvolutionShard", inventoryService)
 	local kiosk = createPart(structures, "FortSupplyKiosk", Vector3.new(8, 6, 5), Vector3.new(29, 3, -29), Color3.fromRGB(45, 58, 82), Enum.Material.Metal)
 	local kioskGlow = createPart(structures, "FortSupplyKioskGlow", Vector3.new(6.5, 1.2, 0.3), Vector3.new(29, 4.5, -26.35), Color3.fromRGB(90, 205, 255), Enum.Material.Neon)
 	kioskGlow.CanCollide = false
@@ -203,12 +247,23 @@ local function createWorldDecor(config, arena, core)
 	addLabel(core, "DEFENSE CORE", Vector3.new(0, 7, 0))
 end
 
-local function createArena(config)
+local function createArena(config, inventoryService)
 	local arena = getOrCreateFolder(workspace, "Arena")
 	local spawns = getOrCreateFolder(workspace, "EnemySpawns")
 	local waypoints = getOrCreateFolder(workspace, "EnemyWaypoints")
 
 	createPart(arena, "ArenaFloor", Vector3.new(config.ArenaRadius * 2, 1, config.ArenaRadius * 2), Vector3.new(0, 0, 0), Color3.fromRGB(35, 42, 58), Enum.Material.Slate)
+	local boundary = config.ArenaRadius - 1
+	local wallColor = Color3.fromRGB(48, 58, 82)
+	createPart(arena, "BoundaryNorth", Vector3.new(config.ArenaRadius * 2, 18, 3), Vector3.new(0, 9, -boundary), wallColor, Enum.Material.Brick)
+	createPart(arena, "BoundarySouth", Vector3.new(config.ArenaRadius * 2, 18, 3), Vector3.new(0, 9, boundary), wallColor, Enum.Material.Brick)
+	createPart(arena, "BoundaryEast", Vector3.new(3, 18, config.ArenaRadius * 2), Vector3.new(boundary, 9, 0), wallColor, Enum.Material.Brick)
+	createPart(arena, "BoundaryWest", Vector3.new(3, 18, config.ArenaRadius * 2), Vector3.new(-boundary, 9, 0), wallColor, Enum.Material.Brick)
+	local warps = getOrCreateFolder(arena, "Warps")
+	createWarpPad(warps, "NORTH", Vector3.new(0, 1, -115), Vector3.new(0, 18, -48), Color3.fromRGB(80, 220, 255))
+	createWarpPad(warps, "SOUTH", Vector3.new(0, 1, 115), Vector3.new(0, 4, 72), Color3.fromRGB(100, 255, 180))
+	createWarpPad(warps, "EAST", Vector3.new(115, 1, 0), Vector3.new(48, 18, 0), Color3.fromRGB(255, 190, 80))
+	createWarpPad(warps, "WEST", Vector3.new(-115, 1, 0), Vector3.new(-48, 18, 0), Color3.fromRGB(190, 130, 255))
 	local spawnLocation = workspace:FindFirstChild("SpawnLocation")
 	if spawnLocation and spawnLocation:IsA("SpawnLocation") then
 		spawnLocation.Size = Vector3.new(10, 1, 10)
@@ -219,7 +274,7 @@ local function createArena(config)
 	local core = createPart(workspace, "DefenseCore", Vector3.new(8, 10, 8), config.CorePosition, Color3.fromRGB(70, 220, 255), Enum.Material.Neon)
 	core:SetAttribute("MaxHealth", config.BaseCoreHealth)
 	core:SetAttribute("Health", config.BaseCoreHealth)
-	createWorldDecor(config, arena, core)
+	createWorldDecor(config, arena, core, inventoryService)
 	
 	local coreLight = core:FindFirstChildOfClass("PointLight")
 	if not coreLight then
@@ -411,7 +466,7 @@ local function chooseEnemyType(wave, index)
 end
 
 function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfig, progression, inventoryService, questService)
-	local _, spawns, waypoints, core = createArena(gameConfig)
+	local _, spawns, waypoints, core = createArena(gameConfig, inventoryService)
 	local enemyFolder = getOrCreateFolder(workspace, "Enemies")
 	runtimeState = {
 		GameConfig = gameConfig,
@@ -575,7 +630,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 					end)
 				end)
 				EnemyAI.Run(boss, core, gameConfig)
-				BossPhaseController.Start(boss, waveConfig)
+				BossPhaseController.Start(boss, waveConfig, gameConfig)
 			end
 
 			repeat
@@ -605,7 +660,9 @@ function WaveDefense.SpawnAdminEnemy(enemyType, player)
 	if not runtimeState then
 		return false, "Wave system is not ready"
 	end
-	local definition = runtimeState.EnemyConfig[enemyType]
+	local bossArchetype = string.match(enemyType, "^Boss:(.+)$")
+	local definition = runtimeState.EnemyConfig[bossArchetype and "Boss" or enemyType]
+	if bossArchetype then enemyType = "Boss" end
 	local character = player and player.Character
 	local playerRoot = character and character:FindFirstChild("HumanoidRootPart")
 	if not definition or not playerRoot then
@@ -626,7 +683,8 @@ function WaveDefense.SpawnAdminEnemy(enemyType, player)
 	enemy:SetAttribute("IsAdminSpawn", true)
 	if enemyType == "Boss" then
 		enemy:SetAttribute("BossWave", 0)
-		BossPhaseController.Start(enemy, runtimeState.WaveConfig)
+		enemy:SetAttribute("BossArchetype", bossArchetype or "Stone")
+		BossPhaseController.Start(enemy, runtimeState.WaveConfig, runtimeState.GameConfig)
 	end
 	humanoid.Died:Connect(function()
 		task.delay(0.2, function()
@@ -637,6 +695,23 @@ function WaveDefense.SpawnAdminEnemy(enemyType, player)
 	end)
 	EnemyAI.Run(enemy, runtimeState.Core, runtimeState.GameConfig, true)
 	return true, "Spawned " .. enemyType .. " in front of " .. player.Name
+end
+
+function WaveDefense.GetSpawnCatalog()
+	if not runtimeState then return {} end
+	local catalog = {}
+	for enemyType, definition in pairs(runtimeState.EnemyConfig) do
+		local count = 0
+		for _, enemy in ipairs(runtimeState.EnemyFolder:GetChildren()) do
+			if enemy:GetAttribute("EnemyType") == enemyType then count += 1 end
+		end
+		table.insert(catalog, {Id = enemyType, Name = definition.DisplayName, Health = definition.Health, Damage = definition.Damage, Count = count})
+	end
+	for _, boss in ipairs(runtimeState.WaveConfig.BossArchetypes or {}) do
+		table.insert(catalog, {Id = "Boss:" .. boss.Id, Name = boss.DisplayName, Health = runtimeState.EnemyConfig.Boss.Health, Damage = runtimeState.EnemyConfig.Boss.Damage, Count = 0})
+	end
+	table.sort(catalog, function(left, right) return left.Id < right.Id end)
+	return catalog
 end
 
 return WaveDefense

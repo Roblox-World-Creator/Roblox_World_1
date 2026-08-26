@@ -64,6 +64,12 @@ return {
 			CastType = "Chain", Targeting = "Point", RequiredLevel = 25, RequiredEvolution = 2,
 			Cooldown = 12, EnergyCost = 45, Damage = 100, Range = 75, Radius = 5, ChainRange = 24, MaximumChains = 6,
 		},
+		Tornado = {
+			DisplayName = "Rift Tornado", Description = "Summon a violent vortex that lifts and spins monsters in its wake.",
+			CastType = "Tornado", Targeting = "Point", RequiredLevel = 35, RequiredEvolution = 2,
+			Cooldown = 16, EnergyCost = 55, Damage = 72, Range = 85, Radius = 16, Duration = 4,
+			TickInterval = 0.5, PullStrength = 70, ProjectileSpeed = 42,
+		},
 	},
 	Mastery = {
 		MaximumLevel = 10,

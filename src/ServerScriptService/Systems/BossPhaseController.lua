@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BossPhaseController = {}
+local EnemyAI = require(script.Parent.EnemyAI)
 
 local function damagePlayer(player, humanoid, damage)
 	if player:GetAttribute("AdminGodMode") or workspace:GetServerTimeNow() < (player:GetAttribute("InvulnerableUntil") or 0) then return end
@@ -37,7 +38,33 @@ local function applyPhase(boss, humanoid, definition, effectsRemote)
 	})
 end
 
-function BossPhaseController.Start(boss, config)
+local function summonMinions(boss, gameConfig)
+	local folder = workspace:FindFirstChild("Enemies")
+	local core = workspace:FindFirstChild("DefenseCore")
+	local root = boss:FindFirstChild("HumanoidRootPart")
+	if not folder or not core or not root or not gameConfig then return end
+	for index = 1, 2 do
+		local minion = Instance.new("Model")
+		minion.Name = "Rift Minion"
+		minion:SetAttribute("EnemyType", "Fast")
+		minion:SetAttribute("AttackDamage", 10)
+		local body = Instance.new("Part")
+		body.Name = "HumanoidRootPart"
+		body.Size = Vector3.new(2, 2, 2)
+		body.Position = root.Position + Vector3.new(index * 3 - 4, 1, 0)
+		body.Color = Color3.fromRGB(170, 75, 255)
+		body.Parent = minion
+		local humanoid = Instance.new("Humanoid")
+		humanoid.MaxHealth, humanoid.Health, humanoid.WalkSpeed = 80, 80, 15
+		humanoid.Parent = minion
+		minion.PrimaryPart = body
+		minion.Parent = folder
+		EnemyAI.Run(minion, core, gameConfig, false)
+		humanoid.Died:Connect(function() task.delay(0.2, function() if minion.Parent then minion:Destroy() end end) end)
+	end
+end
+
+function BossPhaseController.Start(boss, config, gameConfig)
 	local humanoid = boss:FindFirstChildOfClass("Humanoid")
 	local root = boss:FindFirstChild("HumanoidRootPart")
 	if not humanoid or not root then
@@ -105,6 +132,25 @@ function BossPhaseController.Start(boss, config)
 		while boss.Parent and humanoid.Health > 0 do
 			if os.clock() >= nextSpecial then
 				local archetype = boss:GetAttribute("BossArchetype") or "Stone"
+				local targetPlayer, targetRoot
+				for _, candidate in ipairs(Players:GetPlayers()) do
+					local candidateRoot = candidate.Character and candidate.Character:FindFirstChild("HumanoidRootPart")
+					if candidateRoot and (not targetRoot or (candidateRoot.Position - root.Position).Magnitude < (targetRoot.Position - root.Position).Magnitude) then targetPlayer, targetRoot = candidate, candidateRoot end
+				end
+				if targetPlayer and targetRoot then
+					local origin, target = root.Position + Vector3.new(0, 3, 0), targetRoot.Position
+					effectsRemote:FireAllClients("EnergyBolt", {Origin = origin, Target = target, Duration = 0.35, ImpactTime = workspace:GetServerTimeNow() + 0.35, Radius = 5})
+					task.delay(0.35, function()
+						if boss.Parent and targetPlayer.Parent and targetPlayer.Character then
+							local targetHumanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+							local currentRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+							if targetHumanoid and currentRoot and (currentRoot.Position - target).Magnitude <= 8 then damagePlayer(targetPlayer, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * 0.8) end
+						end
+					end)
+				end
+				if archetype == "Stone" or archetype == "Rift" then
+					summonMinions(boss, gameConfig)
+				end
 				if archetype == "Rift" then
 					local origin = root.Position
 					effectsRemote:FireAllClients("BossVortexTelegraph", {Origin = origin, Radius = config.BossVortexRadius, Duration = config.BossVortexWindup})

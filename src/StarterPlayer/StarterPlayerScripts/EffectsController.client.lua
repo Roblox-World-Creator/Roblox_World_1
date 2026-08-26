@@ -160,9 +160,56 @@ local function renderEnergyBolt(data)
 		if projectile.Parent then
 			projectile:Destroy()
 			renderImpact(data.Target, tonumber(data.Radius) or 4)
+			renderRing("EnergyImpactOuter", data.Target, (tonumber(data.Radius) or 4) * 1.8, Color3.fromRGB(80, 220, 255), 0.55)
+			if highQualityEffects() then
+				for index = 1, 4 do
+					task.delay(index * 0.035, function()
+						renderRing("EnergyImpactPulse", data.Target + Vector3.new(0, index * 0.35, 0), (tonumber(data.Radius) or 4) * (0.65 + index * 0.2), Color3.fromRGB(230, 255, 255), 0.28)
+					end)
+				end
+			end
 		end
 	end)
 	Debris:AddItem(projectile, duration + 0.2)
+end
+
+local function renderTornadoTravel(data)
+	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
+	local vortex = createEffectPart("TornadoTravel", Enum.PartType.Ball, Color3.fromRGB(150, 220, 255), Vector3.new(3, 3, 3), CFrame.new(data.Origin))
+	vortex.Transparency = 0.2
+	local duration = math.clamp((tonumber(data.ImpactTime) or 0) - workspace:GetServerTimeNow(), 0.05, 2)
+	TweenService:Create(vortex, TweenInfo.new(duration, Enum.EasingStyle.Linear), {Position = data.Target, Size = Vector3.new(7, 7, 7), Transparency = 0.85}):Play()
+	local light = Instance.new("PointLight")
+	light.Color, light.Range, light.Brightness = Color3.fromRGB(120, 210, 255), 18, 3
+	light.Parent = vortex
+	Debris:AddItem(vortex, duration + 0.1)
+end
+
+local function renderTornado(data)
+	if typeof(data.Origin) ~= "Vector3" then return end
+	local radius = math.clamp(tonumber(data.Radius) or 16, 4, 60)
+	local duration = math.clamp(tonumber(data.Duration) or 4, 0.5, 8)
+	local core = createEffectPart("RiftTornado", Enum.PartType.Cylinder, Color3.fromRGB(135, 205, 255), Vector3.new(2, 8, 8), CFrame.new(data.Origin + Vector3.new(0, 4, 0)))
+	core.Transparency = 0.4
+	local rings = {}
+	for index = 1, 5 do
+		local ring = createEffectPart("TornadoVortex", Enum.PartType.Cylinder, Color3.fromRGB(190, 240, 255), Vector3.new(0.28, radius * (1 - index * 0.1), radius * (1 - index * 0.1)), CFrame.new(data.Origin + Vector3.new(0, index * 1.5, 0)) * CFrame.Angles(0, 0, math.rad(90)))
+		ring.Transparency = 0.22
+		table.insert(rings, ring)
+	end
+	renderRing("TornadoGround", data.Origin - Vector3.new(0, 2.5, 0), radius, Color3.fromRGB(100, 180, 255), 0.5)
+	task.spawn(function()
+		local endAt = os.clock() + duration
+		while os.clock() < endAt and core.Parent do
+			for index, ring in ipairs(rings) do
+				ring.CFrame = CFrame.new(data.Origin + Vector3.new(0, index * 1.5, 0)) * CFrame.Angles(0, os.clock() * (index % 2 == 0 and 5 or -5), 0)
+			end
+			task.wait(0.05)
+		end
+	end)
+	Debris:AddItem(core, duration + 0.1)
+	for _, ring in ipairs(rings) do Debris:AddItem(ring, duration + 0.1) end
+	shakeCamera(data.Origin, radius * 3, 0.5)
 end
 
 local function renderEnergyBurst(data)
@@ -499,6 +546,12 @@ effectsRemote.OnClientEvent:Connect(function(effectName, data)
 	end
 	if effectName == "EnergyBolt" then
 		renderEnergyBolt(data)
+	elseif effectName == "TornadoTravel" then
+		renderTornadoTravel(data)
+	elseif effectName == "TornadoStart" then
+		renderTornado(data)
+	elseif effectName == "TornadoEnd" then
+		if typeof(data.Origin) == "Vector3" then renderRing("TornadoEnd", data.Origin, tonumber(data.Radius) or 16, Color3.fromRGB(220, 250, 255), 0.35) end
 	elseif effectName == "EnergyBurst" then
 		renderEnergyBurst(data)
 	elseif effectName == "EnergyBeam" then

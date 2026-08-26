@@ -169,7 +169,7 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 	return result
 end
 
-function CombatService.Start(config, progression, damageService, inventoryService, masteryService, questService)
+function CombatService.Start(config, progression, damageService, inventoryService, masteryService, questService, powerService)
 	activeMasteryService, activeQuestService = masteryService, questService
 	workspace:SetAttribute("CombatStatus", "Starting")
 	local remotes = ReplicatedStorage:FindFirstChild("Remotes") or Instance.new("Folder")
@@ -190,6 +190,22 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 	end
 
 	combatRemote.OnServerEvent:Connect(function(player, action, value)
+		if action == "Ranged" then
+			local valid, root = validCharacter(player)
+			local kind = player:GetAttribute("EquippedWeaponKind")
+			if not valid or (kind ~= "Bow" and kind ~= "Gun" and kind ~= "Rifle") or not isFiniteVector3(value) then return end
+			local target = value
+			if (target - root.Position).Magnitude > 120 then target = root.Position + (target - root.Position).Unit * 120 end
+			local startPosition = root.Position + Vector3.new(0, 2, 0)
+			local impact = findProjectileIntercept(startPosition, target, 3)
+			local multiplier = kind == "Rifle" and 1.35 or kind == "Bow" and 1.1 or 0.9
+			local damage = (player:GetAttribute("AttackPower") or config.MeleeDamage) * multiplier * getDamageMultiplier(player)
+			effectsRemote:FireAllClients("EnergyBolt", {Origin = startPosition, Target = impact, Duration = 0.2, ImpactTime = workspace:GetServerTimeNow() + 0.2, Radius = 3})
+			for _, enemy in ipairs(getEnemiesInRadius(impact, 3)) do
+				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, "RangedWeapon")
+			end
+			return
+		end
 		if action == "Block" then
 			local valid = validCharacter(player)
 			local blocking = valid and value == true
@@ -247,8 +263,9 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		end
 	end)
 
-	abilityRemote.OnServerEvent:Connect(function(player, abilityName, requestedTarget)
+	abilityRemote.OnServerEvent:Connect(function(player, abilityName, requestedTarget, requestedMode)
 		local ability = config.Abilities[abilityName]
+		local mode = requestedMode == "Close" and "Close" or "Ranged"
 		if not ability or not isFiniteVector3(requestedTarget) then
 			feedbackRemote:FireClient(player, "CastRejected", "Invalid ability request")
 			return
@@ -259,12 +276,19 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			feedbackRemote:FireClient(player, "CastRejected", "Power is locked")
 			return
 		end
+		if powerService and not powerService.IsActive(player, abilityName) then
+			feedbackRemote:FireClient(player, "CastRejected", "Power is not active")
+			return
+		end
 		local valid, root = validCharacter(player)
 		if not valid then
 			return
 		end
 
 		local targetPosition = ability.Targeting == "Self" and root.Position or requestedTarget
+		if mode == "Close" then
+			targetPosition = root.Position + root.CFrame.LookVector * math.min(ability.CloseRange or 12, ability.Range or 12)
+		end
 		if ability.Targeting ~= "Self" and (targetPosition - root.Position).Magnitude > ability.Range then
 			feedbackRemote:FireClient(player, "CastRejected", "Out of range")
 			return
@@ -379,6 +403,38 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				end
 				current = nearest
 			end
+		elseif ability.CastType == "Tornado" then
+			local startPosition = root.Position + Vector3.new(0, 2, 0)
+			local distance = (targetPosition - startPosition).Magnitude
+			local travelTime = math.clamp(distance / (ability.ProjectileSpeed or 42), 0.15, 1.5)
+			effectsRemote:FireAllClients("TornadoTravel", {
+				Origin = startPosition,
+				Target = targetPosition,
+				Duration = travelTime,
+				ImpactTime = workspace:GetServerTimeNow() + travelTime,
+			})
+			task.delay(travelTime, function()
+				if not player.Parent then return end
+				effectsRemote:FireAllClients("TornadoStart", {
+					Origin = targetPosition,
+					Radius = ability.Radius,
+					Duration = ability.Duration,
+				})
+				local endAt = os.clock() + ability.Duration
+				while player.Parent and os.clock() < endAt do
+					for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
+						local damage = (ability.Damage + (player:GetAttribute("Power") or 0)) * getDamageMultiplier(player) * masteryDamageMultiplier
+						damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, true, abilityName)
+						applyPull(enemy, targetPosition, ability.PullStrength)
+						local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
+						if enemyRoot then enemyRoot:ApplyImpulse(Vector3.new(0, ability.PullStrength * 0.35, 0) * enemyRoot.AssemblyMass) end
+					end
+					task.wait(ability.TickInterval)
+				end
+				if player.Parent then
+					effectsRemote:FireAllClients("TornadoEnd", {Origin = targetPosition, Radius = ability.Radius})
+				end
+			end)
 		end
 	end)
 

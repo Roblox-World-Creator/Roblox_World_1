@@ -111,10 +111,11 @@ local abilityList = {
 	{"EnergyBeam", "Z", "=", Color3.fromRGB(95, 245, 255)},
 	{"GravityPulse", "X", "O", Color3.fromRGB(185, 95, 255)},
 	{"ChainLightning", "C", "~", Color3.fromRGB(255, 235, 90)},
+	{"Tornado", "V", "@", Color3.fromRGB(170, 210, 255)},
 	{"PowerDash", "Q", ">", Color3.fromRGB(100, 180, 255)},
 	{"Dodge", "SHIFT", "↝", Color3.fromRGB(190, 235, 255)},
 }
-local gamepadHints = {EnergyBolt = "RT", EnergyBurst = "RT", EnergyBeam = "RT", GravityPulse = "RT", ChainLightning = "RT", PowerDash = "B", Dodge = "LS"}
+local gamepadHints = {EnergyBolt = "RT", EnergyBurst = "RT", EnergyBeam = "RT", GravityPulse = "RT", ChainLightning = "RT", Tornado = "RT", PowerDash = "B", Dodge = "LS"}
 
 local cooldownLabels = {}
 local cooldownEnds = {}
@@ -123,8 +124,12 @@ local selectedAbilityIndex = 1
 local feedbackMessage = ""
 local feedbackExpires = 0
 
+local function isGamepadInput(inputType)
+	return inputType and string.find(inputType.Name, "Gamepad") ~= nil
+end
+
 local function selectAbility(index)
-	selectedAbilityIndex = ((index - 1) % #abilityList) + 1
+	selectedAbilityIndex = math.clamp(index, 1, #abilityList)
 	for abilityIndex, entry in ipairs(abilityList) do
 		local button = abilities:FindFirstChild(entry[1])
 		if button then
@@ -133,7 +138,7 @@ local function selectAbility(index)
 	end
 end
 
-local function castAbility(name)
+local function castAbility(name, mode)
 	if name == "PowerDash" then
 		if (cooldownEnds[name] or 0) <= os.clock() then
 			dashRemote:FireServer()
@@ -153,7 +158,11 @@ local function castAbility(name)
 	end
 	local definition = progressionConfig.Abilities[name]
 	local target
-	if definition and definition.Targeting == "Self" then
+	if mode == "Close" then
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		target = root and root.Position + root.CFrame.LookVector * math.min(definition and definition.CloseRange or 12, definition and definition.Range or 12)
+	elseif definition and definition.Targeting == "Self" then
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		target = root and root.Position
@@ -161,7 +170,7 @@ local function castAbility(name)
 		target = targetPosition(definition and definition.Range)
 	end
 	if target and definition and (cooldownEnds[name] or 0) <= os.clock() then
-		abilityRemote:FireServer(name, target)
+		abilityRemote:FireServer(name, target, mode or "Ranged")
 	end
 end
 
@@ -268,7 +277,7 @@ targetPosition = function(maximumRange)
 		return nil
 	end
 	local range = math.max(1, tonumber(maximumRange) or 80)
-	if UserInputService:GetLastInputType() == Enum.UserInputType.Gamepad1 then
+	if isGamepadInput(UserInputService:GetLastInputType()) then
 		local camera = workspace.CurrentCamera
 		if camera then
 			local viewport = camera.ViewportSize
@@ -365,6 +374,9 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		combatRemote:FireServer("Melee")
+	elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+		local target = targetPosition(120)
+		if target then combatRemote:FireServer("Ranged", target) end
 	elseif input.KeyCode == Enum.KeyCode.One then
 		castAbility("EnergyBolt")
 	elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.E then
@@ -375,6 +387,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		castAbility("GravityPulse")
 	elseif input.KeyCode == Enum.KeyCode.C then
 		castAbility("ChainLightning")
+	elseif input.KeyCode == Enum.KeyCode.V then
+		castAbility("Tornado")
 	elseif input.KeyCode == Enum.KeyCode.Q then
 		castAbility("PowerDash")
 	elseif input.KeyCode == Enum.KeyCode.R then
@@ -423,9 +437,14 @@ local function handleAction(actionName, inputState)
 	elseif actionName == "CyclePowerPrevious" then
 		selectAbility(selectedAbilityIndex - 1)
 	elseif actionName == "CastPower" then
-		castAbility(abilityList[selectedAbilityIndex][1])
+		castAbility(abilityList[selectedAbilityIndex][1], "Ranged")
+	elseif actionName == "CastClosePower" then
+		castAbility(abilityList[selectedAbilityIndex][1], "Close")
 	elseif actionName == "MeleeAttack" then
 		combatRemote:FireServer("Melee")
+	elseif actionName == "RangedWeapon" then
+		local target = targetPosition(120)
+		if target then combatRemote:FireServer("Ranged", target) end
 	elseif actionName == "PowerDash" then
 		castAbility("PowerDash")
 	elseif actionName == "Evolve" then
@@ -439,7 +458,7 @@ local function handleAction(actionName, inputState)
 end
 
 local function updateInputHints(inputType)
-	local usingGamepad = string.find(inputType.Name, "Gamepad") ~= nil
+	local usingGamepad = isGamepadInput(inputType)
 	for _, entry in ipairs(abilityList) do
 		local button = abilities:FindFirstChild(entry[1])
 		local keyLabel = button and button:FindFirstChild("KeyHint")
@@ -464,7 +483,11 @@ end
 ContextActionService:BindAction("CyclePowerNext", handleAction, false, Enum.KeyCode.ButtonR1, Enum.KeyCode.RightBracket)
 ContextActionService:BindAction("CyclePowerPrevious", handleAction, false, Enum.KeyCode.ButtonL1, Enum.KeyCode.LeftBracket)
 ContextActionService:BindAction("CastPower", handleAction, false, Enum.KeyCode.ButtonR2, Enum.KeyCode.Return)
+ContextActionService:BindAction("CastClosePower", handleAction, false, Enum.KeyCode.ButtonL2)
 ContextActionService:BindAction("MeleeAttack", handleAction, true, Enum.KeyCode.ButtonX)
+ContextActionService:BindAction("RangedWeapon", handleAction, true, Enum.KeyCode.ButtonA)
+ContextActionService:SetTitle("RangedWeapon", "FIRE")
+ContextActionService:SetPosition("RangedWeapon", UDim2.new(1, -70, 1, -170))
 ContextActionService:SetTitle("MeleeAttack", "ATTACK")
 ContextActionService:SetPosition("MeleeAttack", UDim2.new(1, -70, 1, -110))
 ContextActionService:BindAction("PowerDash", handleAction, true, Enum.KeyCode.ButtonB)
@@ -476,6 +499,6 @@ ContextActionService:SetPosition("Evolve", UDim2.new(1, -230, 1, -170))
 ContextActionService:BindAction("Dodge", handleAction, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
 ContextActionService:SetTitle("Dodge", "DODGE")
 ContextActionService:SetPosition("Dodge", UDim2.new(1, -150, 1, -100))
-ContextActionService:BindAction("Block", handleBlock, true, Enum.KeyCode.F, Enum.KeyCode.ButtonL2)
+ContextActionService:BindAction("Block", handleBlock, true, Enum.KeyCode.F)
 ContextActionService:SetTitle("Block", "BLOCK")
 ContextActionService:SetPosition("Block", UDim2.new(1, -230, 1, -100))

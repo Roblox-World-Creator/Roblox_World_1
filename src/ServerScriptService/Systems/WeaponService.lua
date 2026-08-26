@@ -16,13 +16,18 @@ local function equipWeapon(player, character)
 	end
 	local oldWeapon = character:FindFirstChild("EquippedWeaponVisual")
 	if oldWeapon then oldWeapon:Destroy() end
-	local itemId = player:GetAttribute("EquippedWeapon") or "IronBlade"
+	local equipment = player:FindFirstChild("Equipment")
+	local secondary = equipment and equipment:FindFirstChild("SecondaryWeapon")
+	local secondaryDefinition = secondary and itemConfig.Items[secondary.Value]
+	local itemId = secondaryDefinition and secondary.Value or player:GetAttribute("EquippedWeapon") or "IronBlade"
 	local definition = itemConfig.Items[itemId] or itemConfig.Items.IronBlade
+	player:SetAttribute("EquippedWeaponKind", definition.WeaponKind or "Melee")
 	local sword = Instance.new("Model")
 	sword.Name = "EquippedWeaponVisual"
 	sword:SetAttribute("ItemId", itemId)
+	sword:SetAttribute("WeaponKind", definition.WeaponKind or "Melee")
 	local blade = Instance.new("Part")
-	blade.Name = "Blade"
+	blade.Name = definition.WeaponKind and "RangedWeapon" or "Blade"
 	blade.Size = definition.WeaponSize or Vector3.new(0.3, 4.2, 0.65)
 	blade.Material = Enum.Material.Metal
 	blade.Color = definition.WeaponColor or Color3.fromRGB(185, 205, 225)
@@ -38,6 +43,13 @@ local function equipWeapon(player, character)
 	guard.Massless = true
 	guard.CFrame = blade.CFrame * CFrame.new(0, -2, 0)
 	guard.Parent = sword
+	if definition.WeaponKind == "Bow" then
+		guard.Size = Vector3.new(0.2, 3.8, 0.2)
+		guard.Color = Color3.fromRGB(100, 65, 35)
+	elseif definition.WeaponKind == "Gun" or definition.WeaponKind == "Rifle" then
+		guard.Size = Vector3.new(0.7, 0.8, 1.4)
+		guard.Color = Color3.fromRGB(35, 42, 58)
+	end
 	local bladeWeld = Instance.new("WeldConstraint")
 	bladeWeld.Part0 = blade
 	bladeWeld.Part1 = guard
@@ -79,6 +91,9 @@ function WeaponService.Start(config)
 		player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
 			if player.Character then task.defer(equipWeapon, player, player.Character) end
 		end)
+		local equipment = player:FindFirstChild("Equipment")
+		local secondary = equipment and equipment:FindFirstChild("SecondaryWeapon")
+		if secondary then secondary.Changed:Connect(function() if player.Character then task.defer(equipWeapon, player, player.Character) end end) end
 		if player.Character then
 			task.defer(equipWeapon, player, player.Character)
 		end

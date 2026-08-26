@@ -47,21 +47,21 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 		updateReady(player, config)
 	end
 
-	remote.OnServerEvent:Connect(function(player)
+	local function evolve(player, forced)
 		if busy[player] then
-			return
+			return false, "Evolution already in progress"
 		end
 		local current = player:GetAttribute("Evolution") or 0
 		local nextEvolution = current + 1
 		local requirement = config[nextEvolution]
-		if not requirement or (player:GetAttribute("Level") or 0) < requirement.Level or (workspace:GetAttribute("HighestWave") or workspace:GetAttribute("Wave") or 0) < requirement.Wave or (player:GetAttribute("Coins") or 0) < requirement.Coins then
-			return
+		if not requirement or (not forced and ((player:GetAttribute("Level") or 0) < requirement.Level or (workspace:GetAttribute("HighestWave") or workspace:GetAttribute("Wave") or 0) < requirement.Wave or (player:GetAttribute("Coins") or 0) < requirement.Coins)) then
+			return false, "Evolution requirements are not met"
 		end
 
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		if not humanoid or humanoid.Health <= 0 then
-			return
+			return false, "Character is not ready"
 		end
 		busy[player] = true
 		player:SetAttribute("Coins", (player:GetAttribute("Coins") or 0) - requirement.Coins)
@@ -99,7 +99,14 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 		player:SetAttribute("EvolutionTransforming", false)
 		busy[player] = nil
 		refresh(player)
+		return true, "Evolved to Ascendant " .. tostring(nextEvolution)
+	end
+	remote.OnServerEvent:Connect(function(player)
+		evolve(player, false)
 	end)
+	function EvolutionService.ForceEvolve(player)
+		return evolve(player, true)
+	end
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		for _, attribute in ipairs({"Level", "Coins", "Evolution"}) do

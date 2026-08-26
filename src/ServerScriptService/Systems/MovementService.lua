@@ -22,7 +22,7 @@ local function addDashTrail(root)
 	Debris:AddItem(attachment1, 0.35)
 end
 
-function MovementService.Start(resourceConfig)
+function MovementService.Start(resourceConfig, powerService)
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local dashRemote = remotes:FindFirstChild("DashRemote") or Instance.new("RemoteEvent")
 	dashRemote.Name = "DashRemote"
@@ -36,6 +36,7 @@ function MovementService.Start(resourceConfig)
 	local dodgeCooldowns = {}
 
 	dashRemote.OnServerEvent:Connect(function(player)
+		if powerService and not powerService.IsMotionActive(player, "PowerDash") then return end
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -70,6 +71,7 @@ function MovementService.Start(resourceConfig)
 	end)
 
 	dodgeRemote.OnServerEvent:Connect(function(player, requestedDirection)
+		if powerService and not powerService.IsMotionActive(player, "Dodge") then return end
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local root = character and character:FindFirstChild("HumanoidRootPart")
