@@ -77,7 +77,7 @@ local function refreshEquipmentStats(player)
 	progression.RefreshStats(player, progressionConfig)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid and not player:GetAttribute("AdminSpeedOverride") then humanoid.WalkSpeed = 36 * (player:GetAttribute("SpeedMultiplier") or 1) + totals.Speed end
-	player:SetAttribute("EquippedWeapon", equipment.Weapon.Value ~= "" and equipment.Weapon.Value or "IronBlade")
+	player:SetAttribute("EquippedWeapon", equipment.Weapon.Value)
 end
 
 local function createStack(inventory, itemId, saved)
@@ -202,6 +202,7 @@ local function equip(player, itemId)
 			local candidate = equipment:FindFirstChild("Artifact" .. index)
 			if candidate.Value == "" or candidate.Value == itemId then slotName = candidate.Name break end
 		end
+		if slotName == "Artifact" then slotName = "Artifact1" end
 	end
 	local slot = equipment:FindFirstChild(slotName)
 	if not slot then return false, "No compatible equipment slot is available" end

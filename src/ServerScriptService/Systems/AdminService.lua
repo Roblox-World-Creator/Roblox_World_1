@@ -97,7 +97,7 @@ local function authorize(player, suppliedCode, config)
 	return response(true, "Admin controls unlocked for this server session")
 end
 
-function AdminService.Start(config, waveDefense, inventoryService, itemConfig, evolutionService)
+function AdminService.Start(config, waveDefense, inventoryService, itemConfig, evolutionService, progression, progressionConfig)
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local remote = remotes:FindFirstChild("AdminRemote")
 	if not remote then
@@ -146,6 +146,10 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 		if action == "GetSpawnCatalog" then
 			return response(true, "Spawn catalog loaded", waveDefense.GetSpawnCatalog and waveDefense.GetSpawnCatalog() or {})
 		end
+		if action == "ClearPracticeEnemies" then
+			local success, message = waveDefense.ClearPracticeEnemies()
+			return response(success, message)
+		end
 
 		local target = resolveTarget(player, payload.Target)
 		if action == "Kick" then
@@ -191,6 +195,39 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 				humanoid.WalkSpeed = speed
 			end
 			return response(true, string.format("%s speed set to %d", target.Name, speed))
+		elseif action == "ResetSpeed" then
+			if not target then return response(false, "Target player not found or ambiguous") end
+			target:SetAttribute("AdminSpeedOverride", nil)
+			local humanoid = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+			if humanoid then humanoid.WalkSpeed = 36 * (target:GetAttribute("SpeedMultiplier") or 1) + (target:GetAttribute("EquipmentSpeed") or 0) end
+			return response(true, target.Name .. " speed restored")
+		elseif action == "Respawn" then
+			if not target then return response(false, "Target player not found or ambiguous") end
+			target:LoadCharacter()
+			return response(true, "Respawned " .. target.Name)
+		elseif action == "AddCoins" then
+			if not target or not progression then return response(false, "Target or progression service unavailable") end
+			local requestedAmount = tonumber(payload.Amount)
+			if not requestedAmount then return response(false, "Enter a valid gold amount") end
+			local amount = math.clamp(math.floor(requestedAmount), 1, 1000000)
+			progression.AddCoins(target, amount)
+			return response(true, string.format("Granted %d gold to %s", amount, target.Name))
+		elseif action == "AddXP" then
+			if not target or not progression or not progressionConfig then return response(false, "Target or progression service unavailable") end
+			local requestedAmount = tonumber(payload.Amount)
+			if not requestedAmount then return response(false, "Enter a valid XP amount") end
+			local amount = math.clamp(math.floor(requestedAmount), 1, 1000000)
+			progression.AddXP(target, amount, progressionConfig)
+			return response(true, string.format("Granted %d XP to %s", amount, target.Name))
+		elseif action == "SetLevel" then
+			if not target or not progression or not progressionConfig then return response(false, "Target or progression service unavailable") end
+			local requestedLevel = tonumber(payload.Level)
+			if not requestedLevel then return response(false, "Enter a valid level") end
+			local level = math.clamp(math.floor(requestedLevel), 1, 100)
+			target:SetAttribute("Level", level)
+			target:SetAttribute("XP", 0)
+			progression.RefreshStats(target, progressionConfig)
+			return response(true, string.format("Set %s to level %d", target.Name, level))
 		elseif action == "DamageBoost" then
 			if not target then
 				return response(false, "Target player not found or ambiguous")

@@ -115,7 +115,7 @@ local abilityList = {
 	{"PowerDash", "Q", ">", Color3.fromRGB(100, 180, 255)},
 	{"Dodge", "SHIFT", "↝", Color3.fromRGB(190, 235, 255)},
 }
-local gamepadHints = {EnergyBolt = "RT", EnergyBurst = "RT", EnergyBeam = "RT", GravityPulse = "RT", ChainLightning = "RT", Tornado = "RT", PowerDash = "B", Dodge = "LS"}
+local gamepadHints = {EnergyBolt = "RT/LT", EnergyBurst = "RT/LT", EnergyBeam = "RT/LT", GravityPulse = "RT/LT", ChainLightning = "RT/LT", Tornado = "RT/LT", PowerDash = "B", Dodge = "LS"}
 
 local cooldownLabels = {}
 local cooldownEnds = {}
@@ -136,6 +136,27 @@ local function selectAbility(index)
 			button.BackgroundColor3 = abilityIndex == selectedAbilityIndex and Color3.fromRGB(70, 90, 120) or Color3.fromRGB(30, 38, 55)
 		end
 	end
+end
+
+local function isAbilityAvailable(entry)
+	local name = entry[1]
+	if name == "PowerDash" or name == "Dodge" then return false end
+	local active = "," .. (player:GetAttribute("ActiveAttacks") or "") .. ","
+	local definition = progressionConfig and progressionConfig.Abilities[name]
+	local unlocked = definition and (player:GetAttribute("AdminAllPowersUnlocked")
+		or ((player:GetAttribute("Level") or 1) >= (definition.RequiredLevel or 1)
+			and (player:GetAttribute("Evolution") or 0) >= (definition.RequiredEvolution or 0)))
+	return unlocked and (active == ",," or string.find(active, "," .. name .. ",", 1, true) ~= nil)
+end
+
+local function cycleAbility(direction)
+	local available = {}
+	for index, entry in ipairs(abilityList) do
+		if isAbilityAvailable(entry) then table.insert(available, index) end
+	end
+	if #available == 0 then return end
+	local position = table.find(available, selectedAbilityIndex) or (direction > 0 and 0 or 1)
+	selectAbility(available[(position - 1 + direction) % #available + 1])
 end
 
 local function castAbility(name, mode)
@@ -159,12 +180,6 @@ local function castAbility(name, mode)
 	local definition = progressionConfig.Abilities[name]
 	local target
 	if mode == "Close" then
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		target = root and root.Position + root.CFrame.LookVector * math.min(definition and definition.CloseRange or 12, definition and definition.Range or 12)
-	elseif mode ~= "Close" then
-		target = targetPosition(definition and definition.Range)
-	elseif definition and definition.Targeting == "Self" then
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		target = root and root.Position
@@ -418,8 +433,13 @@ task.spawn(function()
 				local value = mastery and mastery:FindFirstChild(entry[1])
 				nameLabel.Text = string.format("%s M%d", definition.DisplayName, value and (value:GetAttribute("Level") or 0) or 0)
 				button.BackgroundTransparency = unlocked and 0 or 0.55
+				button.Visible = isAbilityAvailable(entry)
+			elseif button then
+				local activeMotion = "," .. (player:GetAttribute("ActiveMotion") or "") .. ","
+				button.Visible = activeMotion == ",," or string.find(activeMotion, "," .. entry[1] .. ",", 1, true) ~= nil
 			end
 		end
+		if not isAbilityAvailable(abilityList[selectedAbilityIndex]) then cycleAbility(1) end
 		task.wait(0.25)
 	end
 end)
@@ -443,9 +463,9 @@ local function handleAction(actionName, inputState)
 		end
 	end
 	if actionName == "CyclePowerNext" then
-		selectAbility(selectedAbilityIndex + 1)
+		cycleAbility(1)
 	elseif actionName == "CyclePowerPrevious" then
-		selectAbility(selectedAbilityIndex - 1)
+		cycleAbility(-1)
 	elseif actionName == "CastPower" then
 		castAbility(abilityList[selectedAbilityIndex][1], "Ranged")
 	elseif actionName == "CastClosePower" then

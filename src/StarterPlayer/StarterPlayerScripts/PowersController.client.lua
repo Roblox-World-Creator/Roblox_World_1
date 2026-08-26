@@ -84,7 +84,9 @@ local function getState()
 	return ok and state or nil
 end
 local function render()
-	for _, child in ipairs(list:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+	for _, child in ipairs(list:GetChildren()) do
+		if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end
+	end
 	local state = getState()
 	if not state then return end
 	local activeAttacks, activeMotion = {}, {}
@@ -123,7 +125,7 @@ local function render()
 	heading.TextColor3 = Color3.fromRGB(255, 205, 100)
 	heading.TextXAlignment = Enum.TextXAlignment.Left
 	heading.Parent = list
-	for name in pairs(config.Abilities) do addPower(name, false) end
+	for _, name in ipairs(config.AbilityOrder or {}) do addPower(name, false) end
 	local motionHeading = heading:Clone()
 	motionHeading.Text = "MOTION (2 ACTIVE SLOTS)"
 	motionHeading.Parent = list

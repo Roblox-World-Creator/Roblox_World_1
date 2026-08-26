@@ -33,11 +33,11 @@ The Ascendant Quest Board and `J` open a five-objective campaign covering normal
 
 ## Xbox-style controller
 
-- `X`: melee attack; `RT`: cast selected power; `LB`/`RB`: cycle powers.
-- `B`: dash; `LT`: block; left-stick click: dodge; `Y`: evolve.
+- `X`: melee attack; `RT`: cast the selected power at range; `LT`: cast its local form; `LB`/`RB`: cycle the active powers in order.
+- `B`: dash; left-stick click: dodge; `Y`: evolve. Hold `F` to block on keyboard.
 - View/Back: bag; right-stick click: settings; hold `LT` and press D-pad up for admin. Keyboard admin shortcut: `F8`.
 - D-pad left/down/right: Health Core, Mana Crystal, and Battle Serum.
-- D-pad up: quest log.
+- D-pad up: quest log (hold `LT` first to open admin controls).
 - The on-screen Powers panel shows the active six attacks and two movement powers; select it with the mouse/touch UI or keyboard `P`.
 - While the bag is open, `LB`/`RB` change tabs, `A` activates the selected control, and `B` closes it.
 

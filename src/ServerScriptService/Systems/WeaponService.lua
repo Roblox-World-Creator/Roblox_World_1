@@ -1,107 +1,179 @@
 local Players = game:GetService("Players")
 
 local WeaponService = {}
-
 local itemConfig
+local rebuildTokens = {}
 
-local function equipWeapon(player, character)
-	local humanoid = character:WaitForChild("Humanoid", 5)
-	if not humanoid then
-		return
-	end
-	local handName = humanoid.RigType == Enum.HumanoidRigType.R15 and "RightHand" or "Right Arm"
-	local hand = character:WaitForChild(handName, 5)
-	if not hand then
-		return
-	end
-	local oldWeapon = character:FindFirstChild("EquippedWeaponVisual")
-	if oldWeapon then oldWeapon:Destroy() end
-	local equipment = player:FindFirstChild("Equipment")
-	local secondary = equipment and equipment:FindFirstChild("SecondaryWeapon")
-	local secondaryDefinition = secondary and itemConfig.Items[secondary.Value]
-	local itemId = secondaryDefinition and secondary.Value or player:GetAttribute("EquippedWeapon") or "IronBlade"
-	local definition = itemConfig.Items[itemId] or itemConfig.Items.IronBlade
-	player:SetAttribute("EquippedWeaponKind", definition.WeaponKind or "Melee")
-	local sword = Instance.new("Model")
-	sword.Name = "EquippedWeaponVisual"
-	sword:SetAttribute("ItemId", itemId)
-	sword:SetAttribute("WeaponKind", definition.WeaponKind or "Melee")
-	local blade = Instance.new("Part")
-	blade.Name = definition.WeaponKind and "RangedWeapon" or "Blade"
-	blade.Size = definition.WeaponSize or Vector3.new(0.3, 4.2, 0.65)
-	blade.Material = Enum.Material.Metal
-	blade.Color = definition.WeaponColor or Color3.fromRGB(185, 205, 225)
-	blade.CanCollide = false
-	blade.Massless = true
-	blade.Parent = sword
-	local guard = Instance.new("Part")
-	guard.Name = "Guard"
-	guard.Size = Vector3.new(1.6, 0.25, 0.35)
-	guard.Material = Enum.Material.Metal
-	guard.Color = Color3.fromRGB(55, 75, 105)
-	guard.CanCollide = false
-	guard.Massless = true
-	guard.CFrame = blade.CFrame * CFrame.new(0, -2, 0)
-	guard.Parent = sword
+local RARITY_COLORS = {
+	Common = Color3.fromRGB(185, 205, 225), Uncommon = Color3.fromRGB(95, 225, 135),
+	Rare = Color3.fromRGB(75, 155, 255), Epic = Color3.fromRGB(185, 95, 255),
+	Legendary = Color3.fromRGB(255, 180, 55),
+}
+
+local function visualPart(parent, name, size, color, material)
+	local part = Instance.new("Part")
+	part.Name, part.Size, part.Color = name, size, color
+	part.Material = material or Enum.Material.Metal
+	part.CanCollide, part.CanTouch, part.CanQuery = false, false, false
+	part.CastShadow, part.Massless, part.Parent = false, true, parent
+	return part
+end
+
+local function attach(part, bodyPart, offset, name)
+	part.CFrame = bodyPart.CFrame * offset
+	local motor = Instance.new("Motor6D")
+	-- Keep the joint inside the visual model so a rebuild removes both the part and its joint.
+	motor.Name, motor.Part0, motor.Part1, motor.C0, motor.Parent = name or "EquipmentGrip", bodyPart, part, offset, part
+	return motor
+end
+
+local function addGlow(part, definition)
+	if definition.Rarity == "Common" then return end
+	local light = Instance.new("PointLight")
+	light.Color, light.Range = part.Color, definition.Rarity == "Legendary" and 14 or 8
+	light.Brightness, light.Parent = definition.Rarity == "Legendary" and 2.2 or 1.2, part
+end
+
+local function createWeapon(container, hand, itemId, definition, secondary)
+	local model = Instance.new("Model")
+	model.Name, model.Parent = secondary and "SecondaryWeaponVisual" or "PrimaryWeaponVisual", container
+	model:SetAttribute("ItemId", itemId)
+	model:SetAttribute("WeaponKind", definition.WeaponKind or "Melee")
+	local size = definition.WeaponSize or Vector3.new(0.3, 4.2, 0.65)
+	local blade = visualPart(model, definition.WeaponKind and "RangedWeapon" or "Blade", size, definition.WeaponColor or RARITY_COLORS[definition.Rarity])
+	local offset = secondary
+		and CFrame.new(0, -0.65, -0.35) * CFrame.Angles(math.rad(-90), 0, math.rad(-8))
+		or CFrame.new(0, -1.35, -0.2) * CFrame.Angles(0, 0, math.rad(10))
+	attach(blade, hand, offset, secondary and "SecondaryGrip" or "SwordGrip")
+	model.PrimaryPart = blade
+
+	local detailColor, detailSize = Color3.fromRGB(45, 58, 82), Vector3.new(1.6, 0.25, 0.35)
+	local detailOffset = CFrame.new(0, -size.Y / 2 + 0.15, 0)
 	if definition.WeaponKind == "Bow" then
-		guard.Size = Vector3.new(0.2, 3.8, 0.2)
-		guard.Color = Color3.fromRGB(100, 65, 35)
+		detailColor, detailSize, detailOffset = Color3.fromRGB(110, 72, 38), Vector3.new(0.16, size.Y * 0.92, math.max(1.6, size.Y * 0.48)), CFrame.identity
 	elseif definition.WeaponKind == "Gun" or definition.WeaponKind == "Rifle" then
-		guard.Size = Vector3.new(0.7, 0.8, 1.4)
-		guard.Color = Color3.fromRGB(35, 42, 58)
+		detailSize, detailOffset = Vector3.new(0.75, 0.9, math.max(1.2, size.Z * 1.35)), CFrame.new(0, -size.Y * 0.28, size.Z * 0.35)
 	end
-	local bladeWeld = Instance.new("WeldConstraint")
-	bladeWeld.Part0 = blade
-	bladeWeld.Part1 = guard
-	bladeWeld.Parent = guard
-	blade.CFrame = hand.CFrame * CFrame.new(0, -1.4, -0.25) * CFrame.Angles(0, 0, math.rad(10))
-	local swordGrip = Instance.new("Motor6D")
-	swordGrip.Name = "SwordGrip"
-	swordGrip.Part0 = hand
-	swordGrip.Part1 = blade
-	swordGrip.C0 = hand.CFrame:ToObjectSpace(blade.CFrame)
-	swordGrip.Parent = hand
-	sword.PrimaryPart = blade
-	sword.Parent = character
+	local detail = visualPart(model, "WeaponDetail", detailSize, detailColor)
+	detail.CFrame = blade.CFrame * detailOffset
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0, weld.Part1, weld.Parent = blade, detail, detail
 	if definition.Rarity ~= "Common" then
-		local top = Instance.new("Attachment")
-		top.Position = Vector3.new(0, blade.Size.Y / 2, 0)
-		top.Parent = blade
-		local bottom = Instance.new("Attachment")
-		bottom.Position = Vector3.new(0, -blade.Size.Y / 2, 0)
-		bottom.Parent = blade
+		local top, bottom = Instance.new("Attachment"), Instance.new("Attachment")
+		top.Position, bottom.Position, top.Parent, bottom.Parent = Vector3.new(0, size.Y / 2, 0), Vector3.new(0, -size.Y / 2, 0), blade, blade
 		local trail = Instance.new("Trail")
 		trail.Attachment0, trail.Attachment1 = top, bottom
-		trail.Color = ColorSequence.new(blade.Color, Color3.new(1, 1, 1))
-		trail.Lifetime = definition.Rarity == "Legendary" and 0.28 or 0.16
-		trail.LightEmission = 1
-		trail.Parent = blade
-		local light = Instance.new("PointLight")
-		light.Color, light.Range, light.Brightness = blade.Color, definition.Rarity == "Legendary" and 18 or 10, 2
-		light.Parent = blade
+		trail.Color, trail.Transparency = ColorSequence.new(blade.Color, Color3.new(1, 1, 1)), NumberSequence.new(0.15, 1)
+		trail.Lifetime, trail.LightEmission, trail.Parent = definition.Rarity == "Legendary" and 0.26 or 0.14, 1, blade
+		addGlow(blade, definition)
 	end
+end
+
+local function firstPart(character, ...)
+	for _, name in ipairs({...}) do
+		local part = character:FindFirstChild(name)
+		if part and part:IsA("BasePart") then return part end
+	end
+end
+
+local function createArmorPiece(container, bodyPart, name, scale, offset, definition)
+	if not bodyPart then return end
+	local size = Vector3.new(math.max(0.35, bodyPart.Size.X * scale.X), math.max(0.25, bodyPart.Size.Y * scale.Y), math.max(0.2, bodyPart.Size.Z * scale.Z))
+	local part = visualPart(container, name, size, RARITY_COLORS[definition.Rarity] or Color3.fromRGB(150, 170, 200))
+	part.Transparency = 0.08
+	attach(part, bodyPart, offset, name .. "Grip")
+	addGlow(part, definition)
+end
+
+local function createEquipmentVisual(container, character, slotName, definition)
+	local head, torso = firstPart(character, "Head"), firstPart(character, "UpperTorso", "Torso")
+	if slotName == "Head" then
+		createArmorPiece(container, head, "Helmet", Vector3.new(1.08, 0.72, 1.08), CFrame.new(0, 0.28, 0), definition)
+	elseif slotName == "Chest" then
+		createArmorPiece(container, torso, "Chestplate", Vector3.new(1.08, 0.82, 1.22), CFrame.new(0, 0, -0.08), definition)
+	elseif slotName == "Legs" then
+		for _, limb in ipairs({firstPart(character, "LeftUpperLeg", "Left Leg"), firstPart(character, "RightUpperLeg", "Right Leg")}) do
+			createArmorPiece(container, limb, "LegGuard", Vector3.new(1.12, 0.72, 1.12), CFrame.new(0, 0.15, 0), definition)
+		end
+	elseif slotName == "Boots" then
+		for _, limb in ipairs({firstPart(character, "LeftFoot", "Left Leg"), firstPart(character, "RightFoot", "Right Leg")}) do
+			if limb then createArmorPiece(container, limb, "Boot", Vector3.new(1.16, 0.38, 1.35), CFrame.new(0, -limb.Size.Y * 0.28, -0.12), definition) end
+		end
+	elseif slotName == "Gloves" then
+		for _, limb in ipairs({firstPart(character, "LeftHand", "Left Arm"), firstPart(character, "RightHand", "Right Arm")}) do
+			createArmorPiece(container, limb, "Gauntlet", Vector3.new(1.18, 0.72, 1.18), CFrame.identity, definition)
+		end
+	elseif string.find(slotName, "Artifact", 1, true) == 1 or slotName == "Core" then
+		if not torso then return end
+		local index = tonumber(string.match(slotName, "%d+")) or 2
+		local core = visualPart(container, slotName .. "Visual", Vector3.one * 0.62, RARITY_COLORS[definition.Rarity], Enum.Material.Neon)
+		core.Shape = Enum.PartType.Ball
+		attach(core, torso, CFrame.new((index - 2) * 1.25, 0.35, 1), slotName .. "Grip")
+		addGlow(core, definition)
+	elseif slotName == "Cape" and torso then
+		local cape = visualPart(container, "Cape", Vector3.new(torso.Size.X * 0.92, torso.Size.Y * 1.35, 0.12), RARITY_COLORS[definition.Rarity], Enum.Material.Fabric)
+		attach(cape, torso, CFrame.new(0, -torso.Size.Y * 0.35, torso.Size.Z * 0.58) * CFrame.Angles(math.rad(8), 0, 0), "CapeGrip")
+	end
+end
+
+local function rebuild(player, character)
+	if not character or character ~= player.Character then return end
+	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid", 5)
+	if not humanoid then return end
+	local old = character:FindFirstChild("EquippedItemVisuals")
+	if old then old:Destroy() end
+	local container = Instance.new("Model")
+	container.Name, container.Parent = "EquippedItemVisuals", character
+	local equipment = player:FindFirstChild("Equipment")
+	if not equipment then return end
+	local primary, secondary = equipment:FindFirstChild("Weapon"), equipment:FindFirstChild("SecondaryWeapon")
+	local primaryDefinition = primary and itemConfig.Items[primary.Value]
+	local secondaryDefinition = secondary and itemConfig.Items[secondary.Value]
+	local rightName = humanoid.RigType == Enum.HumanoidRigType.R15 and "RightHand" or "Right Arm"
+	local leftName = humanoid.RigType == Enum.HumanoidRigType.R15 and "LeftHand" or "Left Arm"
+	local rightHand = character:FindFirstChild(rightName) or character:WaitForChild(rightName, 5)
+	local leftHand = character:FindFirstChild(leftName) or character:WaitForChild(leftName, 5)
+	if primaryDefinition and rightHand then createWeapon(container, rightHand, primary.Value, primaryDefinition, false) end
+	if secondaryDefinition and leftHand then createWeapon(container, leftHand, secondary.Value, secondaryDefinition, true) end
+	player:SetAttribute("EquippedWeaponKind", secondaryDefinition and (secondaryDefinition.WeaponKind or "Ranged") or "Melee")
+	for _, slot in ipairs(equipment:GetChildren()) do
+		local definition = slot:IsA("StringValue") and itemConfig.Items[slot.Value]
+		if definition and slot.Name ~= "Weapon" and slot.Name ~= "SecondaryWeapon" then createEquipmentVisual(container, character, slot.Name, definition) end
+	end
+end
+
+local function queueRebuild(player)
+	rebuildTokens[player] = (rebuildTokens[player] or 0) + 1
+	local token = rebuildTokens[player]
+	task.defer(function()
+		if player.Parent and token == rebuildTokens[player] then rebuild(player, player.Character) end
+	end)
 end
 
 function WeaponService.Start(config)
 	itemConfig = config
 	local function setup(player)
-		player.CharacterAdded:Connect(function(character)
-			task.defer(equipWeapon, player, character)
-		end)
-		player:GetAttributeChangedSignal("EquippedWeapon"):Connect(function()
-			if player.Character then task.defer(equipWeapon, player, player.Character) end
-		end)
-		local equipment = player:FindFirstChild("Equipment")
-		local secondary = equipment and equipment:FindFirstChild("SecondaryWeapon")
-		if secondary then secondary.Changed:Connect(function() if player.Character then task.defer(equipWeapon, player, player.Character) end end) end
-		if player.Character then
-			task.defer(equipWeapon, player, player.Character)
+		local connectedSlots = {}
+		local function connectEquipment(equipment)
+			local function connectSlot(slot)
+				if slot:IsA("StringValue") and not connectedSlots[slot] then
+					connectedSlots[slot] = true
+					slot.Changed:Connect(function() queueRebuild(player) end)
+				end
+			end
+			for _, slot in ipairs(equipment:GetChildren()) do connectSlot(slot) end
+			equipment.ChildAdded:Connect(function(slot) connectSlot(slot); queueRebuild(player) end)
+			queueRebuild(player)
 		end
+		player.CharacterAdded:Connect(function(character) task.defer(rebuild, player, character) end)
+		local equipment = player:FindFirstChild("Equipment")
+		if equipment then connectEquipment(equipment) end
+		player.ChildAdded:Connect(function(child) if child.Name == "Equipment" and child:IsA("Folder") then connectEquipment(child) end end)
+		if player.Character then queueRebuild(player) end
 	end
 	Players.PlayerAdded:Connect(setup)
-	for _, player in ipairs(Players:GetPlayers()) do
-		setup(player)
-	end
+	for _, player in ipairs(Players:GetPlayers()) do setup(player) end
+	Players.PlayerRemoving:Connect(function(player) rebuildTokens[player] = nil end)
 end
 
 return WeaponService

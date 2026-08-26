@@ -264,6 +264,67 @@ local function renderPowerCast(data)
 	renderRing("PowerCastImpact", data.Target - Vector3.new(0, 1.2, 0), radius * 1.4, color, 0.3)
 end
 
+local function renderLocalPower(data)
+	if typeof(data.Origin) ~= "Vector3" then return end
+	local ability = tostring(data.Ability or "EnergyBolt")
+	local color = POWER_COLORS[ability] or ENERGY_COLOR
+	local radius = math.clamp(tonumber(data.Radius) or 12, 4, 40)
+
+	-- Every LT form has its own readable silhouette while keeping the common color language.
+	if ability == "GravityPulse" then
+		for index = 1, highQualityEffects() and 4 or 2 do
+			task.delay((index - 1) * 0.055, function()
+				local shell = createEffectPart("LocalGravityShell", Enum.PartType.Ball, color, Vector3.one * radius * 2, CFrame.new(data.Origin + Vector3.new(0, 2, 0)))
+				shell.Transparency = 0.76
+				TweenService:Create(shell, TweenInfo.new(0.42, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = Vector3.one * 0.5, Transparency = 1}):Play()
+				Debris:AddItem(shell, 0.48)
+			end)
+		end
+	elseif ability == "Tornado" then
+		for index = 1, highQualityEffects() and 6 or 3 do
+			local height = index * 1.1
+			local ring = createEffectPart("LocalTornadoCoil", Enum.PartType.Cylinder, color, Vector3.new(0.18, radius * (1 - index * 0.045), radius * (1 - index * 0.045)), CFrame.new(data.Origin + Vector3.new(0, height, 0)) * CFrame.Angles(0, 0, math.rad(90)))
+			ring.Transparency = 0.3
+			TweenService:Create(ring, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {CFrame = ring.CFrame * CFrame.Angles(math.rad(180), 0, 0), Transparency = 1}):Play()
+			Debris:AddItem(ring, 0.55)
+		end
+	elseif ability == "EnergyBeam" then
+		for index = 0, 3 do
+			local slash = createEffectPart("LocalBeamBlade", Enum.PartType.Block, color, Vector3.new(0.22, 0.75, radius * 2), CFrame.new(data.Origin + Vector3.new(0, 2, 0)) * CFrame.Angles(0, math.rad(index * 45), math.rad(18)))
+			slash.Transparency = 0.18
+			TweenService:Create(slash, TweenInfo.new(0.3), {Size = Vector3.new(0.04, 0.12, radius * 2.5), Transparency = 1}):Play()
+			Debris:AddItem(slash, 0.35)
+		end
+	elseif ability == "ChainLightning" then
+		for index = 1, highQualityEffects() and 10 or 6 do
+			local angle = (index / (highQualityEffects() and 10 or 6)) * math.pi * 2
+			local direction = Vector3.new(math.cos(angle), math.sin(angle * 2) * 0.18, math.sin(angle))
+			local start = data.Origin + Vector3.new(0, 2, 0)
+			local finish = start + direction * radius
+			local arc = createEffectPart("LocalLightningArc", Enum.PartType.Block, color, Vector3.new(0.22, 0.22, radius), CFrame.lookAt(start:Lerp(finish, 0.5), finish))
+			arc.Transparency = 0.12
+			TweenService:Create(arc, TweenInfo.new(0.24), {Transparency = 1}):Play()
+			Debris:AddItem(arc, 0.28)
+		end
+	elseif ability == "EnergyBolt" then
+		for index = 1, highQualityEffects() and 8 or 4 do
+			local angle = index / (highQualityEffects() and 8 or 4) * math.pi * 2
+			local orb = createEffectPart("LocalEnergyOrb", Enum.PartType.Ball, color, Vector3.one * 1.25, CFrame.new(data.Origin + Vector3.new(math.cos(angle) * 3, 2.2, math.sin(angle) * 3)))
+			TweenService:Create(orb, TweenInfo.new(0.34, Enum.EasingStyle.Back), {Position = data.Origin + Vector3.new(math.cos(angle) * radius, 1.5, math.sin(angle) * radius), Size = Vector3.one * 0.2, Transparency = 1}):Play()
+			Debris:AddItem(orb, 0.4)
+		end
+	else
+		local sphere = createEffectPart("LocalEnergyBurst", Enum.PartType.Ball, color, Vector3.one * 2, CFrame.new(data.Origin + Vector3.new(0, 1.5, 0)))
+		sphere.Transparency = 0.42
+		TweenService:Create(sphere, TweenInfo.new(0.38, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = Vector3.one * radius * 2, Transparency = 1}):Play()
+		Debris:AddItem(sphere, 0.44)
+	end
+
+	renderRing("LocalPowerInner", data.Origin - Vector3.new(0, 2.4, 0), radius * 0.72, Color3.new(1, 1, 1), 0.3)
+	renderRing("LocalPowerOuter", data.Origin - Vector3.new(0, 2.35, 0), radius, color, 0.48)
+	shakeCamera(data.Origin, radius * 3, (ability == "GravityPulse" or ability == "Tornado") and 0.85 or 0.55)
+end
+
 local function renderMelee(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Direction) ~= "Vector3" then
 		return
@@ -570,6 +631,8 @@ effectsRemote.OnClientEvent:Connect(function(effectName, data)
 	end
 	if effectName == "PowerCast" then
 		renderPowerCast(data)
+	elseif effectName == "PowerLocal" then
+		renderLocalPower(data)
 	elseif effectName == "EnergyBolt" then
 		renderEnergyBolt(data)
 	elseif effectName == "TornadoTravel" then

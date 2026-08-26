@@ -54,7 +54,7 @@ local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(1, 0)
 panel.Position = UDim2.new(1, -18, 0, 58)
-panel.Size = UDim2.new(1, -36, 0, 455)
+panel.Size = UDim2.new(1, -36, 1, -76)
 panel.BackgroundColor3 = colors.Panel
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -63,7 +63,7 @@ round(panel, 12)
 
 local sizeConstraint = Instance.new("UISizeConstraint")
 sizeConstraint.MinSize = Vector2.new(300, 360)
-sizeConstraint.MaxSize = Vector2.new(390, 455)
+sizeConstraint.MaxSize = Vector2.new(430, 650)
 sizeConstraint.Parent = panel
 
 local title = Instance.new("TextLabel")
@@ -146,6 +146,19 @@ layout.Padding = UDim.new(0, 8)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = controls
 
+local function createSection(text)
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, -6, 0, 25)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = colors.Accent
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 13
+	label.Parent = controls
+	return label
+end
+
 local function createTextBox(placeholder, defaultText)
 	local box = Instance.new("TextBox")
 	box.Size = UDim2.new(1, -6, 0, 38)
@@ -168,7 +181,8 @@ local function createTextBox(placeholder, defaultText)
 	return box
 end
 
-local targetBox = createTextBox("Target: me, username, or UserId", "me")
+createSection("PLAYER TARGET")
+local targetBox = createTextBox("Target: me, username, display name, or UserId", "me")
 
 local function createRow()
 	local row = Instance.new("Frame")
@@ -190,6 +204,8 @@ end
 
 local busy = false
 local spawnCatalog
+local playerCatalog = {{Name = "me", DisplayName = "Me", UserId = 0}}
+local playerCatalogIndex = 0
 local function invoke(action, payload)
 	if busy then
 		return nil
@@ -213,11 +229,19 @@ local function actionButton(parent, text, action, payloadFactory, color)
 	styleButton(button, color)
 	button.Parent = parent
 	button.Activated:Connect(function()
+		if action == "Kick" and os.clock() > (button:GetAttribute("ConfirmUntil") or 0) then
+			button:SetAttribute("ConfirmUntil", os.clock() + 3)
+			button.Text = "CONFIRM KICK"
+			setStatus("Press CONFIRM KICK within 3 seconds", false)
+			task.delay(3, function() if button.Parent then button.Text = text end end)
+			return
+		end
 		local payload = payloadFactory and payloadFactory() or {}
 		if action ~= "GetPlayers" then
 			payload.Target = targetBox.Text
 		end
 		local result = invoke(action, payload)
+		if action == "Kick" then button.Text = text; button:SetAttribute("ConfirmUntil", 0) end
 		if action == "GetSpawnCatalog" and result and type(result.Data) == "table" and spawnCatalog then
 			local lines = {}
 			for _, entry in ipairs(result.Data) do table.insert(lines, string.format("%s | HP %d | DMG %d | ACTIVE %d", entry.Name, entry.Health, entry.Damage, entry.Count)) end
@@ -227,6 +251,24 @@ local function actionButton(parent, text, action, payloadFactory, color)
 	return button
 end
 
+local targetRow = createRow()
+local targetMe = Instance.new("TextButton")
+targetMe.Text, targetMe.Parent = "TARGET ME", targetRow
+styleButton(targetMe, colors.Success)
+targetMe.Activated:Connect(function() targetBox.Text = "me"; setStatus("Target set to yourself", true) end)
+local cycleTarget = Instance.new("TextButton")
+cycleTarget.Text, cycleTarget.Parent = "NEXT PLAYER", targetRow
+styleButton(cycleTarget)
+cycleTarget.Activated:Connect(function()
+	local result = invoke("GetPlayers")
+	if result and type(result.Data) == "table" and #result.Data > 0 then playerCatalog = result.Data end
+	playerCatalogIndex = playerCatalogIndex % #playerCatalog + 1
+	local target = playerCatalog[playerCatalogIndex]
+	targetBox.Text = target.UserId == 0 and "me" or tostring(target.UserId)
+	cycleTarget.Text = "TARGET: " .. string.upper(target.DisplayName or target.Name)
+end)
+
+createSection("PLAYER TOOLS")
 local row1 = createRow()
 actionButton(row1, "GOD MODE", "GodMode")
 actionButton(row1, "HEAL", "Heal")
@@ -238,7 +280,10 @@ actionButton(row3, "SPEED 36", "SetSpeed", function() return {Preset = "Normal"}
 actionButton(row3, "SPEED 60", "SetSpeed", function() return {Preset = "Boost"} end)
 local row4 = createRow()
 actionButton(row4, "SPEED 90", "SetSpeed", function() return {Preset = "Extreme"} end)
-actionButton(row4, "KICK TARGET", "Kick", nil, colors.Danger)
+actionButton(row4, "RESET SPEED", "ResetSpeed")
+local rowSafety = createRow()
+actionButton(rowSafety, "RESPAWN", "Respawn")
+actionButton(rowSafety, "KICK TARGET", "Kick", nil, colors.Danger)
 local rowPowers = createRow()
 actionButton(rowPowers, "UNLOCK ALL POWERS", "UnlockPowers", nil, colors.Accent)
 actionButton(rowPowers, "GRANT 5 POTIONS", "GrantItem", function()
@@ -247,15 +292,16 @@ end)
 local rowEvolution = createRow()
 actionButton(rowEvolution, "FORCE NEXT EVOLUTION", "ForceEvolution", nil, colors.Accent)
 
-local spawnTitle = Instance.new("TextLabel")
-spawnTitle.Size = UDim2.new(1, -6, 0, 24)
-spawnTitle.BackgroundTransparency = 1
-spawnTitle.Text = "PRACTICE SPAWNS"
-spawnTitle.TextColor3 = colors.Accent
-spawnTitle.TextXAlignment = Enum.TextXAlignment.Left
-spawnTitle.Font = Enum.Font.GothamBold
-spawnTitle.TextSize = 13
-spawnTitle.Parent = controls
+createSection("PROGRESSION")
+local amountBox = createTextBox("Gold / XP amount (1-1,000,000)", "1000")
+local progressionRow = createRow()
+actionButton(progressionRow, "GRANT GOLD", "AddCoins", function() return {Amount = amountBox.Text} end, colors.Accent)
+actionButton(progressionRow, "GRANT XP", "AddXP", function() return {Amount = amountBox.Text} end, colors.Accent)
+local levelBox = createTextBox("Set level (1-100)", "10")
+local levelRow = createRow()
+actionButton(levelRow, "SET LEVEL", "SetLevel", function() return {Level = levelBox.Text} end, colors.Accent)
+
+createSection("PRACTICE SPAWNS")
 
 local row5 = createRow()
 actionButton(row5, "SPAWN BASIC", "SpawnEnemy", function() return {EnemyType = "Basic"} end)
@@ -263,6 +309,8 @@ actionButton(row5, "SPAWN FAST", "SpawnEnemy", function() return {EnemyType = "F
 local row6 = createRow()
 actionButton(row6, "SPAWN TANK", "SpawnEnemy", function() return {EnemyType = "Tank"} end)
 actionButton(row6, "SPAWN BOSS", "SpawnEnemy", function() return {EnemyType = "Boss"} end, colors.Danger)
+local cleanupRow = createRow()
+actionButton(cleanupRow, "CLEAR PRACTICE ENEMIES", "ClearPracticeEnemies", nil, colors.Danger)
 spawnCatalog = Instance.new("TextLabel")
 spawnCatalog.Size = UDim2.new(1, -6, 0, 70)
 spawnCatalog.BackgroundColor3 = colors.PanelLight
@@ -279,15 +327,7 @@ local row7 = createRow()
 actionButton(row7, "SET NEXT WAVE", "SetWave", function() return {Wave = waveBox.Text} end, colors.Accent)
 actionButton(row7, "LIST PLAYERS", "GetPlayers")
 
-local itemTitle = Instance.new("TextLabel")
-itemTitle.Size = UDim2.new(1, -6, 0, 24)
-itemTitle.BackgroundTransparency = 1
-itemTitle.Text = "ITEM GRANTS"
-itemTitle.TextColor3 = colors.Accent
-itemTitle.TextXAlignment = Enum.TextXAlignment.Left
-itemTitle.Font = Enum.Font.GothamBold
-itemTitle.TextSize = 13
-itemTitle.Parent = controls
+createSection("ITEM GRANTS")
 local itemBox = createTextBox("IronBlade / HealthPotion / ManaPotion / EvolutionShard", "HealthPotion")
 local quantityBox = createTextBox("Quantity (1-25 per grant)", "1")
 itemBox.Visible = false
@@ -296,7 +336,7 @@ local grantCategoryIndex = 4
 local grantItemIds = {}
 local grantItemIndex = 1
 local grantPlayers = {{Name = "me", DisplayName = "Me", UserId = 0}}
-local grantPlayerIndex = 1
+local grantPlayerIndex = 0
 local function choiceButton(text)
 	local button = Instance.new("TextButton")
 	button.Size = UDim2.new(1, -6, 0, 38)

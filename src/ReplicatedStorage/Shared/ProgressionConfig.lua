@@ -20,6 +20,7 @@ return {
 	},
 	StunImmunitySeconds = 0.3,
 	PerfectBlockRearm = 0.5,
+	AbilityOrder = {"EnergyBolt", "EnergyBurst", "EnergyBeam", "GravityPulse", "ChainLightning", "Tornado"},
 	Abilities = {
 		EnergyBolt = {
 			DisplayName = "Energy Bolt",
@@ -33,6 +34,7 @@ return {
 			Damage = 50,
 			Range = 80,
 			Radius = 4,
+			LocalRadius = 10,
 			ProjectileSpeed = 115,
 		},
 		EnergyBurst = {
@@ -47,27 +49,28 @@ return {
 			Damage = 70,
 			Range = 60,
 			Radius = 14,
+			LocalRadius = 16,
 			Knockback = 45,
 		},
 		EnergyBeam = {
 			DisplayName = "Energy Beam", Description = "Fire a piercing beam through every enemy in its path.",
 			CastType = "Beam", Targeting = "Point", RequiredLevel = 8, RequiredEvolution = 1,
-			Cooldown = 8, EnergyCost = 30, Damage = 115, Range = 105, Radius = 4,
+			Cooldown = 8, EnergyCost = 30, Damage = 115, Range = 105, Radius = 4, LocalRadius = 13,
 		},
 		GravityPulse = {
 			DisplayName = "Gravity Pulse", Description = "Collapse nearby space and drag enemies toward you.",
 			CastType = "Gravity", Targeting = "Self", RequiredLevel = 15, RequiredEvolution = 1,
-			Cooldown = 10, EnergyCost = 35, Damage = 85, Range = 60, Radius = 20, PullStrength = 58,
+			Cooldown = 10, EnergyCost = 35, Damage = 85, Range = 60, Radius = 20, LocalRadius = 22, PullStrength = 58,
 		},
 		ChainLightning = {
 			DisplayName = "Chain Lightning", Description = "Arc through a group, seeking new targets after every strike.",
 			CastType = "Chain", Targeting = "Point", RequiredLevel = 25, RequiredEvolution = 2,
-			Cooldown = 12, EnergyCost = 45, Damage = 100, Range = 75, Radius = 5, ChainRange = 24, MaximumChains = 6,
+			Cooldown = 12, EnergyCost = 45, Damage = 100, Range = 75, Radius = 5, LocalRadius = 16, ChainRange = 24, MaximumChains = 6,
 		},
 		Tornado = {
 			DisplayName = "Rift Tornado", Description = "Summon a violent vortex that lifts and spins monsters in its wake.",
 			CastType = "Tornado", Targeting = "Point", RequiredLevel = 35, RequiredEvolution = 2,
-			Cooldown = 16, EnergyCost = 55, Damage = 72, Range = 85, Radius = 16, Duration = 4,
+			Cooldown = 16, EnergyCost = 55, Damage = 72, Range = 85, Radius = 16, LocalRadius = 19, Duration = 4,
 			TickInterval = 0.5, PullStrength = 70, ProjectileSpeed = 42,
 		},
 	},

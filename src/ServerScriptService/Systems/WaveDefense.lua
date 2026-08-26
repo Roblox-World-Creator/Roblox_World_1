@@ -714,4 +714,16 @@ function WaveDefense.GetSpawnCatalog()
 	return catalog
 end
 
+function WaveDefense.ClearPracticeEnemies()
+	if not runtimeState then return false, "Wave system is not ready" end
+	local removed = 0
+	for _, enemy in ipairs(runtimeState.EnemyFolder:GetChildren()) do
+		if enemy:GetAttribute("IsPractice") or enemy:GetAttribute("IsAdminSpawn") then
+			enemy:Destroy()
+			removed += 1
+		end
+	end
+	return true, string.format("Removed %d practice enemy(s)", removed)
+end
+
 return WaveDefense

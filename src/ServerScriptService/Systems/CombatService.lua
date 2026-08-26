@@ -287,7 +287,8 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 
 		local targetPosition = requestedTarget
 		if mode == "Close" then
-			targetPosition = root.Position + root.CFrame.LookVector * math.min(ability.CloseRange or 12, ability.Range or 12)
+			-- LT is always the local form: it originates on the caster and cannot be redirected by the client.
+			targetPosition = root.Position
 		end
 		if ability.Range and ability.Range > 0 and (targetPosition - root.Position).Magnitude > ability.Range then
 			feedbackRemote:FireClient(player, "CastRejected", "Out of range")
@@ -322,12 +323,22 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		})
 
 		if mode == "Close" then
-			local areaOrigin = root.Position + root.CFrame.LookVector * math.min(ability.CloseRange or 12, 12)
-			effectsRemote:FireAllClients("EnergyBurst", {Origin = areaOrigin, Radius = ability.Radius or 10})
-			for _, enemy in ipairs(getEnemiesInRadius(areaOrigin, ability.Radius or 10)) do
-				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 0.5) * getDamageMultiplier(player) * masteryDamageMultiplier
+			local areaOrigin = root.Position
+			local localRadius = ability.LocalRadius or math.max(ability.Radius or 8, 10)
+			effectsRemote:FireAllClients("PowerLocal", {
+				Ability = abilityName,
+				Origin = areaOrigin,
+				Radius = localRadius,
+			})
+			for _, enemy in ipairs(getEnemiesInRadius(areaOrigin, localRadius)) do
+				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 0.65)
+					* getDamageMultiplier(player) * masteryDamageMultiplier
 				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
-				applyKnockback(enemy, root.Position, ability.Knockback or 12)
+				if ability.CastType == "Gravity" or ability.CastType == "Tornado" then
+					applyPull(enemy, areaOrigin, ability.PullStrength or 45)
+				else
+					applyKnockback(enemy, areaOrigin, ability.Knockback or 22)
+				end
 			end
 		elseif ability.CastType == "Projectile" then
 			local startPosition = root.Position + Vector3.new(0, 2, 0)
