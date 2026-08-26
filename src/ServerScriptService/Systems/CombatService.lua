@@ -285,11 +285,11 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			return
 		end
 
-		local targetPosition = ability.Targeting == "Self" and root.Position or requestedTarget
+		local targetPosition = requestedTarget
 		if mode == "Close" then
 			targetPosition = root.Position + root.CFrame.LookVector * math.min(ability.CloseRange or 12, ability.Range or 12)
 		end
-		if ability.Targeting ~= "Self" and (targetPosition - root.Position).Magnitude > ability.Range then
+		if ability.Range and ability.Range > 0 and (targetPosition - root.Position).Magnitude > ability.Range then
 			feedbackRemote:FireClient(player, "CastRejected", "Out of range")
 			return
 		end
@@ -313,8 +313,23 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		abilityCooldowns[player][abilityName] = os.clock() + ability.Cooldown
 		feedbackRemote:FireClient(player, "CastAccepted", abilityName)
 		masteryService.Add(player, abilityName, config.Mastery.XPPerCast)
+		effectsRemote:FireAllClients("PowerCast", {
+			Ability = abilityName,
+			Mode = mode,
+			Origin = root.Position + Vector3.new(0, 2, 0),
+			Target = targetPosition,
+			Duration = mode == "Ranged" and 0.24 or 0.12,
+		})
 
-		if ability.CastType == "Projectile" then
+		if mode == "Close" then
+			local areaOrigin = root.Position + root.CFrame.LookVector * math.min(ability.CloseRange or 12, 12)
+			effectsRemote:FireAllClients("EnergyBurst", {Origin = areaOrigin, Radius = ability.Radius or 10})
+			for _, enemy in ipairs(getEnemiesInRadius(areaOrigin, ability.Radius or 10)) do
+				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 0.5) * getDamageMultiplier(player) * masteryDamageMultiplier
+				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
+				applyKnockback(enemy, root.Position, ability.Knockback or 12)
+			end
+		elseif ability.CastType == "Projectile" then
 			local startPosition = root.Position + Vector3.new(0, 2, 0)
 			local raycastParameters = RaycastParams.new()
 			raycastParameters.FilterType = Enum.RaycastFilterType.Exclude
@@ -345,10 +360,10 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			end)
 		elseif ability.CastType == "Radial" then
 			effectsRemote:FireAllClients("EnergyBurst", {
-				Origin = root.Position,
+				Origin = ability.Targeting == "Self" and targetPosition or targetPosition,
 				Radius = ability.Radius,
 			})
-			for _, enemy in ipairs(getEnemiesInRadius(root.Position, ability.Radius)) do
+			for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
 				local damage = (ability.Damage + ((player:GetAttribute("AttackPower") or 0) * 0.35) + (player:GetAttribute("Power") or 0))
 					* getDamageMultiplier(player) * masteryDamageMultiplier
 				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
@@ -375,11 +390,11 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				end
 			end
 		elseif ability.CastType == "Gravity" then
-			effectsRemote:FireAllClients("GravityPulse", {Origin = root.Position, Radius = ability.Radius})
-			for _, enemy in ipairs(getEnemiesInRadius(root.Position, ability.Radius)) do
+			effectsRemote:FireAllClients("GravityPulse", {Origin = targetPosition, Radius = ability.Radius})
+			for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
 				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 1.15) * getDamageMultiplier(player) * masteryDamageMultiplier
 				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
-				applyPull(enemy, root.Position, ability.PullStrength)
+				applyPull(enemy, targetPosition, ability.PullStrength)
 			end
 		elseif ability.CastType == "Chain" then
 			local candidates = getEnemiesInRadius(targetPosition, math.max(ability.Radius, 8))

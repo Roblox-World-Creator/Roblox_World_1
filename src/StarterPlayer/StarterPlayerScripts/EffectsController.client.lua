@@ -11,6 +11,15 @@ effectsFolder.Parent = workspace
 
 local ENERGY_COLOR = Color3.fromRGB(80, 220, 255)
 
+local POWER_COLORS = {
+	EnergyBolt = Color3.fromRGB(80, 220, 255),
+	EnergyBurst = Color3.fromRGB(120, 245, 255),
+	EnergyBeam = Color3.fromRGB(95, 245, 255),
+	GravityPulse = Color3.fromRGB(185, 95, 255),
+	ChainLightning = Color3.fromRGB(255, 235, 90),
+	Tornado = Color3.fromRGB(170, 210, 255),
+}
+
 local announcementGui = Instance.new("ScreenGui")
 announcementGui.Name = "CombatAnnouncements"
 announcementGui.ResetOnSpawn = false
@@ -238,6 +247,21 @@ local function renderEnergyBurst(data)
 	end
 	shakeCamera(data.Origin, radius * 3, 0.65)
 	Debris:AddItem(sphere, 0.5)
+end
+
+local function renderPowerCast(data)
+	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
+	local color = POWER_COLORS[data.Ability] or ENERGY_COLOR
+	local radius = data.Mode == "Close" and 5 or 2.5
+	renderRing("PowerCastRing", data.Origin - Vector3.new(0, 1.5, 0), radius, color, 0.22)
+	local distance = (data.Target - data.Origin).Magnitude
+	if data.Mode == "Ranged" and distance > 2 then
+		local tracer = createEffectPart("PowerCastTravel", Enum.PartType.Block, color, Vector3.new(0.3, 0.3, distance), CFrame.lookAt(data.Origin:Lerp(data.Target, 0.5), data.Target))
+		tracer.Transparency = 0.25
+		TweenService:Create(tracer, TweenInfo.new(tonumber(data.Duration) or 0.24, Enum.EasingStyle.Linear), {Transparency = 1, Size = Vector3.new(0.08, 0.08, distance)}):Play()
+		Debris:AddItem(tracer, (tonumber(data.Duration) or 0.24) + 0.05)
+	end
+	renderRing("PowerCastImpact", data.Target - Vector3.new(0, 1.2, 0), radius * 1.4, color, 0.3)
 end
 
 local function renderMelee(data)
@@ -544,7 +568,9 @@ effectsRemote.OnClientEvent:Connect(function(effectName, data)
 	if type(data) ~= "table" then
 		return
 	end
-	if effectName == "EnergyBolt" then
+	if effectName == "PowerCast" then
+		renderPowerCast(data)
+	elseif effectName == "EnergyBolt" then
 		renderEnergyBolt(data)
 	elseif effectName == "TornadoTravel" then
 		renderTornadoTravel(data)

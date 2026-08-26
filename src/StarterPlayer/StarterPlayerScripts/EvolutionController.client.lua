@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 
 local player = Players.LocalPlayer
 local config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("EvolutionConfig"))
@@ -12,14 +13,15 @@ gui.DisplayOrder = 126
 gui.Parent = player:WaitForChild("PlayerGui")
 local open = Instance.new("TextButton")
 open.Size = UDim2.fromOffset(118, 36)
-open.Position = UDim2.new(1, -448, 0, 14)
+open.Position = UDim2.new(1, -490, 0, 14)
 open.Text = "EVOLUTION [U]"
 open.TextColor3 = Color3.new(1, 1, 1)
 open.BackgroundColor3 = Color3.fromRGB(215, 145, 55)
 open.Parent = gui
 local panel = Instance.new("Frame")
+panel.Name = "EvolutionPanel"
 panel.Size = UDim2.fromOffset(430, 330)
-panel.Position = UDim2.fromScale(0.5, 0.5)
+panel.Position = UDim2.new(0.35, 0, 0.5, 0)
 panel.AnchorPoint = Vector2.new(0.5, 0.5)
 panel.BackgroundColor3 = Color3.fromRGB(20, 26, 40)
 panel.Visible = false
@@ -75,4 +77,11 @@ end)
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == Enum.KeyCode.U then toggle() end
 end)
+ContextActionService:BindActionAtPriority("EvolutionClose", function(_, inputState)
+	if inputState == Enum.UserInputState.Begin and panel.Visible then
+		panel.Visible = false
+		return Enum.ContextActionResult.Sink
+	end
+	return Enum.ContextActionResult.Pass
+end, false, 3100, Enum.KeyCode.ButtonB)
 for _, attribute in ipairs({"Evolution", "Level", "Coins", "CanEvolve"}) do player:GetAttributeChangedSignal(attribute):Connect(render) end

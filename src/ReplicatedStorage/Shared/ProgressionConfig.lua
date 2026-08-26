@@ -45,7 +45,7 @@ return {
 			Cooldown = 6,
 			EnergyCost = 25,
 			Damage = 70,
-			Range = 0,
+			Range = 60,
 			Radius = 14,
 			Knockback = 45,
 		},
@@ -57,7 +57,7 @@ return {
 		GravityPulse = {
 			DisplayName = "Gravity Pulse", Description = "Collapse nearby space and drag enemies toward you.",
 			CastType = "Gravity", Targeting = "Self", RequiredLevel = 15, RequiredEvolution = 1,
-			Cooldown = 10, EnergyCost = 35, Damage = 85, Range = 0, Radius = 20, PullStrength = 58,
+			Cooldown = 10, EnergyCost = 35, Damage = 85, Range = 60, Radius = 20, PullStrength = 58,
 		},
 		ChainLightning = {
 			DisplayName = "Chain Lightning", Description = "Arc through a group, seeking new targets after every strike.",

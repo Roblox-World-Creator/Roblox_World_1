@@ -162,6 +162,8 @@ local function castAbility(name, mode)
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		target = root and root.Position + root.CFrame.LookVector * math.min(definition and definition.CloseRange or 12, definition and definition.Range or 12)
+	elseif mode ~= "Close" then
+		target = targetPosition(definition and definition.Range)
 	elseif definition and definition.Targeting == "Self" then
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -432,6 +434,14 @@ local function handleAction(actionName, inputState)
 	if inputState ~= Enum.UserInputState.Begin then
 		return Enum.ContextActionResult.Pass
 	end
+	local playerGui = player:FindFirstChildOfClass("PlayerGui")
+	for _, guiName in ipairs({"InventoryUI", "QuestLog", "AdminControls", "CombatSettings", "PowersUI", "EvolutionUI"}) do
+		local gui = playerGui and playerGui:FindFirstChild(guiName)
+		local panel = gui and (gui:FindFirstChild("Panel") or gui:FindFirstChild("PowersPanel") or gui:FindFirstChild("InventoryPanel") or gui:FindFirstChild("EvolutionPanel"))
+		if panel and panel:IsA("GuiObject") and panel.Visible then
+			return Enum.ContextActionResult.Pass
+		end
+	end
 	if actionName == "CyclePowerNext" then
 		selectAbility(selectedAbilityIndex + 1)
 	elseif actionName == "CyclePowerPrevious" then
@@ -480,12 +490,13 @@ local function handleBlock(_, inputState)
 	return Enum.ContextActionResult.Pass
 end
 
-ContextActionService:BindAction("CyclePowerNext", handleAction, false, Enum.KeyCode.ButtonR1, Enum.KeyCode.RightBracket)
-ContextActionService:BindAction("CyclePowerPrevious", handleAction, false, Enum.KeyCode.ButtonL1, Enum.KeyCode.LeftBracket)
-ContextActionService:BindAction("CastPower", handleAction, false, Enum.KeyCode.ButtonR2, Enum.KeyCode.Return)
-ContextActionService:BindAction("CastClosePower", handleAction, false, Enum.KeyCode.ButtonL2)
-ContextActionService:BindAction("MeleeAttack", handleAction, true, Enum.KeyCode.ButtonX)
-ContextActionService:BindAction("RangedWeapon", handleAction, true, Enum.KeyCode.ButtonA)
+local combatPriority = 3500
+ContextActionService:BindActionAtPriority("CyclePowerNext", handleAction, false, combatPriority, Enum.KeyCode.ButtonR1, Enum.KeyCode.RightBracket)
+ContextActionService:BindActionAtPriority("CyclePowerPrevious", handleAction, false, combatPriority, Enum.KeyCode.ButtonL1, Enum.KeyCode.LeftBracket)
+ContextActionService:BindActionAtPriority("CastPower", handleAction, false, combatPriority, Enum.KeyCode.ButtonR2, Enum.KeyCode.Return)
+ContextActionService:BindActionAtPriority("CastClosePower", handleAction, false, combatPriority, Enum.KeyCode.ButtonL2)
+ContextActionService:BindActionAtPriority("MeleeAttack", handleAction, true, combatPriority, Enum.KeyCode.ButtonX)
+ContextActionService:BindActionAtPriority("RangedWeapon", handleAction, true, combatPriority, Enum.KeyCode.ButtonA)
 ContextActionService:SetTitle("RangedWeapon", "FIRE")
 ContextActionService:SetPosition("RangedWeapon", UDim2.new(1, -70, 1, -170))
 ContextActionService:SetTitle("MeleeAttack", "ATTACK")

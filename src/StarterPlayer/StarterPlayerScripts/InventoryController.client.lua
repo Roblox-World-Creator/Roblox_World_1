@@ -51,6 +51,7 @@ styleButton(openButton, Color3.fromRGB(70, 125, 190))
 openButton.Parent = gui
 
 local panel = Instance.new("Frame")
+panel.Name = "InventoryPanel"
 panel.AnchorPoint = Vector2.new(1, 0.5)
 panel.Position = UDim2.new(1, -18, 0.55, 0)
 panel.Size = UDim2.new(0.68, 0, 0.78, 0)
