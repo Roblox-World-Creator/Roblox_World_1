@@ -7,10 +7,11 @@ local camera = workspace.CurrentCamera
 local gui = Instance.new("ScreenGui")
 gui.Name = "AscendantMenuDock"
 gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = false
+gui.IgnoreGuiInset = true
 gui.DisplayOrder = 500
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
+pcall(function() gui.ScreenInsets = Enum.ScreenInsets.None end)
 
 local dock = Instance.new("ScrollingFrame")
 dock.Name = "Dock"
@@ -33,24 +34,24 @@ layout.FillDirection, layout.VerticalAlignment, layout.Padding, layout.SortOrder
 
 local menuGuiNames = {PowersUI = true, InventoryUI = true, QuestLog = true, EvolutionUI = true, AscensionUI = true, AdminControls = true, CombatSettings = true}
 local menuDefinitions = {
-	POWERS = {Order = 1, Label = "POWERS", Width = 84},
-	SKILLS = {Order = 2, Label = "SKILLS", Width = 84},
-	BAG = {Order = 3, Label = "BAG", Width = 72},
-	QUEST = {Order = 4, Label = "QUESTS", Width = 84},
-	FORMS = {Order = 5, Label = "FORMS", Width = 82},
-	EVOLUTION = {Order = 6, Label = "EVOLVE", Width = 88},
-	ADMIN = {Order = 7, Label = "ADMIN", Width = 82},
-	SETTINGS = {Order = 8, Label = "SETTINGS", Width = 88},
+	POWERS = {Order = 1, Label = "POWERS", Width = 70},
+	SKILLS = {Order = 2, Label = "SKILLS", Width = 68},
+	BAG = {Order = 3, Label = "BAG", Width = 58},
+	QUEST = {Order = 4, Label = "QUESTS", Width = 72},
+	FORMS = {Order = 5, Label = "FORMS", Width = 68},
+	EVOLUTION = {Order = 6, Label = "EVOLVE", Width = 76},
+	ADMIN = {Order = 7, Label = "ADMIN", Width = 68},
+	SETTINGS = {Order = 8, Label = "SETTINGS", Width = 76},
 }
 
 local function updateLayout()
 	local width = camera and camera.ViewportSize.X or 1280
 	if width < 960 or UserInputService.TouchEnabled then
 		dock.AnchorPoint = Vector2.zero
-		dock.Position, dock.Size = UDim2.fromOffset(12, 8), UDim2.new(1, -24, 0, 48)
+		dock.Position, dock.Size = UDim2.fromOffset(104, 4), UDim2.new(1, -112, 0, 48)
 	else
 		dock.AnchorPoint = Vector2.new(1, 0)
-		dock.Position, dock.Size = UDim2.new(1, -18, 0, 8), UDim2.fromOffset(750, 48)
+		dock.Position, dock.Size = UDim2.new(1, -8, 0, 4), UDim2.fromOffset(620, 44)
 	end
 end
 
@@ -79,7 +80,7 @@ local function adopt(candidate)
 	candidate:SetAttribute("MenuSourceGui", source.Name)
 	candidate.AnchorPoint = Vector2.zero
 	candidate.Position = UDim2.new()
-	candidate.Size = UDim2.fromOffset(definition.Width, 36)
+	candidate.Size = UDim2.fromOffset(definition.Width, 34)
 	candidate.LayoutOrder = definition.Order
 	candidate.Text = definition.Label
 	candidate.ZIndex = 502

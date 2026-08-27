@@ -38,7 +38,7 @@ local screen = Instance.new("ScreenGui")
 screen.Name = "AdminControls"
 screen.ResetOnSpawn = false
 screen.DisplayOrder = 130
-screen.IgnoreGuiInset = false
+screen.IgnoreGuiInset = true
 screen.Parent = playerGui
 
 local openButton = Instance.new("TextButton")
@@ -53,9 +53,9 @@ openButton.Parent = screen
 
 local panel = Instance.new("Frame")
 panel.Name = "Panel"
-panel.AnchorPoint = Vector2.new(1, 0)
-panel.Position = UDim2.new(1, -18, 0, 58)
-panel.Size = UDim2.new(1, -36, 1, -76)
+panel.AnchorPoint = Vector2.new(0.5, 0)
+panel.Position = UDim2.new(0.5, 0, 0, 54)
+panel.Size = UDim2.new(0.86, 0, 1, -68)
 panel.BackgroundColor3 = colors.Panel
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -63,8 +63,8 @@ panel.Parent = screen
 round(panel, 12)
 
 local sizeConstraint = Instance.new("UISizeConstraint")
-sizeConstraint.MinSize = Vector2.new(300, 360)
-sizeConstraint.MaxSize = Vector2.new(430, 650)
+sizeConstraint.MinSize = Vector2.new(320, 360)
+sizeConstraint.MaxSize = Vector2.new(900, 760)
 sizeConstraint.Parent = panel
 
 local title = Instance.new("TextLabel")
@@ -131,8 +131,8 @@ unlock.TextColor3 = Color3.fromRGB(38, 30, 20)
 unlock.Parent = lockFrame
 
 local controls = Instance.new("ScrollingFrame")
-controls.Position = UDim2.fromOffset(16, 84)
-controls.Size = UDim2.new(1, -32, 1, -100)
+controls.Position = UDim2.fromOffset(16, 130)
+controls.Size = UDim2.new(1, -32, 1, -146)
 controls.BackgroundTransparency = 1
 controls.BorderSizePixel = 0
 controls.ScrollBarThickness = 5
@@ -147,6 +147,13 @@ layout.Padding = UDim.new(0, 8)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = controls
 
+local quickNav = Instance.new("Frame")
+quickNav.Name, quickNav.Position, quickNav.Size = "QuickNavigation", UDim2.fromOffset(16, 84), UDim2.new(1, -32, 0, 38)
+quickNav.BackgroundTransparency, quickNav.Visible, quickNav.Parent = 1, false, panel
+local quickNavLayout = Instance.new("UIGridLayout")
+quickNavLayout.CellPadding, quickNavLayout.CellSize, quickNavLayout.FillDirectionMaxCells, quickNavLayout.Parent = UDim2.fromOffset(6, 0), UDim2.new(0.25, -5, 1, 0), 4, quickNav
+local sectionLabels = {}
+
 local function createSection(text)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, -6, 0, 25)
@@ -157,8 +164,25 @@ local function createSection(text)
 	label.Font = Enum.Font.GothamBold
 	label.TextSize = 13
 	label.Parent = controls
+	sectionLabels[text] = label
 	return label
 end
+
+local function addQuickNav(text, sectionName)
+	local button = Instance.new("TextButton")
+	button.Text, button.Parent = text, quickNav
+	styleButton(button, colors.PanelLight)
+	button.Activated:Connect(function()
+		local target = sectionLabels[sectionName]
+		if not target then return end
+		local relativeY = target.AbsolutePosition.Y - controls.AbsolutePosition.Y + controls.CanvasPosition.Y
+		controls.CanvasPosition = Vector2.new(0, math.max(0, relativeY - 4))
+	end)
+end
+addQuickNav("PLAYER", "PLAYER TARGET")
+addQuickNav("FORMS / REALMS", "ANIMAL TRANSFORMATIONS")
+addQuickNav("MONSTERS", "PRACTICE SPAWNS")
+addQuickNav("ITEMS", "ITEM GRANTS")
 
 local function createTextBox(placeholder, defaultText)
 	local box = Instance.new("TextBox")
@@ -325,6 +349,11 @@ actionButton(realmRow2, "EARTH REALM", "TeleportRealm", function() return {Realm
 
 createSection("PRACTICE SPAWNS")
 local enemySearch = createTextBox("Search monster name, ability, style, or loot tier", "")
+local enemySortModes = {"Name", "Health", "Damage", "Speed"}
+local enemySortIndex = 1
+local enemySortButton = Instance.new("TextButton")
+enemySortButton.Size, enemySortButton.Text, enemySortButton.Parent = UDim2.new(1, -6, 0, 38), "SORT MONSTERS: NAME", controls
+styleButton(enemySortButton, Color3.fromRGB(55, 78, 108))
 local selectedEnemyId = "Basic"
 local selectedEnemyLabel = Instance.new("TextLabel")
 selectedEnemyLabel.Size = UDim2.new(1, -6, 0, 38)
@@ -362,7 +391,14 @@ local function refreshEnemyCatalog()
 	end
 	local ids = {}
 	for enemyId in pairs(enemyConfig) do table.insert(ids, enemyId) end
-	table.sort(ids, function(left, right) return enemyConfig[left].DisplayName < enemyConfig[right].DisplayName end)
+	local sortMode = enemySortModes[enemySortIndex]
+	table.sort(ids, function(left, right)
+		local a, b = enemyConfig[left], enemyConfig[right]
+		if sortMode == "Health" and a.Health ~= b.Health then return a.Health > b.Health end
+		if sortMode == "Damage" and a.Damage ~= b.Damage then return a.Damage > b.Damage end
+		if sortMode == "Speed" and a.Speed ~= b.Speed then return a.Speed > b.Speed end
+		return a.DisplayName < b.DisplayName
+	end)
 	local query = string.lower(enemySearch.Text)
 	local shown = 0
 	for _, enemyId in ipairs(ids) do
@@ -398,6 +434,11 @@ local function refreshEnemyCatalog()
 	end
 end
 enemySearch:GetPropertyChangedSignal("Text"):Connect(refreshEnemyCatalog)
+enemySortButton.Activated:Connect(function()
+	enemySortIndex = enemySortIndex % #enemySortModes + 1
+	enemySortButton.Text = "SORT MONSTERS: " .. string.upper(enemySortModes[enemySortIndex])
+	refreshEnemyCatalog()
+end)
 local creatureRow = createRow()
 actionButton(creatureRow, "SPAWN SELECTED", "SpawnEnemy", function() return {EnemyType = selectedEnemyId} end, colors.Success)
 actionButton(creatureRow, "SPAWN BOSS", "SpawnEnemy", function() return {EnemyType = "Boss"} end, colors.Danger)
@@ -432,6 +473,9 @@ local function choiceButton(text)
 	return button
 end
 local categoryButton = choiceButton("TYPE: ALL")
+local itemSortModes = {"Name", "Level", "Rarity", "Stats"}
+local itemSortIndex = 1
+local itemSortButton = choiceButton("SORT ITEMS: NAME")
 local selectedItemLabel = choiceButton("SELECTED: HEALTH CORE")
 selectedItemLabel.AutoButtonColor = false
 local targetChoiceButton = choiceButton("TARGET: ME")
@@ -453,7 +497,19 @@ local function refreshGrantItems()
 	for _, child in ipairs(catalog:GetChildren()) do if child:IsA("GuiButton") or child:IsA("TextLabel") then child:Destroy() end end
 	local ids = {}
 	for itemId in pairs(itemConfig.Items) do table.insert(ids, itemId) end
-	table.sort(ids, function(left, right) return itemConfig.Items[left].DisplayName < itemConfig.Items[right].DisplayName end)
+	local sortMode = itemSortModes[itemSortIndex]
+	local function statScore(definition)
+		local score = 0
+		for _, value in pairs(definition.Stats or {}) do if type(value) == "number" then score += math.abs(value) end end
+		return score
+	end
+	table.sort(ids, function(left, right)
+		local a, b = itemConfig.Items[left], itemConfig.Items[right]
+		if sortMode == "Level" and (a.RequiredLevel or 1) ~= (b.RequiredLevel or 1) then return (a.RequiredLevel or 1) < (b.RequiredLevel or 1) end
+		if sortMode == "Rarity" and (itemConfig.RarityOrder[a.Rarity] or 0) ~= (itemConfig.RarityOrder[b.Rarity] or 0) then return (itemConfig.RarityOrder[a.Rarity] or 0) > (itemConfig.RarityOrder[b.Rarity] or 0) end
+		if sortMode == "Stats" and statScore(a) ~= statScore(b) then return statScore(a) > statScore(b) end
+		return a.DisplayName < b.DisplayName
+	end)
 	local query, category = string.lower(itemSearch.Text), grantCategories[grantCategoryIndex]
 	local shown = 0
 	for _, itemId in ipairs(ids) do
@@ -487,6 +543,11 @@ categoryButton.Activated:Connect(function()
 	categoryButton.Text = "TYPE: " .. string.upper(grantCategories[grantCategoryIndex])
 	refreshGrantItems()
 end)
+itemSortButton.Activated:Connect(function()
+	itemSortIndex = itemSortIndex % #itemSortModes + 1
+	itemSortButton.Text = "SORT ITEMS: " .. string.upper(itemSortModes[itemSortIndex])
+	refreshGrantItems()
+end)
 itemSearch:GetPropertyChangedSignal("Text"):Connect(refreshGrantItems)
 targetChoiceButton.Activated:Connect(function()
 	local result = invoke("GetPlayers")
@@ -514,6 +575,7 @@ local function tryUnlock()
 	codeBox.Text = ""
 	if result and result.Success then
 		lockFrame.Visible = false
+		quickNav.Visible = true
 		controls.Visible = true
 	end
 end

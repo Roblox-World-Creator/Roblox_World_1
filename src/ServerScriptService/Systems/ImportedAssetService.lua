@@ -28,16 +28,8 @@ local IMPORT_MAP = {
 		{Source = "Pistol Gun", Target = "FrostPistolModel01", Root = "Weapons"},
 		{Source = "Fast Hyper Laser Gun", Target = "TempestLaserModel01", Root = "Weapons"},
 		{Source = "Working Pistol", Target = "StonehandCannonModel01", Root = "Weapons"},
-		{Source = "Famas Gun Spawner", Target = "GaleFamasModel01", Root = "Weapons"},
-		{Source = "AK-47 Weapons Pack", Target = "StormRifleModel01", Root = "Weapons"},
-		{Source = "Gun Spawner", Target = "RiftBlasterModel01", Root = "Weapons"},
-		{Source = "Gun Pack", Target = "ArsenalRelicModel01", Root = "Weapons"},
-		{Source = "Swords Pack Kit", Target = "BlademasterArsenalModel01", Root = "Weapons"},
-	},
-	Transformations = {
-		{Source = "Wolf", Target = "WolfModel01"},
-		{Source = "Alpha Wolf", Target = "BearModel01"},
-		{Source = "Dragon V1", Target = "EagleModel01"},
+		-- Spawners and multi-weapon packs deliberately stay quarantined in ServerStorage.
+		-- Only one self-contained weapon model may enter gameplay catalogs.
 	},
 	Enemies = {
 		{Source = "Wolf", Target = "FireImpModel01"},

@@ -381,27 +381,36 @@ local function renderMelee(data)
 	local character = data.Character
 	local grip = typeof(character) == "Instance" and character:FindFirstChild("SwordGrip", true)
 	if grip and grip:IsA("Motor6D") then
-		local startAngles = {
-			CFrame.Angles(0, 0, math.rad(75)),
-			CFrame.Angles(0, 0, math.rad(-75)),
-			CFrame.Angles(math.rad(-65), 0, math.rad(25)),
-			CFrame.Angles(math.rad(-120), 0, 0),
+		local startPoses = {
+			CFrame.Angles(math.rad(-18), math.rad(-24), math.rad(72)),
+			CFrame.Angles(math.rad(-8), math.rad(28), math.rad(-68)),
+			CFrame.Angles(math.rad(-78), math.rad(-10), math.rad(26)),
+			CFrame.new(0, 0, 0.45) * CFrame.Angles(math.rad(-82), 0, 0),
 		}
-		local endAngles = {
-			CFrame.Angles(0, 0, math.rad(-55)),
-			CFrame.Angles(0, 0, math.rad(55)),
-			CFrame.Angles(math.rad(45), 0, math.rad(-20)),
-			CFrame.Angles(math.rad(35), 0, 0),
+		local endPoses = {
+			CFrame.Angles(math.rad(18), math.rad(28), math.rad(-58)),
+			CFrame.Angles(math.rad(12), math.rad(-26), math.rad(58)),
+			CFrame.Angles(math.rad(42), math.rad(12), math.rad(-24)),
+			CFrame.new(0, 0, -1.25) * CFrame.Angles(math.rad(-88), 0, 0),
 		}
-		grip.Transform = startAngles[combo]
-		local swing = TweenService:Create(grip, TweenInfo.new(combo == 4 and 0.2 or 0.13, Enum.EasingStyle.Quad), {
-			Transform = endAngles[combo],
+		grip.Transform = startPoses[combo]
+		local duration = combo == 4 and 0.19 or 0.16
+		local swing = TweenService:Create(grip, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Transform = endPoses[combo],
 		})
+		local shoulder = character:FindFirstChild("RightShoulder", true) or character:FindFirstChild("Right Shoulder", true)
+		if shoulder and shoulder:IsA("Motor6D") then
+			shoulder.Transform = combo == 4 and CFrame.Angles(math.rad(-55), 0, math.rad(8)) or CFrame.Angles(math.rad(-28), math.rad(combo % 2 == 0 and -22 or 22), math.rad(combo % 2 == 0 and -18 or 18))
+			TweenService:Create(shoulder, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Transform = combo == 4 and CFrame.Angles(math.rad(-86), 0, 0) or CFrame.Angles(math.rad(-12), math.rad(combo % 2 == 0 and 28 or -28), math.rad(combo % 2 == 0 and 24 or -24)),
+			}):Play()
+		end
 		swing:Play()
 		swing.Completed:Connect(function()
 			if grip.Parent then
-				TweenService:Create(grip, TweenInfo.new(0.12), {Transform = CFrame.identity}):Play()
+				TweenService:Create(grip, TweenInfo.new(0.14, Enum.EasingStyle.Quad), {Transform = CFrame.identity}):Play()
 			end
+			if shoulder and shoulder.Parent then TweenService:Create(shoulder, TweenInfo.new(0.14, Enum.EasingStyle.Quad), {Transform = CFrame.identity}):Play() end
 		end)
 	end
 end

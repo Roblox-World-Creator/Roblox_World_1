@@ -7,6 +7,7 @@ local skillConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
 local transformationConfig = require(ReplicatedStorage.Shared.TransformationConfig)
 local skillRemote = ReplicatedStorage.Remotes:WaitForChild("SkillRemote")
 local transformationRemote = ReplicatedStorage.Remotes:WaitForChild("TransformationRemote")
+local movementRemote = ReplicatedStorage.Remotes:WaitForChild("MovementRemote")
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.DisplayOrder, gui.Parent = "AscensionUI", false, 128, player:WaitForChild("PlayerGui")
 
@@ -112,15 +113,37 @@ local formStatus = Instance.new("TextLabel")
 formStatus.Position, formStatus.Size, formStatus.BackgroundTransparency = UDim2.fromOffset(18, 50), UDim2.new(1, -36, 0, 42), 1
 formStatus.TextColor3, formStatus.TextWrapped, formStatus.Font, formStatus.TextSize, formStatus.Parent = Color3.fromRGB(185, 200, 220), true, Enum.Font.Gotham, 12, formPanel
 local formList = Instance.new("ScrollingFrame")
-formList.Position, formList.Size, formList.BackgroundColor3, formList.BorderSizePixel = UDim2.fromOffset(18, 100), UDim2.new(1, -36, 1, -118), Color3.fromRGB(24, 31, 47), 0
+formList.Position, formList.Size, formList.BackgroundColor3, formList.BorderSizePixel = UDim2.fromOffset(18, 100), UDim2.new(1, -36, 1, -170), Color3.fromRGB(24, 31, 47), 0
 formList.AutomaticCanvasSize, formList.CanvasSize, formList.ScrollBarThickness, formList.Parent = Enum.AutomaticSize.Y, UDim2.new(), 5, formPanel
 local formLayout = Instance.new("UIListLayout") formLayout.Padding, formLayout.Parent = UDim.new(0, 8), formList
 local formPadding = Instance.new("UIPadding") formPadding.PaddingTop, formPadding.PaddingLeft, formPadding.PaddingRight, formPadding.Parent = UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8), formList
+local eagleFlightButton = Instance.new("TextButton")
+eagleFlightButton.Position, eagleFlightButton.Size, eagleFlightButton.Text, eagleFlightButton.Visible, eagleFlightButton.Parent = UDim2.new(0, 18, 1, -58), UDim2.new(1, -36, 0, 42), "EAGLE SKY FLIGHT  [G]", false, formPanel
+styleButton(eagleFlightButton, Color3.fromRGB(165, 115, 50))
+eagleFlightButton.Activated:Connect(function() movementRemote:FireServer("EagleFlight") end)
+local flightHudButton = Instance.new("TextButton")
+flightHudButton.Name, flightHudButton.AnchorPoint = "EagleFlightControl", Vector2.new(1, 1)
+flightHudButton.Position, flightHudButton.Size = UDim2.new(1, -24, 1, -112), UDim2.fromOffset(158, 46)
+flightHudButton.Visible, flightHudButton.Parent = false, gui
+styleButton(flightHudButton, Color3.fromRGB(164, 111, 43))
+flightHudButton.Activated:Connect(function() movementRemote:FireServer("EagleFlight") end)
+local function updateFlightControl()
+	local isEagle = player:GetAttribute("ActiveTransformation") == "Eagle"
+	local flying = player:GetAttribute("EagleFlightActive") == true
+	flightHudButton.Visible = isEagle
+	flightHudButton.Text = flying and "LAND  [G]" or "TAKE FLIGHT  [G]"
+	flightHudButton.BackgroundColor3 = flying and Color3.fromRGB(50, 155, 190) or Color3.fromRGB(164, 111, 43)
+	eagleFlightButton.Text = flying and "LAND EAGLE  [G]" or "EAGLE SKY FLIGHT  [G]"
+end
+player:GetAttributeChangedSignal("ActiveTransformation"):Connect(updateFlightControl)
+player:GetAttributeChangedSignal("EagleFlightActive"):Connect(updateFlightControl)
+updateFlightControl()
 local function renderForms()
 	local result = transformationRemote:InvokeServer("GetState")
 	if not result or not result.State then return end
 	for _, child in ipairs(formList:GetChildren()) do if child:IsA("GuiButton") then child:Destroy() end end
 	local state = result.State
+	eagleFlightButton.Visible = state.Active == "Eagle"
 	formStatus.Text = state.Active ~= "" and ("Active: " .. state.Active .. "  •  click again to return") or "Active: Ascendant  •  choose an unlocked spirit form"
 	for _, id in ipairs(transformationConfig.Order) do
 		local definition, unlocked = transformationConfig.Forms[id], state.Unlocked[id]
@@ -144,4 +167,13 @@ local function toggle(panel, render)
 end
 skillOpen.Activated:Connect(function() toggle(skillPanel, renderSkills) end)
 formOpen.Activated:Connect(function() toggle(formPanel, renderForms) end)
-UserInputService.InputBegan:Connect(function(input, processed) if processed then return end if input.KeyCode == Enum.KeyCode.K then toggle(skillPanel, renderSkills) elseif input.KeyCode == Enum.KeyCode.T then toggle(formPanel, renderForms) end end)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	if input.KeyCode == Enum.KeyCode.K then
+		toggle(skillPanel, renderSkills)
+	elseif input.KeyCode == Enum.KeyCode.T then
+		toggle(formPanel, renderForms)
+	elseif input.KeyCode == Enum.KeyCode.G and player:GetAttribute("ActiveTransformation") == "Eagle" then
+		movementRemote:FireServer("EagleFlight")
+	end
+end)

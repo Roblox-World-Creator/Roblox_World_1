@@ -1,6 +1,6 @@
 # Development Status
 
-Current playable milestone: imported-content gameplay, prerequisite skill trees, configurable 6+2 power loadouts, and overhauled admin catalogs (`v0.15.0`).
+Current playable milestone: imported-content gameplay, prerequisite skill trees, configurable 6+2 power loadouts, expanded realms, attached animal morphs, and catalog-safe equipment (`v0.15.2`).
 
 ## Complete (v0.15.0 expansion)
 
@@ -13,6 +13,11 @@ Current playable milestone: imported-content gameplay, prerequisite skill trees,
 - [COMPLETE] Searchable, scrollable admin item and monster catalogs with stats and server-allowlisted actions
 - [COMPLETE] All 21 imported weapon sources promoted to unique store items with prices, levels, stats, effects, abilities, equipment visuals, and loot entries
 - [COMPLETE] All 13 imported monster sources promoted to sanitized enemy profiles with unique identities, stats, attacks, statuses, loot tiers, realm placement, wave eligibility, and admin spawning
+- [COMPLETE] v0.15.1 dragon sizing, bounding-box ground alignment, aerial hovering, landing attacks, and rare wave cadence
+- [COMPLETE] v0.15.2 feathered Eagle morph with persistent toggle flight, corrected weapon handles and melee animation, true top navigation, searchable/sortable admin catalogs, and removal of multi-weapon packs/spawners from gameplay
+- [COMPLETE] Attached Wolf/Bear/Eagle avatar morphs replace companion summons; Eagle includes steerable Sky Flight and wing animation
+- [COMPLETE] Four 220x220 decorated elemental realms with paths, landmarks, perimeter terrain, lighting, and element-specific scenery
+- [COMPLETE] Compact navigation dock anchored tightly to the upper-right corner
 
 ## Complete (Phase 1 scope)
 

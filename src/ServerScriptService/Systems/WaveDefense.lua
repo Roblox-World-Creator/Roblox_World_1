@@ -147,7 +147,11 @@ local function placeImportedProp(parent, profile, position, targetHeight, yaw)
 	local _, size = model:GetBoundingBox()
 	if size.Y > 0.01 then pcall(function() model:ScaleTo(math.clamp(targetHeight / size.Y, 0.05, 4)) end) end
 	AssetModelService.WeldModel(model)
-	model:PivotTo(CFrame.new(position) * CFrame.Angles(0, yaw or 0, 0))
+	local pivot = model:GetPivot()
+	local boxCFrame, boxSize = model:GetBoundingBox()
+	local pivotToBox = pivot:ToObjectSpace(boxCFrame)
+	local targetBox = CFrame.new(position + Vector3.new(0, boxSize.Y * 0.5, 0)) * CFrame.Angles(0, yaw or 0, 0)
+	model:PivotTo(targetBox * pivotToBox:Inverse())
 	for _, object in ipairs(model:GetDescendants()) do
 		if object:IsA("BasePart") then
 			object.Anchored = true
@@ -160,24 +164,77 @@ end
 
 local function createElementalRealms(portalHome)
 	local realms = getOrCreateFolder(workspace, "ElementalRealms")
+	local groundMaterials = {Fire = Enum.Material.Basalt, Ice = Enum.Material.Glacier, Lightning = Enum.Material.Slate, Earth = Enum.Material.Grass}
+	local accentMaterials = {Fire = Enum.Material.CrackedLava, Ice = Enum.Material.Ice, Lightning = Enum.Material.Metal, Earth = Enum.Material.Ground}
 	for _, realmId in ipairs(RealmConfig.Order) do
 		local definition = RealmConfig.Realms[realmId]
 		local realm = getOrCreateFolder(realms, realmId)
 		local center = definition.Destination
-		local floor = createPart(realm, "RealmFloor", Vector3.new(120, 2, 120), center - Vector3.new(0, 2, 0), definition.Color:Lerp(Color3.fromRGB(28, 30, 38), 0.58), Enum.Material.Slate)
+		local floor = createPart(realm, "RealmFloor", Vector3.new(220, 3, 220), center - Vector3.new(0, 2.5, 0), definition.Color:Lerp(Color3.fromRGB(28, 30, 38), 0.68), groundMaterials[definition.Element] or Enum.Material.Slate)
 		floor:SetAttribute("Element", definition.Element)
-		local shrine = createPart(realm, "ElementShrine", Vector3.new(10, 18, 10), center + Vector3.new(0, 8, 0), definition.Color, Enum.Material.Neon)
+		local shrineBase = createPart(realm, "ShrinePlaza", Vector3.new(34, 2, 34), center - Vector3.new(0, 0.5, 0), definition.Color:Lerp(Color3.fromRGB(40, 44, 55), 0.52), Enum.Material.Slate)
+		shrineBase.Shape = Enum.PartType.Cylinder
+		shrineBase.Size = Vector3.new(2, 34, 34)
+		shrineBase.CFrame = CFrame.new(center - Vector3.new(0, 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
+		local shrine = createPart(realm, "ElementShrine", Vector3.new(10, 22, 10), center + Vector3.new(0, 10, 0), definition.Color, Enum.Material.Neon)
 		addLabel(shrine, string.format("%s\nRecommended Level %d\nBoss: %s\nRare: %s", definition.DisplayName, definition.RecommendedLevel, definition.Boss, definition.RareDrop), Vector3.new(0, 12, 0))
-		for index = 1, 8 do
-			local angle = index / 8 * math.pi * 2
-			local height = 5 + index % 3 * 3
-			createPart(realm, "ElementPillar" .. index, Vector3.new(4, height, 4), center + Vector3.new(math.cos(angle) * 42, height / 2 - 1, math.sin(angle) * 42), definition.Color:Lerp(Color3.new(1, 1, 1), 0.2), index % 2 == 0 and Enum.Material.Neon or Enum.Material.Rock)
+		for index, offset in ipairs({Vector3.new(0, 0, -62), Vector3.new(0, 0, 62), Vector3.new(-62, 0, 0), Vector3.new(62, 0, 0)}) do
+			local horizontal = index >= 3
+			createPart(realm, "RealmPath" .. index, horizontal and Vector3.new(52, 0.6, 10) or Vector3.new(10, 0.6, 52), center + offset * 0.55 - Vector3.new(0, 0.65, 0), definition.Color:Lerp(Color3.fromRGB(75, 78, 90), 0.55), Enum.Material.Cobblestone)
+		end
+		for index = 1, 12 do
+			local angle = index / 12 * math.pi * 2
+			local radius = index % 2 == 0 and 88 or 72
+			local height = 7 + index % 4 * 3
+			local width = 5 + index % 3 * 2
+			createPart(realm, "ElementPillar" .. index, Vector3.new(width, height, width), center + Vector3.new(math.cos(angle) * radius, height / 2 - 1, math.sin(angle) * radius), definition.Color:Lerp(Color3.new(1, 1, 1), 0.14), index % 3 == 0 and Enum.Material.Neon or Enum.Material.Rock)
+		end
+		for index = 1, 16 do
+			local angle = index / 16 * math.pi * 2
+			local radius = index % 2 == 0 and 102 or 94
+			local height = 5 + (index * 3) % 9
+			local cluster = createPart(realm, "TerrainCluster" .. index, Vector3.new(10 + index % 4 * 3, height, 9 + (index + 2) % 4 * 3), center + Vector3.new(math.cos(angle) * radius, height / 2 - 1.2, math.sin(angle) * radius), definition.Color:Lerp(Color3.fromRGB(45, 48, 52), 0.62), accentMaterials[definition.Element] or Enum.Material.Rock)
+			cluster.Orientation = Vector3.new((index % 3 - 1) * 5, math.deg(angle) + 20, (index % 2) * 4)
+		end
+		for index = 1, 6 do
+			local angle = index / 6 * math.pi * 2 + math.rad(18)
+			local beaconPosition = center + Vector3.new(math.cos(angle) * 54, 2.2, math.sin(angle) * 54)
+			local beacon = createPart(realm, "RealmBeacon" .. index, Vector3.new(1.4, 5.5, 1.4), beaconPosition, definition.Color, Enum.Material.Neon)
+			beacon.CanCollide = false
+			local light = beacon:FindFirstChildOfClass("PointLight") or Instance.new("PointLight")
+			light.Color, light.Brightness, light.Range, light.Parent = definition.Color, 2.2, 24, beacon
+		end
+		if definition.Element == "Earth" then
+			for index = 1, 8 do
+				local angle = index / 8 * math.pi * 2 + 0.2
+				local position = center + Vector3.new(math.cos(angle) * 78, 0, math.sin(angle) * 78)
+				createPart(realm, "TreeTrunk" .. index, Vector3.new(3, 11, 3), position + Vector3.new(0, 4.5, 0), Color3.fromRGB(92, 62, 38), Enum.Material.Wood)
+				local crown = createPart(realm, "TreeCrown" .. index, Vector3.new(11, 9, 11), position + Vector3.new(0, 12, 0), definition.Color, Enum.Material.Grass)
+				crown.Shape = Enum.PartType.Ball
+			end
+		elseif definition.Element == "Fire" then
+			for index = 1, 8 do
+				local angle = index / 8 * math.pi * 2 + 0.35
+				local vent = createPart(realm, "LavaVent" .. index, Vector3.new(5, 0.5, 12), center + Vector3.new(math.cos(angle) * 66, -0.7, math.sin(angle) * 66), Color3.fromRGB(255, 70, 20), Enum.Material.Neon)
+				vent.CanCollide = false
+				vent.CFrame = CFrame.new(vent.Position) * CFrame.Angles(0, -angle, 0)
+			end
+		elseif definition.Element == "Ice" then
+			for index = 1, 8 do
+				local angle = index / 8 * math.pi * 2 + 0.45
+				createPart(realm, "IceShelf" .. index, Vector3.new(14, 1.5, 20), center + Vector3.new(math.cos(angle) * 76, 0, math.sin(angle) * 76), Color3.fromRGB(155, 225, 255), Enum.Material.Ice)
+			end
+		elseif definition.Element == "Lightning" then
+			for index = 1, 6 do
+				local angle = index / 6 * math.pi * 2
+				createPart(realm, "StormRod" .. index, Vector3.new(1, 18, 1), center + Vector3.new(math.cos(angle) * 78, 8, math.sin(angle) * 78), Color3.fromRGB(255, 230, 90), Enum.Material.Neon)
+			end
 		end
 		for index, profile in ipairs(definition.Props or {}) do
 			local angle = (index - 1) / math.max(#definition.Props, 1) * math.pi * 2 + math.rad(30)
-			placeImportedProp(realm, profile, center + Vector3.new(math.cos(angle) * 31, 0, math.sin(angle) * 31), index == 1 and 13 or 8, -angle)
+			placeImportedProp(realm, profile, center + Vector3.new(math.cos(angle) * 48, -1, math.sin(angle) * 48), index == 1 and 16 or 10, -angle)
 		end
-		createWarpPad(realm, "ReturnToHub", center + Vector3.new(0, 0, 48), HUB_SPAWN, Color3.fromRGB(80, 220, 255), "Hub", "RETURN TO SAFE HUB")
+		createWarpPad(realm, "ReturnToHub", center + Vector3.new(0, 0, 92), HUB_SPAWN, Color3.fromRGB(80, 220, 255), "Hub", "RETURN TO SAFE HUB")
 	end
 
 	local warps = getOrCreateFolder(portalHome, "Warps")
@@ -403,6 +460,8 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	model:SetAttribute("StatusEffect", definition.StatusEffect)
 	model:SetAttribute("LootTier", definition.LootTier or enemyType)
 	model:SetAttribute("AbilityColor", definition.Color)
+	model:SetAttribute("FlyingEnemy", definition.Flying == true)
+	model:SetAttribute("HoverHeight", definition.HoverHeight or 0)
 
 	local body = Instance.new("Part")
 	body.Name = "HumanoidRootPart"
@@ -448,14 +507,24 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 		importedVisual.Name = "ImportedVisual"
 		importedVisual.Parent = model
 		local _, visualSize = importedVisual:GetBoundingBox()
-		local targetHeight = enemyType == "Boss" and 12 or (definition.Health >= 500 and 8 or 5.5)
+		local targetHeight = definition.VisualHeight or (enemyType == "Boss" and 12 or (definition.Health >= 500 and 8 or 5.5))
 		if visualSize.Y > 0.01 then pcall(function() importedVisual:ScaleTo(math.clamp(targetHeight / visualSize.Y, 0.04, 4)) end) end
 		AssetModelService.WeldModel(importedVisual)
-		importedVisual:PivotTo(CFrame.new(position + Vector3.new(0, targetHeight * 0.46, 0)))
+		local pivot = importedVisual:GetPivot()
+		local boxCFrame, boxSize = importedVisual:GetBoundingBox()
+		local pivotToBox = pivot:ToObjectSpace(boxCFrame)
+		local hoverHeight = definition.HoverHeight or 0
+		local targetBox = CFrame.new(position + Vector3.new(0, -body.Size.Y * 0.5 + hoverHeight + boxSize.Y * 0.5, 0))
+		importedVisual:PivotTo(targetBox * pivotToBox:Inverse())
 		local visualRoot = importedVisual.PrimaryPart
 		if visualRoot then
-			local weld = Instance.new("WeldConstraint")
-			weld.Name, weld.Part0, weld.Part1, weld.Parent = "EnemyVisualWeld", body, visualRoot, visualRoot
+			local motor = Instance.new("Motor6D")
+			motor.Name, motor.Part0, motor.Part1 = definition.Flying and "EnemyFlightMotor" or "EnemyVisualMotor", body, visualRoot
+			motor.C0, motor.C1, motor.Parent = body.CFrame:ToObjectSpace(visualRoot.CFrame), CFrame.identity, visualRoot
+			if definition.Flying then
+				motor:SetAttribute("AirC0", motor.C0)
+				motor:SetAttribute("GroundC0", CFrame.new(0, -hoverHeight, 0) * motor.C0)
+			end
 		end
 		for _, limb in ipairs(fallbackLimbs) do limb.Transparency = 1 end
 	end
@@ -552,9 +621,9 @@ end
 local WAVE_ROSTER = {
 	{Id = "Basic", Wave = 1}, {Id = "Fast", Wave = 2}, {Id = "FireImp", Wave = 3},
 	{Id = "Tank", Wave = 4}, {Id = "FrostWolf", Wave = 5}, {Id = "StormOrc", Wave = 6},
-	{Id = "StoneWarrior", Wave = 7}, {Id = "AshwingDrake", Wave = 8}, {Id = "OrcChampion", Wave = 9},
+	{Id = "StoneWarrior", Wave = 7}, {Id = "OrcChampion", Wave = 9},
 	{Id = "LavaGolem", Wave = 11}, {Id = "IceGolem", Wave = 12}, {Id = "NullHunter", Wave = 14},
-	{Id = "EarthGolem", Wave = 16}, {Id = "LabyrinthHorror", Wave = 18}, {Id = "RiftDragon", Wave = 20},
+	{Id = "EarthGolem", Wave = 16}, {Id = "LabyrinthHorror", Wave = 18},
 }
 
 local function chooseEnemyType(wave, index)
@@ -562,6 +631,8 @@ local function chooseEnemyType(wave, index)
 	for _, entry in ipairs(WAVE_ROSTER) do
 		if wave >= entry.Wave then table.insert(available, entry.Id) end
 	end
+	if wave >= 20 and wave % 10 == 5 and index == 1 then return "RiftDragon" end
+	if wave >= 8 and wave % 6 == 2 and index == 1 then return "AshwingDrake" end
 	if wave % 5 == 0 and index == 1 then return "Tank" end
 	return available[((index + wave - 2) % #available) + 1]
 end
@@ -648,7 +719,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 			local definition = enemyConfig[enemyType]
 			if definition then
 				local angle = (index - 1) / math.max(#realm.Mobs, 1) * math.pi * 2 + math.rad(45)
-				local radius = index % 2 == 0 and 37 or 26
+				local radius = index % 2 == 0 and 72 or 48
 				local position = realm.Destination + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
 				local realmEnemy, realmHumanoid = createEnemy(enemyType, definition, 1, 1, 0, position, enemyFolder)
 				realmEnemy:SetAttribute("IsPractice", true)

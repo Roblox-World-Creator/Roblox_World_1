@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local PathfindingBudget = require(script.Parent.PathfindingBudget)
 
 local EnemyAI = {}
@@ -175,6 +176,11 @@ function EnemyAI.Run(enemy, core, config, holdPosition)
 				if os.clock() >= nextAttack then
 					nextAttack = os.clock() + config.EnemyAttackCooldown * (enemy:GetAttribute("AttackCooldownMultiplier") or 1)
 					enemy:SetAttribute("AIState", "Attacking")
+					local flightMotor = enemy:GetAttribute("FlyingEnemy") and enemy:FindFirstChild("EnemyFlightMotor", true)
+					local groundC0 = flightMotor and flightMotor:GetAttribute("GroundC0")
+					if flightMotor and typeof(groundC0) == "CFrame" then
+						TweenService:Create(flightMotor, TweenInfo.new(config.EnemyAttackWindup * 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {C0 = groundC0}):Play()
+					end
 					effectsRemote:FireAllClients("EnemyTelegraph", {
 						Origin = root.Position,
 						Duration = config.EnemyAttackWindup,
@@ -202,6 +208,10 @@ function EnemyAI.Run(enemy, core, config, holdPosition)
 								damagePlayer(enemy, root, targetPlayer, currentHumanoid, currentRoot, config, effectsRemote)
 							end
 						end
+					end
+					local airC0 = flightMotor and flightMotor:GetAttribute("AirC0")
+					if flightMotor and typeof(airC0) == "CFrame" then
+						TweenService:Create(flightMotor, TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {C0 = airC0}):Play()
 					end
 				end
 			elseif not targetRoot and not holdPosition and distanceToGoal <= config.CoreAttackRange then

@@ -39,6 +39,14 @@ end
 local function createImportedWeapon(container, hand, itemId, definition, secondary, offset)
 	local model = AssetModelService.Clone("Weapons", definition.ModelProfile)
 	if not model then return false end
+	local handle
+	for _, descendant in ipairs(model:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			local name = string.lower(descendant.Name)
+			if name == "handle" or name == "grip" or string.find(name, "weaponhandle", 1, true) then handle = descendant; break end
+		end
+	end
+	if handle then model.PrimaryPart = handle end
 	model.Name = secondary and "SecondaryWeaponVisual" or "PrimaryWeaponVisual"
 	model:SetAttribute("ItemId", itemId)
 	model:SetAttribute("WeaponKind", definition.WeaponKind or "Melee")
@@ -47,9 +55,18 @@ local function createImportedWeapon(container, hand, itemId, definition, seconda
 	local extents = model:GetExtentsSize()
 	local longest = math.max(extents.X, extents.Y, extents.Z)
 	if longest > 0 then pcall(function() model:ScaleTo(model:GetScale() * math.clamp(desired.Y / longest, 0.15, 6)) end) end
-	model:PivotTo(hand.CFrame * offset)
+	-- Normalize arbitrary Creator Store model axes: blades point upward; barrels point forward.
+	local correction = CFrame.identity
+	if secondary then
+		if extents.X >= extents.Y and extents.X >= extents.Z then correction = CFrame.Angles(0, math.rad(90), 0)
+		elseif extents.Y >= extents.X and extents.Y >= extents.Z then correction = CFrame.Angles(math.rad(90), 0, 0) end
+	else
+		if extents.X >= extents.Y and extents.X >= extents.Z then correction = CFrame.Angles(0, 0, math.rad(90))
+		elseif extents.Z >= extents.X and extents.Z >= extents.Y then correction = CFrame.Angles(math.rad(90), 0, 0) end
+	end
+	local gripOffset = offset * correction
 	AssetModelService.WeldModel(model)
-	attach(model.PrimaryPart, hand, offset, secondary and "SecondaryGrip" or "SwordGrip")
+	attach(model.PrimaryPart, hand, gripOffset, secondary and "SecondaryGrip" or "SwordGrip")
 	addGlow(model.PrimaryPart, definition)
 	return true
 end
@@ -57,15 +74,16 @@ end
 local function createWeapon(container, hand, itemId, definition, secondary)
 	local size = definition.WeaponSize or Vector3.new(0.3, 4.2, 0.65)
 	local offset = secondary
-		and CFrame.new(0, -0.65, -0.35) * CFrame.Angles(math.rad(-90), 0, math.rad(-8))
-		or CFrame.new(0, -1.35, -0.2) * CFrame.Angles(0, 0, math.rad(10))
+		and CFrame.new(0, -0.2, -0.45) * CFrame.Angles(math.rad(-8), 0, math.rad(-8))
+		or CFrame.new(0, -0.12, -0.4) * CFrame.Angles(math.rad(-12), 0, math.rad(-8))
 	if definition.ModelProfile and createImportedWeapon(container, hand, itemId, definition, secondary, offset) then return end
 	local model = Instance.new("Model")
 	model.Name, model.Parent = secondary and "SecondaryWeaponVisual" or "PrimaryWeaponVisual", container
 	model:SetAttribute("ItemId", itemId)
 	model:SetAttribute("WeaponKind", definition.WeaponKind or "Melee")
 	local blade = visualPart(model, definition.WeaponKind and "RangedWeapon" or "Blade", size, definition.WeaponColor or RARITY_COLORS[definition.Rarity])
-	attach(blade, hand, offset, secondary and "SecondaryGrip" or "SwordGrip")
+	local fallbackOffset = secondary and offset or CFrame.new(0, size.Y * 0.44, -0.4) * CFrame.Angles(math.rad(-12), 0, math.rad(-8))
+	attach(blade, hand, fallbackOffset, secondary and "SecondaryGrip" or "SwordGrip")
 	model.PrimaryPart = blade
 
 	local detailColor, detailSize = Color3.fromRGB(45, 58, 82), Vector3.new(1.6, 0.25, 0.35)

@@ -37,10 +37,29 @@ function MovementService.Start(resourceConfig, powerService)
 	local cooldowns = {}
 	local dodgeCooldowns = {}
 	local specialCooldowns = {}
+	local flightStates = {}
+
+	local function stopEagleFlight(player)
+		local state = flightStates[player]
+		flightStates[player] = nil
+		player:SetAttribute("EagleFlightActive", false)
+		if not state then return end
+		state.Running = false
+		for _, mover in ipairs({state.Velocity, state.Gyro}) do if mover and mover.Parent then mover:Destroy() end end
+		if state.Humanoid and state.Humanoid.Parent then state.Humanoid.AutoRotate = state.AutoRotate end
+		for _, joint in ipairs(state.Wings or {}) do if joint.Parent then joint.Transform = CFrame.identity end end
+	end
 
 	movementRemote.OnServerEvent:Connect(function(player, powerName)
-		local definition = powerService and powerService.GetMotionDefinition and powerService.GetMotionDefinition(powerName)
-		if not definition or not powerService.IsMotionActive(player, powerName) then return end
+		if powerName == "EagleFlight" and flightStates[player] then
+			stopEagleFlight(player)
+			feedbackRemote:FireClient(player, "CastAccepted", "EagleFlight", nil, 0)
+			return
+		end
+		local eagleFlight = powerName == "EagleFlight" and player:GetAttribute("ActiveTransformation") == "Eagle"
+		local definition = eagleFlight and {Cooldown = 4, StaminaCost = 18}
+			or (powerService and powerService.GetMotionDefinition and powerService.GetMotionDefinition(powerName))
+		if not definition or (not eagleFlight and not powerService.IsMotionActive(player, powerName)) then return end
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -55,16 +74,52 @@ function MovementService.Start(resourceConfig, powerService)
 		if powerName == "SuperJump" then
 			root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 82, root.AssemblyLinearVelocity.Z) + root.CFrame.LookVector * 24
 			effectsRemote:FireAllClients("PowerLocal", {Ability = "SuperJump", Origin = root.Position, Radius = 10})
+		elseif powerName == "EagleFlight" then
+			local velocity = Instance.new("BodyVelocity")
+			velocity.Name, velocity.MaxForce, velocity.P = "EagleFlightVelocity", Vector3.new(900000, 900000, 900000), 22000
+			velocity.Velocity, velocity.Parent = Vector3.new(0, 42, 0), root
+			local gyro = Instance.new("BodyGyro")
+			gyro.Name, gyro.MaxTorque, gyro.P, gyro.D = "EagleFlightGyro", Vector3.new(0, 700000, 0), 16000, 800
+			gyro.CFrame, gyro.Parent = root.CFrame, root
+			local wings = {}
+			for _, descendant in ipairs(character:GetDescendants()) do
+				if descendant:IsA("Motor6D") and string.find(descendant.Name, "EagleFeather", 1, true) then table.insert(wings, descendant) end
+			end
+			flightStates[player] = {Running = true, Velocity = velocity, Gyro = gyro, Humanoid = humanoid, AutoRotate = humanoid.AutoRotate, Wings = wings}
+			humanoid.AutoRotate = false
+			player:SetAttribute("EagleFlightActive", true)
+			task.spawn(function()
+				local state = flightStates[player]
+				local started = os.clock()
+				while state and state.Running and flightStates[player] == state and root.Parent and humanoid.Health > 0 and player:GetAttribute("ActiveTransformation") == "Eagle" do
+					local elapsed = os.clock() - started
+					local direction = humanoid.MoveDirection
+					local horizontal = direction.Magnitude > 0.1 and Vector3.new(direction.X, 0, direction.Z).Unit or Vector3.zero
+					local lift = elapsed < 1.15 and 38 - elapsed * 18 or (horizontal.Magnitude > 0 and 4 or 1.5)
+					velocity.Velocity = horizontal * 58 + Vector3.new(0, lift, 0)
+					if horizontal.Magnitude > 0.1 then gyro.CFrame = CFrame.lookAt(root.Position, root.Position + horizontal) end
+					local flap = math.sin(elapsed * 11) * math.rad(13)
+					for _, joint in ipairs(wings) do
+						local side = string.find(joint.Name, "Left", 1, true) and -1 or 1
+						joint.Transform = CFrame.Angles(0, 0, side * flap)
+					end
+					task.wait(0.05)
+				end
+				if flightStates[player] == state then stopEagleFlight(player) end
+			end)
+			effectsRemote:FireAllClients("PowerCast", {Ability = powerName, Origin = root.Position, Target = root.Position + root.CFrame.LookVector * 36, Duration = 2.5})
 		elseif powerName == "Flight" then
 			task.spawn(function()
-				local finish = os.clock() + 3.5
+				local started = os.clock()
+				local duration = 3.5
+				local finish = started + duration
 				while os.clock() < finish and root.Parent and humanoid.Health > 0 do
 					local direction = humanoid.MoveDirection.Magnitude > 0.1 and humanoid.MoveDirection or root.CFrame.LookVector
 					root.AssemblyLinearVelocity = direction * 58 + Vector3.new(0, 8, 0)
 					task.wait(0.08)
 				end
 			end)
-			effectsRemote:FireAllClients("PowerCast", {Ability = "Flight", Origin = root.Position, Target = root.Position + root.CFrame.LookVector * 30, Duration = 3.5})
+			effectsRemote:FireAllClients("PowerCast", {Ability = powerName, Origin = root.Position, Target = root.Position + root.CFrame.LookVector * 36, Duration = 3.5})
 		elseif powerName == "PhaseGuard" then
 			player:SetAttribute("InvulnerableUntil", workspace:GetServerTimeNow() + 1.4)
 			effectsRemote:FireAllClients("PowerLocal", {Ability = "PhaseGuard", Origin = root.Position, Radius = 12})
@@ -157,6 +212,7 @@ function MovementService.Start(resourceConfig, powerService)
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		stopEagleFlight(player)
 		cooldowns[player] = nil
 		dodgeCooldowns[player] = nil
 		specialCooldowns[player] = nil
