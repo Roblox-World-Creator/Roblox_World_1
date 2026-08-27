@@ -10,7 +10,10 @@ function DamageService.ApplyEnemyDamage(player, enemy, amount)
 		return nil
 	end
 
-	local critical = math.random() < math.clamp(player:GetAttribute("CriticalChance") or 0.05, 0, 0.75)
+	local criticalChance = (player:GetAttribute("CriticalChance") or 0.05)
+		+ (player:GetAttribute("SkillCriticalChance") or 0)
+		+ (player:GetAttribute("TransformationCriticalChance") or 0)
+	local critical = math.random() < math.clamp(criticalChance, 0, 0.75)
 	local criticalMultiplier = critical and math.max(1, player:GetAttribute("CriticalDamage") or 1.5) or 1
 	local finalDamage = math.max(0, tonumber(amount) or 0) * criticalMultiplier * (enemy:GetAttribute("DamageTakenMultiplier") or 1)
 	if finalDamage <= 0 then

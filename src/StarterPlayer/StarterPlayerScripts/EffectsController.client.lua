@@ -18,6 +18,11 @@ local POWER_COLORS = {
 	GravityPulse = Color3.fromRGB(185, 95, 255),
 	ChainLightning = Color3.fromRGB(255, 235, 90),
 	Tornado = Color3.fromRGB(170, 210, 255),
+	FireBolt = Color3.fromRGB(255, 85, 35), FlameWave = Color3.fromRGB(255, 115, 40), Meteor = Color3.fromRGB(255, 175, 55),
+	IceShard = Color3.fromRGB(95, 220, 255), FrostNova = Color3.fromRGB(185, 245, 255), Blizzard = Color3.fromRGB(115, 180, 255),
+	LightningBolt = Color3.fromRGB(255, 240, 80), Thunderstorm = Color3.fromRGB(175, 215, 255),
+	RockShot = Color3.fromRGB(170, 120, 65), GroundSlam = Color3.fromRGB(120, 210, 100), Boulder = Color3.fromRGB(140, 95, 55),
+	GravityPull = Color3.fromRGB(190, 95, 255), GravityWell = Color3.fromRGB(145, 65, 230), BlackHole = Color3.fromRGB(85, 25, 135),
 }
 
 local announcementGui = Instance.new("ScreenGui")
@@ -126,15 +131,16 @@ local function renderEnergyBolt(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then
 		return
 	end
+	local projectileColor = POWER_COLORS[data.Ability] or ENERGY_COLOR
 	local projectile = createEffectPart(
 		"EnergyBolt",
 		Enum.PartType.Ball,
-		ENERGY_COLOR,
+		projectileColor,
 		Vector3.new(1.4, 1.4, 1.4),
 		CFrame.new(data.Origin)
 	)
 	local light = Instance.new("PointLight")
-	light.Color = ENERGY_COLOR
+	light.Color = projectileColor
 	light.Brightness = 2
 	light.Range = 10
 	light.Parent = projectile
@@ -148,7 +154,7 @@ local function renderEnergyBolt(data)
 		local trail = Instance.new("Trail")
 		trail.Attachment0 = back
 		trail.Attachment1 = front
-		trail.Color = ColorSequence.new(Color3.fromRGB(230, 255, 255), ENERGY_COLOR)
+		trail.Color = ColorSequence.new(Color3.fromRGB(230, 255, 255), projectileColor)
 		trail.Transparency = NumberSequence.new(0.05, 1)
 		trail.WidthScale = NumberSequence.new(1, 0)
 		trail.LightEmission = 1
@@ -198,6 +204,20 @@ local function renderTornado(data)
 	if typeof(data.Origin) ~= "Vector3" then return end
 	local radius = math.clamp(tonumber(data.Radius) or 16, 4, 60)
 	local duration = math.clamp(tonumber(data.Duration) or 4, 0.5, 8)
+	if data.Ability == "BlackHole" then
+		local core = createEffectPart("BlackHoleCore", Enum.PartType.Ball, Color3.fromRGB(25, 5, 45), Vector3.one * 2, CFrame.new(data.Origin + Vector3.new(0, 3, 0)))
+		core.Transparency = 0.05
+		local light = Instance.new("PointLight")
+		light.Color, light.Brightness, light.Range, light.Parent = Color3.fromRGB(185, 75, 255), 4, radius * 2, core
+		TweenService:Create(core, TweenInfo.new(0.45, Enum.EasingStyle.Back), {Size = Vector3.one * radius * 0.65}):Play()
+		for index = 1, highQualityEffects() and 8 or 4 do
+			local ring = renderRing("SingularityOrbit", data.Origin + Vector3.new(0, 1 + index * 0.35, 0), radius * (0.35 + index * 0.07), index % 2 == 0 and Color3.fromRGB(195, 85, 255) or Color3.fromRGB(65, 20, 105), math.min(duration, 1.2))
+			ring.CFrame *= CFrame.Angles(math.rad(index * 13), 0, math.rad(index * 9))
+		end
+		Debris:AddItem(core, duration)
+		shakeCamera(data.Origin, radius * 3, 0.9)
+		return
+	end
 	local core = createEffectPart("RiftTornado", Enum.PartType.Cylinder, Color3.fromRGB(135, 205, 255), Vector3.new(2, 8, 8), CFrame.new(data.Origin + Vector3.new(0, 4, 0)))
 	core.Transparency = 0.4
 	local rings = {}
@@ -406,7 +426,8 @@ local function renderDamageNumber(data)
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.Text = string.format("-%d", math.floor(tonumber(data.Amount) or 0))
-	label.TextColor3 = data.Critical and Color3.fromRGB(255, 105, 75) or Color3.fromRGB(255, 225, 105)
+	local elementColors = {Fire = Color3.fromRGB(255, 105, 45), Ice = Color3.fromRGB(120, 225, 255), Lightning = Color3.fromRGB(255, 240, 90), Earth = Color3.fromRGB(145, 210, 105), Gravity = Color3.fromRGB(195, 100, 255)}
+	label.TextColor3 = data.Critical and Color3.fromRGB(255, 105, 75) or elementColors[data.Element] or Color3.fromRGB(255, 225, 105)
 	label.Text = data.Critical and ("CRIT " .. label.Text) or label.Text
 	label.TextStrokeColor3 = Color3.fromRGB(55, 15, 15)
 	label.TextStrokeTransparency = 0
@@ -609,6 +630,38 @@ local function renderGravityPulse(data)
 	shakeCamera(data.Origin, radius * 3, 0.8)
 end
 
+local function renderGroundSlam(data)
+	if typeof(data.Origin) ~= "Vector3" then return end
+	local radius = tonumber(data.Radius) or 16
+	for index = 1, highQualityEffects() and 3 or 2 do
+		task.delay((index - 1) * 0.07, function() renderRing("SeismicShockwave", data.Origin - Vector3.new(0, 2.2, 0), radius * (0.65 + index * 0.28), Color3.fromRGB(135, 210, 105), 0.42) end)
+	end
+	for index = 1, highQualityEffects() and 12 or 6 do
+		local angle = index / (highQualityEffects() and 12 or 6) * math.pi * 2
+		local rock = createEffectPart("SlamDebris", Enum.PartType.Block, Color3.fromRGB(115, 82, 52), Vector3.new(1.2, 1.8, 1.2), CFrame.new(data.Origin + Vector3.new(math.cos(angle) * radius * 0.55, 0, math.sin(angle) * radius * 0.55)))
+		TweenService:Create(rock, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = rock.Position + Vector3.new(0, math.random(3, 7), 0), Transparency = 1}):Play()
+		Debris:AddItem(rock, 0.45)
+	end
+	shakeCamera(data.Origin, radius * 4, 1.05)
+end
+
+local function renderLightningArc(data)
+	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
+	local points = {data.Origin}
+	local segments = highQualityEffects() and 8 or 4
+	for index = 1, segments - 1 do
+		local alpha = index / segments
+		table.insert(points, data.Origin:Lerp(data.Target, alpha) + Vector3.new(math.random(-15, 15) / 10, math.random(-10, 10) / 10, math.random(-15, 15) / 10))
+	end
+	table.insert(points, data.Target)
+	for index = 1, #points - 1 do
+		local offset = points[index + 1] - points[index]
+		local segment = createEffectPart("SegmentedLightning", Enum.PartType.Block, Color3.fromRGB(255, 240, 105), Vector3.new(0.28, 0.28, offset.Magnitude), CFrame.lookAt(points[index]:Lerp(points[index + 1], 0.5), points[index + 1]))
+		TweenService:Create(segment, TweenInfo.new(0.2), {Transparency = 1, Size = Vector3.new(0.05, 0.05, offset.Magnitude)}):Play()
+		Debris:AddItem(segment, 0.24)
+	end
+end
+
 local function renderBossSpecial(effectName, data)
 	if effectName == "BossVortexTelegraph" or effectName == "BossVortex" then
 		if typeof(data.Origin) ~= "Vector3" then return end
@@ -649,7 +702,9 @@ effectsRemote.OnClientEvent:Connect(function(effectName, data)
 	elseif effectName == "GravityPulse" then
 		renderGravityPulse(data)
 	elseif effectName == "ChainLightning" then
-		renderBeam(data, Color3.fromRGB(255, 240, 105), 0.22, 0.55)
+		renderLightningArc(data)
+	elseif effectName == "GroundSlam" then
+		renderGroundSlam(data)
 	elseif effectName == "Melee" then
 		renderMelee(data)
 	elseif effectName == "EnemyTelegraph" then

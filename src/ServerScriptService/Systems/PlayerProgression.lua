@@ -17,7 +17,7 @@ local function setStats(player, config)
 		attackMultiplier = 1
 		healthMultiplier = 1
 	end
-	local maxHealth = math.floor((config.StartingMaxHealth + ((level - 1) * config.LevelHealthBonus)) * healthMultiplier
+	local maxHealth = math.floor((config.StartingMaxHealth + ((level - 1) * config.LevelHealthBonus)) * healthMultiplier * (player:GetAttribute("SkillHealthMultiplier") or 1)
 		+ (player:GetAttribute("EquipmentHealth") or 0))
 	player:SetAttribute("MaxHealth", maxHealth)
 	player:SetAttribute("AttackPower", math.floor((config.StartingAttack + ((level - 1) * config.LevelAttackBonus)) * attackMultiplier
@@ -61,6 +61,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 	local function setupPlayer(player)
 		player:SetAttribute("DataLoaded", false)
 		local data = saveService.Load(player, {
+			SchemaVersion = 4,
 			Level = config.StartingLevel,
 			XP = config.StartingXP,
 			Coins = config.StartingCoins,
@@ -74,6 +75,14 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 			Mastery = {},
 			Quests = {},
 			QuestClaims = {},
+			Skills = {},
+			SkillPoints = 0,
+			ElementPoints = 0,
+			Transformations = {},
+			UnlockedWorlds = {FireWorld = true},
+			UnlockedElements = {Fire = true, Ice = true, Lightning = true, Earth = true},
+			WeaponMastery = {},
+			BossKills = {},
 			Settings = {EffectQuality = "HIGH", CameraShakeEnabled = true, DamageNumbersEnabled = true},
 		})
 		if not player.Parent then
@@ -143,7 +152,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 			while player.Parent do
 				local maxMP = player:GetAttribute("MaxMP") or resourceConfig.MaxMP
 				local mp = player:GetAttribute("MP") or 0
-				local regeneratedMP = math.min(maxMP, mp + (resourceConfig.MPRegenPerSecond + (player:GetAttribute("BonusMPRegen") or 0)) * resourceConfig.MPRegenInterval)
+				local regeneratedMP = math.min(maxMP, mp + (resourceConfig.MPRegenPerSecond + (player:GetAttribute("BonusMPRegen") or 0) + (player:GetAttribute("SkillEnergyRegen") or 0)) * resourceConfig.MPRegenInterval)
 				player:SetAttribute("MP", regeneratedMP)
 				-- Keep the prototype Energy attributes synchronized for compatibility.
 				player:SetAttribute("Energy", regeneratedMP)

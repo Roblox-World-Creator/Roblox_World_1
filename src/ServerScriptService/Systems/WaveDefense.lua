@@ -1,6 +1,8 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EnemyAI = require(script.Parent.EnemyAI)
 local BossPhaseController = require(script.Parent.BossPhaseController)
+local RealmConfig = require(ReplicatedStorage.Shared.RealmConfig)
 
 local WaveDefense = {}
 local runtimeState
@@ -112,11 +114,12 @@ local function createPickup(parent, name, position, color, attribute, amount)
 	end
 end
 
-local function createWarpPad(parent, name, position, destination, color)
+local function createWarpPad(parent, name, position, destination, color, realmId, labelText)
 	local pad = createPart(parent, name, Vector3.new(8, 0.35, 8), position, color, Enum.Material.Neon)
 	pad.CanCollide = false
 	pad:SetAttribute("WarpDestination", destination)
-	addLabel(pad, name .. " WARP", Vector3.new(0, 2.5, 0))
+	pad:SetAttribute("RealmId", realmId or "Fort")
+	addLabel(pad, labelText or (name .. " WARP"), Vector3.new(0, 3.2, 0))
 	if not pad:GetAttribute("WarpConnected") then
 		pad:SetAttribute("WarpConnected", true)
 		pad.Touched:Connect(function(hit)
@@ -125,10 +128,42 @@ local function createWarpPad(parent, name, position, destination, color)
 			local player = humanoid and Players:GetPlayerFromCharacter(character)
 			if not player or humanoid.Health <= 0 or os.clock() < (player:GetAttribute("WarpReadyAt") or 0) then return end
 			player:SetAttribute("WarpReadyAt", os.clock() + 1.5)
-			character:PivotTo(CFrame.new(destination + Vector3.new(0, 4, 0)))
+			local currentDestination = pad:GetAttribute("WarpDestination") or destination
+			character:PivotTo(CFrame.new(currentDestination + Vector3.new(0, 4, 0)))
 		end)
 	end
 	return pad
+end
+
+local function createElementalRealms(arena)
+	local realms = getOrCreateFolder(workspace, "ElementalRealms")
+	for _, realmId in ipairs(RealmConfig.Order) do
+		local definition = RealmConfig.Realms[realmId]
+		local realm = getOrCreateFolder(realms, realmId)
+		local center = definition.Destination
+		local floor = createPart(realm, "RealmFloor", Vector3.new(120, 2, 120), center - Vector3.new(0, 2, 0), definition.Color:Lerp(Color3.fromRGB(28, 30, 38), 0.58), Enum.Material.Slate)
+		floor:SetAttribute("Element", definition.Element)
+		local shrine = createPart(realm, "ElementShrine", Vector3.new(10, 18, 10), center + Vector3.new(0, 8, 0), definition.Color, Enum.Material.Neon)
+		addLabel(shrine, string.format("%s\nRecommended Level %d\nBoss: %s\nRare: %s", definition.DisplayName, definition.RecommendedLevel, definition.Boss, definition.RareDrop), Vector3.new(0, 12, 0))
+		for index = 1, 8 do
+			local angle = index / 8 * math.pi * 2
+			local height = 5 + index % 3 * 3
+			createPart(realm, "ElementPillar" .. index, Vector3.new(4, height, 4), center + Vector3.new(math.cos(angle) * 42, height / 2 - 1, math.sin(angle) * 42), definition.Color:Lerp(Color3.new(1, 1, 1), 0.2), index % 2 == 0 and Enum.Material.Neon or Enum.Material.Rock)
+		end
+		createWarpPad(realm, "ReturnToFort", center + Vector3.new(0, 0, 48), Vector3.new(0, 18, -48), Color3.fromRGB(80, 220, 255), "Fort", "RETURN TO ASCENDANT FORT")
+	end
+
+	local warps = getOrCreateFolder(arena, "Warps")
+	for _, realmId in ipairs(RealmConfig.Order) do
+		local definition = RealmConfig.Realms[realmId]
+		local pad = warps:FindFirstChild(definition.PortalName)
+		if pad then
+			pad.Color = definition.Color
+			pad:SetAttribute("WarpDestination", definition.Destination)
+			pad:SetAttribute("RealmId", realmId)
+			addLabel(pad, string.format("%s\nLEVEL %d+  |  %s", definition.DisplayName, definition.RecommendedLevel, definition.Boss), Vector3.new(0, 3.5, 0))
+		end
+	end
 end
 
 local function createItemPickup(parent, name, position, color, itemId, inventoryService)
@@ -264,6 +299,7 @@ local function createArena(config, inventoryService)
 	createWarpPad(warps, "SOUTH", Vector3.new(0, 1, 115), Vector3.new(0, 4, 72), Color3.fromRGB(100, 255, 180))
 	createWarpPad(warps, "EAST", Vector3.new(115, 1, 0), Vector3.new(48, 18, 0), Color3.fromRGB(255, 190, 80))
 	createWarpPad(warps, "WEST", Vector3.new(-115, 1, 0), Vector3.new(-48, 18, 0), Color3.fromRGB(190, 130, 255))
+	createElementalRealms(arena)
 	local spawnLocation = workspace:FindFirstChild("SpawnLocation")
 	if spawnLocation and spawnLocation:IsA("SpawnLocation") then
 		spawnLocation.Size = Vector3.new(10, 1, 10)
@@ -368,6 +404,7 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	humanoid.MaxHealth = definition.Health * healthScale * (eliteDefinition and eliteDefinition.HealthMultiplier or 1)
 	humanoid.Health = humanoid.MaxHealth
 	humanoid.WalkSpeed = (definition.Speed + speedBonus) * (eliteDefinition and eliteDefinition.SpeedMultiplier or 1)
+	model:SetAttribute("BaseWalkSpeed", humanoid.WalkSpeed)
 	humanoid.DisplayName = displayName
 	humanoid.BreakJointsOnDeath = false
 	humanoid.AutoRotate = true

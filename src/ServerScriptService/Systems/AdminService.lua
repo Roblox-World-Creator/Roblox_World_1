@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AdminService = {}
+local RealmConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RealmConfig"))
 
 local authorized = {}
 local attempts = {}
@@ -97,7 +98,7 @@ local function authorize(player, suppliedCode, config)
 	return response(true, "Admin controls unlocked for this server session")
 end
 
-function AdminService.Start(config, waveDefense, inventoryService, itemConfig, evolutionService, progression, progressionConfig)
+function AdminService.Start(config, waveDefense, inventoryService, itemConfig, evolutionService, progression, progressionConfig, skillTreeService, transformationService, transformationConfig, combatService)
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local remote = remotes:FindFirstChild("AdminRemote")
 	if not remote then
@@ -149,6 +150,12 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 		if action == "ClearPracticeEnemies" then
 			local success, message = waveDefense.ClearPracticeEnemies()
 			return response(success, message)
+		end
+		if action == "SpawnStressTest" then
+			local count = math.clamp(math.floor(tonumber(payload.Count) or 25), 1, 100)
+			local spawned = 0
+			for _ = 1, count do local success = waveDefense.SpawnAdminEnemy(tostring(payload.EnemyType or "Basic"), player); if success then spawned += 1 end end
+			return response(true, string.format("Spawned %d practice enemies", spawned))
 		end
 
 		local target = resolveTarget(player, payload.Target)
@@ -228,6 +235,33 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 			target:SetAttribute("XP", 0)
 			progression.RefreshStats(target, progressionConfig)
 			return response(true, string.format("Set %s to level %d", target.Name, level))
+		elseif action == "GrantSkillPoints" then
+			if not target or not skillTreeService then return response(false, "Target or skill service unavailable") end
+			local amount = math.clamp(math.floor(tonumber(payload.Amount) or 1), 1, 100)
+			local elemental = math.clamp(math.floor(tonumber(payload.ElementAmount) or amount), 0, 100)
+			skillTreeService.Grant(target, amount, elemental)
+			return response(true, string.format("Granted %d skill and %d element points to %s", amount, elemental, target.Name))
+		elseif action == "UnlockTransformation" then
+			if not target or not transformationService then return response(false, "Target or transformation service unavailable") end
+			return (function(success, message) return response(success, message) end)(transformationService.Unlock(target, tostring(payload.FormId)))
+		elseif action == "SetTransformation" then
+			if not target or not transformationService then return response(false, "Target or transformation service unavailable") end
+			return (function(success, message) return response(success, message) end)(transformationService.Set(target, tostring(payload.FormId or "")))
+		elseif action == "UnlockAllTransformations" then
+			if not target or not transformationService or not transformationConfig then return response(false, "Transformation service unavailable") end
+			for id in pairs(transformationConfig.Forms) do transformationService.Unlock(target, id) end
+			target:SetAttribute("AdminAllTransformationsUnlocked", true)
+			return response(true, "Unlocked all transformation forms for " .. target.Name)
+		elseif action == "ResetCooldowns" then
+			if not target or not combatService then return response(false, "Target or combat service unavailable") end
+			local success, message = combatService.ResetCooldowns(target)
+			return response(success, message .. " for " .. target.Name)
+		elseif action == "TeleportRealm" then
+			if not target or not target.Character then return response(false, "Target character unavailable") end
+			local realm = RealmConfig.Realms[tostring(payload.RealmId)]
+			if not realm then return response(false, "Unknown elemental realm") end
+			target.Character:PivotTo(CFrame.new(realm.Destination + Vector3.new(0, 4, 0)))
+			return response(true, "Teleported " .. target.Name .. " to " .. realm.DisplayName)
 		elseif action == "DamageBoost" then
 			if not target then
 				return response(false, "Target player not found or ambiguous")

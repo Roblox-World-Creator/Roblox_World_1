@@ -6,7 +6,7 @@ local EnemyAI = require(script.Parent.EnemyAI)
 
 local function damagePlayer(player, humanoid, damage)
 	if player:GetAttribute("AdminGodMode") or workspace:GetServerTimeNow() < (player:GetAttribute("InvulnerableUntil") or 0) then return end
-	local defense = math.max(0, player:GetAttribute("Defense") or 0)
+	local defense = math.max(0, (player:GetAttribute("Defense") or 0) + (player:GetAttribute("TransformationDefense") or 0))
 	humanoid:TakeDamage(damage * 100 / (100 + defense))
 end
 

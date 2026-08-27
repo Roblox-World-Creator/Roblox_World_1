@@ -170,6 +170,7 @@ function InventoryService.Buy(player, itemId)
 	local definition = itemConfig.Items[itemId]
 	local price = definition and definition.BuyPrice
 	if not price then return false, "That item is not sold here" end
+	if (player:GetAttribute("Level") or 1) < (definition.RequiredLevel or 1) then return false, "Reach level " .. definition.RequiredLevel .. " to buy this item" end
 	if (player:GetAttribute("Coins") or 0) < price then return false, "Not enough gold" end
 	local success, message = InventoryService.Grant(player, itemId, 1, true)
 	if not success then return false, message end
@@ -196,6 +197,7 @@ local function equip(player, itemId)
 	local inventory, equipment = getFolders(player)
 	local stack, definition = inventory:FindFirstChild(itemId), itemConfig.Items[itemId]
 	if not stack or stack.Value <= 0 or not definition or not definition.EquipSlot then return false, "That item cannot be equipped" end
+	if (player:GetAttribute("Level") or 1) < (definition.RequiredLevel or 1) and not player:GetAttribute("AdminAuthorized") then return false, "Reach level " .. definition.RequiredLevel .. " to equip this item" end
 	local slotName = definition.EquipSlot
 	if slotName == "Artifact" then
 		for index = 1, 3 do

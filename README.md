@@ -11,6 +11,10 @@ Evolution Ascendant is an original Roblox action-RPG and wave-defense prototype 
 
 Players spawn on the north upper battlement. Ramps reach the lower core deck, and cyan trusses on the four corner towers reach the upper ring. Enemies telegraph attacks with red warning effects; moving out of range during the windup avoids the hit.
 
+Revision `0.13.0` begins the elemental evolution expansion. The four existing edge warps now open Fire, Ice, Storm, and Earth demo realms with return portals and data-driven realm metadata. The Powers loadout includes the first Fire/Ice/Lightning/Earth/Gravity roster alongside every original ability. Press `K` for universal/element skill trees and `T` for Wolf, Bear, and Eagle forms. These systems extend save schema v4 additively, so older inventory, mastery, quest, and settings data remains compatible.
+
+The admin interface is now an Ascendant development console with target selection, progression and skill grants, form unlock/forcing, elemental-realm teleporting, cooldown reset, controlled 1–100 enemy stress spawns, practice cleanup, item grants, wave controls, and confirmation for destructive player actions.
+
 Waves now progress through 50 before looping. Completion grants XP and gold, elites begin appearing from wave 3, and every tenth wave includes a multi-phase boss. Boss rewards require meaningful participation rather than the final hit.
 
 Boss waves rotate between the Stone Destroyer, Rift Tyrant, and Storm Colossus. Stone emphasizes arena slams, Rift adds a telegraphed gravity vortex, and Storm marks player positions before lightning strikes. All special damage honors dodge invulnerability, god mode, and equipment defense.

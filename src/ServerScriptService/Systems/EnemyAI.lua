@@ -59,7 +59,7 @@ local function damagePlayer(enemy, enemyRoot, player, targetHumanoid, targetRoot
 	end
 
 	local damage = enemy:GetAttribute("AttackDamage") or 5
-	local defense = math.max(0, player:GetAttribute("Defense") or 0)
+	local defense = math.max(0, (player:GetAttribute("Defense") or 0) + (player:GetAttribute("TransformationDefense") or 0))
 	damage *= 100 / (100 + defense)
 	local toEnemy = enemyRoot.Position - targetRoot.Position
 	local facingEnemy = toEnemy.Magnitude > 0 and targetRoot.CFrame.LookVector:Dot(toEnemy.Unit) > 0.15
@@ -108,6 +108,9 @@ function EnemyAI.Run(enemy, core, config, holdPosition)
 		local lastProgressAt = os.clock()
 
 		while enemy.Parent and humanoid.Health > 0 and (holdPosition or (core:GetAttribute("Health") or 0) > 0) do
+			local now = workspace:GetServerTimeNow()
+			local slowed = now < (enemy:GetAttribute("SlowedUntil") or 0)
+			humanoid.WalkSpeed = (enemy:GetAttribute("BaseWalkSpeed") or humanoid.WalkSpeed) * (slowed and (enemy:GetAttribute("SlowMultiplier") or 0.65) or 1)
 			local previousState = enemy:GetAttribute("AIState")
 			if previousState == "Chasing" or previousState == "Advancing" or previousState == "Recovering" then
 				if (root.Position - lastProgressPosition).Magnitude >= config.EnemyStuckDistance then

@@ -7,6 +7,16 @@
       "Shared": {
         "$path": "src/ReplicatedStorage/Shared"
       },
+      "GameAssets": {
+        "$className": "Folder",
+        "Weapons": { "$className": "Folder" },
+        "Transformations": { "$className": "Folder" },
+        "Enemies": { "$className": "Folder" },
+        "Bosses": { "$className": "Folder" },
+        "Projectiles": { "$className": "Folder" },
+        "Pickups": { "$className": "Folder" },
+        "WorldProps": { "$className": "Folder" }
+      },
       "Remotes": {
         "$className": "Folder",
         "CombatRemote": { "$className": "RemoteEvent" },
@@ -24,6 +34,8 @@
         "QuestEvent": { "$className": "RemoteEvent" },
         "SettingsRemote": { "$className": "RemoteEvent" },
         "PowerRemote": { "$className": "RemoteFunction" }
+		,"SkillRemote": { "$className": "RemoteFunction" }
+		,"TransformationRemote": { "$className": "RemoteFunction" }
       }
     },
     "ServerScriptService": {
@@ -41,6 +53,9 @@
       "$className": "Workspace",
       "$properties": {
         "StreamingEnabled": true
+      },
+      "ImportQuarantine": {
+        "$className": "Folder"
       },
       "SpawnLocation": {
         "$className": "SpawnLocation",

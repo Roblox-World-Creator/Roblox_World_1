@@ -1,14 +1,22 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CrowdControlService = require(script.Parent.CrowdControlService)
 
 local CombatService = {}
+local activeAbilityCooldowns
 local activeMasteryService
 local activeQuestService
 
 local function getDamageMultiplier(player)
 	local admin = math.clamp(tonumber(player:GetAttribute("AdminDamageMultiplier")) or 1, 1, 3)
 	local consumable = math.clamp(tonumber(player:GetAttribute("ConsumableDamageMultiplier")) or 1, 1, 2)
-	return admin * consumable
+	local skill = math.clamp(tonumber(player:GetAttribute("SkillDamageMultiplier")) or 1, 1, 2)
+	return admin * consumable * skill
+end
+
+local function getElementMultiplier(player, element)
+	if not element or element == "Arcane" or element == "Wind" then return 1 end
+	return math.clamp(tonumber(player:GetAttribute(element .. "DamageMultiplier")) or 1, 1, 2)
 end
 
 local function getOrCreateRemote(folder, name)
@@ -49,9 +57,18 @@ end
 
 local function getEnemiesInRadius(position, radius)
 	local matches = {}
-	for _, enemy in ipairs(getLivingEnemies()) do
-		local root = enemy:FindFirstChild("HumanoidRootPart")
-		if root and (root.Position - position).Magnitude <= radius then
+	local folder = workspace:FindFirstChild("Enemies")
+	if not folder then return matches end
+	local parameters = OverlapParams.new()
+	parameters.FilterType = Enum.RaycastFilterType.Include
+	parameters.FilterDescendantsInstances = {folder}
+	parameters.MaxParts = 400
+	local seen = {}
+	for _, part in ipairs(workspace:GetPartBoundsInRadius(position, radius, parameters)) do
+		local enemy = part:FindFirstAncestorOfClass("Model")
+		local humanoid = enemy and enemy.Parent == folder and enemy:FindFirstChildOfClass("Humanoid")
+		if enemy and humanoid and humanoid.Health > 0 and not seen[enemy] then
+			seen[enemy] = true
 			table.insert(matches, enemy)
 		end
 	end
@@ -105,37 +122,15 @@ local function findProjectileIntercept(startPosition, targetPosition, radius)
 end
 
 local function applyKnockback(enemy, origin, strength)
-	local root = enemy:FindFirstChild("HumanoidRootPart")
-	if not root then
-		return
-	end
-	local offset = root.Position - origin
-	local direction = offset.Magnitude > 0 and offset.Unit or Vector3.yAxis
-	local resistance = math.clamp(enemy:GetAttribute("KnockbackResistance") or 0, 0, 0.95)
-	root:ApplyImpulse((direction + Vector3.new(0, 0.18, 0)).Unit * strength * (1 - resistance) * root.AssemblyMass)
+	CrowdControlService.Push(enemy, origin, strength, 0.18)
 end
 
 local function applyPull(enemy, origin, strength)
-	local root = enemy:FindFirstChild("HumanoidRootPart")
-	if not root then return end
-	local offset = origin - root.Position
-	if offset.Magnitude <= 0 then return end
-	local resistance = math.clamp(enemy:GetAttribute("KnockbackResistance") or 0, 0, 0.95)
-	root:ApplyImpulse((offset.Unit + Vector3.new(0, 0.12, 0)).Unit * strength * (1 - resistance) * root.AssemblyMass)
+	CrowdControlService.Pull(enemy, origin, strength)
 end
 
 local function applyStun(enemy, duration, config, force)
-	local now = workspace:GetServerTimeNow()
-	if not force and now < (enemy:GetAttribute("NextStunnableAt") or 0) then
-		return
-	end
-	local resistance = math.clamp(enemy:GetAttribute("StunResistance") or 0, 0, 0.95)
-	local actualDuration = duration * (1 - resistance)
-	if actualDuration <= 0.03 then
-		return
-	end
-	enemy:SetAttribute("StunnedUntil", now + actualDuration)
-	enemy:SetAttribute("NextStunnableAt", now + actualDuration + config.StunImmunitySeconds)
+	CrowdControlService.Stun(enemy, duration, config.StunImmunitySeconds, force)
 end
 
 local function damageEnemy(player, enemy, amount, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, heavy, abilityName)
@@ -143,10 +138,24 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 	if not result then
 		return nil
 	end
+	local ability = abilityName and config.Abilities[abilityName]
+	local element = ability and ability.Element
+	if element == "Fire" then
+		enemy:SetAttribute("BurningUntil", workspace:GetServerTimeNow() + 3)
+	elseif element == "Ice" then
+		CrowdControlService.Slow(enemy, 0.55, 2.5)
+	elseif element == "Lightning" and math.random() < 0.22 then
+		CrowdControlService.Stun(enemy, 0.35, config.StunImmunitySeconds, false)
+	elseif element == "Earth" and heavy then
+		CrowdControlService.Stun(enemy, 0.45, config.StunImmunitySeconds, false)
+	elseif element == "Gravity" then
+		enemy:SetAttribute("CompressedUntil", workspace:GetServerTimeNow() + 1.5)
+	end
 	effectsRemote:FireClient(player, "DamageNumber", {
 		Target = enemy,
 		Amount = result.Amount,
 		Critical = result.Critical,
+		Element = element,
 	})
 	effectsRemote:FireAllClients("EnemyDamaged", {
 		Target = enemy,
@@ -180,6 +189,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 	local effectsRemote = getOrCreateRemote(remotes, "AbilityEffects")
 	local feedbackRemote = getOrCreateRemote(remotes, "CombatFeedback")
 	local abilityCooldowns = {}
+	activeAbilityCooldowns = abilityCooldowns
 	local meleeStates = {}
 
 	local function validCharacter(player)
@@ -300,6 +310,15 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			return
 		end
 		local masteryLevel = masteryService.GetLevel(player, abilityName)
+		ability = table.clone(ability)
+		local areaScale = (player:GetAttribute("SkillAreaMultiplier") or 1) * (1 + masteryLevel * 0.03)
+		ability.Radius = (ability.Radius or 0) * areaScale
+		ability.LocalRadius = (ability.LocalRadius or ability.Radius) * areaScale
+		if ability.CastType == "Chain" then
+			ability.MaximumChains = (ability.MaximumChains or 3)
+				+ (masteryLevel >= 3 and 2 or 0) + (masteryLevel >= 5 and 3 or 0)
+				+ (masteryLevel >= 8 and 4 or 0) + (masteryLevel >= 10 and 5 or 0)
+		end
 		local energyCost = math.max(1, math.floor(ability.EnergyCost * (1 - masteryLevel * config.Mastery.CostReductionPerLevel)))
 		local masteryDamageMultiplier = 1 + masteryLevel * config.Mastery.DamagePerLevel
 		local mp = player:GetAttribute("MP") or 0
@@ -311,8 +330,11 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		player:SetAttribute("MP", mp - energyCost)
 		player:SetAttribute("Energy", mp - energyCost)
 		player:SetAttribute("Blocking", false)
-		abilityCooldowns[player][abilityName] = os.clock() + ability.Cooldown
-		feedbackRemote:FireClient(player, "CastAccepted", abilityName)
+		local cooldown = ability.Cooldown * (1 - math.clamp(player:GetAttribute("SkillCooldownReduction") or 0, 0, 0.4))
+		local elementMultiplier = getElementMultiplier(player, ability.Element)
+		player:SetAttribute("CurrentElement", ability.Element or "Arcane")
+		abilityCooldowns[player][abilityName] = os.clock() + cooldown
+		feedbackRemote:FireClient(player, "CastAccepted", abilityName, nil, cooldown)
 		masteryService.Add(player, abilityName, config.Mastery.XPPerCast)
 		effectsRemote:FireAllClients("PowerCast", {
 			Ability = abilityName,
@@ -332,7 +354,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			})
 			for _, enemy in ipairs(getEnemiesInRadius(areaOrigin, localRadius)) do
 				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 0.65)
-					* getDamageMultiplier(player) * masteryDamageMultiplier
+					* getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
 				if ability.CastType == "Gravity" or ability.CastType == "Tornado" then
 					applyPull(enemy, areaOrigin, ability.PullStrength or 45)
@@ -353,6 +375,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local impactPosition = findProjectileIntercept(startPosition, targetPosition, ability.Radius)
 			local travelTime = math.clamp((impactPosition - startPosition).Magnitude / ability.ProjectileSpeed, 0.08, 1.5)
 			effectsRemote:FireAllClients("EnergyBolt", {
+				Ability = abilityName,
 				Origin = startPosition,
 				Target = impactPosition,
 				Duration = travelTime,
@@ -365,18 +388,19 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				end
 				for _, enemy in ipairs(getEnemiesInRadius(impactPosition, ability.Radius)) do
 					local damage = (ability.Damage + ((player:GetAttribute("AttackPower") or 0) * 0.5) + (player:GetAttribute("Power") or 0))
-						* getDamageMultiplier(player) * masteryDamageMultiplier
+						* getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 					damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
 				end
 			end)
 		elseif ability.CastType == "Radial" then
-			effectsRemote:FireAllClients("EnergyBurst", {
+			effectsRemote:FireAllClients(abilityName == "GroundSlam" and "GroundSlam" or "EnergyBurst", {
+				Ability = abilityName,
 				Origin = ability.Targeting == "Self" and targetPosition or targetPosition,
 				Radius = ability.Radius,
 			})
 			for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
 				local damage = (ability.Damage + ((player:GetAttribute("AttackPower") or 0) * 0.35) + (player:GetAttribute("Power") or 0))
-					* getDamageMultiplier(player) * masteryDamageMultiplier
+					* getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
 				applyKnockback(enemy, root.Position, ability.Knockback)
 			end
@@ -396,14 +420,14 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
 				local distance = enemyRoot and distanceToSegment(enemyRoot.Position, startPosition, endPosition)
 				if distance and distance <= ability.Radius + 1.5 then
-					local damage = (ability.Damage + (player:GetAttribute("Power") or 0) + (player:GetAttribute("AttackPower") or 0) * 0.4) * getDamageMultiplier(player) * masteryDamageMultiplier
+					local damage = (ability.Damage + (player:GetAttribute("Power") or 0) + (player:GetAttribute("AttackPower") or 0) * 0.4) * getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 					damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, true, abilityName)
 				end
 			end
 		elseif ability.CastType == "Gravity" then
 			effectsRemote:FireAllClients("GravityPulse", {Origin = targetPosition, Radius = ability.Radius})
 			for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
-				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 1.15) * getDamageMultiplier(player) * masteryDamageMultiplier
+				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 1.15) * getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
 				applyPull(enemy, targetPosition, ability.PullStrength)
 			end
@@ -418,11 +442,11 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				local currentRoot = current:FindFirstChild("HumanoidRootPart")
 				if not currentRoot then break end
 				effectsRemote:FireAllClients("ChainLightning", {Origin = previousPosition, Target = currentRoot.Position, Index = chainIndex})
-				local damage = (ability.Damage * (0.88 ^ (chainIndex - 1)) + (player:GetAttribute("Power") or 0)) * getDamageMultiplier(player) * masteryDamageMultiplier
+				local damage = (ability.Damage * (0.88 ^ (chainIndex - 1)) + (player:GetAttribute("Power") or 0)) * getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 				damageEnemy(player, current, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
 				previousPosition = currentRoot.Position
 				local nearest, nearestDistance
-				for _, candidate in ipairs(getLivingEnemies()) do
+				for _, candidate in ipairs(getEnemiesInRadius(previousPosition, ability.ChainRange)) do
 					local candidateRoot = candidate:FindFirstChild("HumanoidRootPart")
 					local distance = candidateRoot and (candidateRoot.Position - previousPosition).Magnitude
 					if not struck[candidate] and distance and distance <= ability.ChainRange and (not nearestDistance or distance < nearestDistance) then nearest, nearestDistance = candidate, distance end
@@ -434,6 +458,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local distance = (targetPosition - startPosition).Magnitude
 			local travelTime = math.clamp(distance / (ability.ProjectileSpeed or 42), 0.15, 1.5)
 			effectsRemote:FireAllClients("TornadoTravel", {
+				Ability = abilityName,
 				Origin = startPosition,
 				Target = targetPosition,
 				Duration = travelTime,
@@ -442,6 +467,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			task.delay(travelTime, function()
 				if not player.Parent then return end
 				effectsRemote:FireAllClients("TornadoStart", {
+					Ability = abilityName,
 					Origin = targetPosition,
 					Radius = ability.Radius,
 					Duration = ability.Duration,
@@ -449,7 +475,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				local endAt = os.clock() + ability.Duration
 				while player.Parent and os.clock() < endAt do
 					for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
-						local damage = (ability.Damage + (player:GetAttribute("Power") or 0)) * getDamageMultiplier(player) * masteryDamageMultiplier
+						local damage = (ability.Damage + (player:GetAttribute("Power") or 0)) * getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 						damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, true, abilityName)
 						applyPull(enemy, targetPosition, ability.PullStrength)
 						local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
@@ -469,6 +495,11 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		meleeStates[player] = nil
 	end)
 	workspace:SetAttribute("CombatStatus", "Ready")
+end
+
+function CombatService.ResetCooldowns(player)
+	if activeAbilityCooldowns then activeAbilityCooldowns[player] = {} end
+	return true, "Combat power cooldowns reset"
 end
 
 return CombatService

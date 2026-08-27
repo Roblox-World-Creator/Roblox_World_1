@@ -70,7 +70,7 @@ local title = Instance.new("TextLabel")
 title.Position = UDim2.fromOffset(16, 10)
 title.Size = UDim2.new(1, -62, 0, 30)
 title.BackgroundTransparency = 1
-title.Text = "SERVER ADMIN"
+title.Text = "ASCENDANT DEV CONSOLE"
 title.TextColor3 = colors.Accent
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Font = Enum.Font.GothamBlack
@@ -89,7 +89,7 @@ local status = Instance.new("TextLabel")
 status.Position = UDim2.fromOffset(16, 42)
 status.Size = UDim2.new(1, -32, 0, 38)
 status.BackgroundTransparency = 1
-status.Text = "Enter the server lock code to continue."
+status.Text = "Secure server tools • target, progression, forms, realms, waves, and stress testing"
 status.TextColor3 = colors.Muted
 status.TextWrapped = true
 status.TextXAlignment = Enum.TextXAlignment.Left
@@ -300,6 +300,27 @@ actionButton(progressionRow, "GRANT XP", "AddXP", function() return {Amount = am
 local levelBox = createTextBox("Set level (1-100)", "10")
 local levelRow = createRow()
 actionButton(levelRow, "SET LEVEL", "SetLevel", function() return {Level = levelBox.Text} end, colors.Accent)
+local skillRow = createRow()
+actionButton(skillRow, "GRANT 5 SKILL + ELEMENT", "GrantSkillPoints", function() return {Amount = 5, ElementAmount = 5} end, colors.Success)
+actionButton(skillRow, "RESET POWER COOLDOWNS", "ResetCooldowns", nil, colors.Success)
+
+createSection("ANIMAL TRANSFORMATIONS")
+local transformUnlockRow = createRow()
+actionButton(transformUnlockRow, "UNLOCK ALL FORMS", "UnlockAllTransformations", nil, colors.Accent)
+actionButton(transformUnlockRow, "RETURN TO HUMAN", "SetTransformation", function() return {FormId = ""} end)
+local transformRow1 = createRow()
+actionButton(transformRow1, "WOLF FORM", "SetTransformation", function() return {FormId = "Wolf"} end, Color3.fromRGB(70, 125, 180))
+actionButton(transformRow1, "BEAR FORM", "SetTransformation", function() return {FormId = "Bear"} end, Color3.fromRGB(135, 85, 50))
+local transformRow2 = createRow()
+actionButton(transformRow2, "EAGLE FORM", "SetTransformation", function() return {FormId = "Eagle"} end, Color3.fromRGB(175, 145, 65))
+
+createSection("ELEMENTAL REALMS")
+local realmRow1 = createRow()
+actionButton(realmRow1, "FIRE REALM", "TeleportRealm", function() return {RealmId = "FireWorld"} end, Color3.fromRGB(180, 65, 35))
+actionButton(realmRow1, "ICE REALM", "TeleportRealm", function() return {RealmId = "IceWorld"} end, Color3.fromRGB(60, 145, 190))
+local realmRow2 = createRow()
+actionButton(realmRow2, "STORM REALM", "TeleportRealm", function() return {RealmId = "StormWorld"} end, Color3.fromRGB(165, 145, 45))
+actionButton(realmRow2, "EARTH REALM", "TeleportRealm", function() return {RealmId = "EarthWorld"} end, Color3.fromRGB(75, 125, 65))
 
 createSection("PRACTICE SPAWNS")
 
@@ -311,6 +332,10 @@ actionButton(row6, "SPAWN TANK", "SpawnEnemy", function() return {EnemyType = "T
 actionButton(row6, "SPAWN BOSS", "SpawnEnemy", function() return {EnemyType = "Boss"} end, colors.Danger)
 local cleanupRow = createRow()
 actionButton(cleanupRow, "CLEAR PRACTICE ENEMIES", "ClearPracticeEnemies", nil, colors.Danger)
+local stressCount = createTextBox("Stress count (1-100)", "25")
+local stressRow = createRow()
+actionButton(stressRow, "STRESS: BASIC", "SpawnStressTest", function() return {EnemyType = "Basic", Count = stressCount.Text} end, colors.Danger)
+actionButton(stressRow, "STRESS: TANK", "SpawnStressTest", function() return {EnemyType = "Tank", Count = stressCount.Text} end, colors.Danger)
 spawnCatalog = Instance.new("TextLabel")
 spawnCatalog.Size = UDim2.new(1, -6, 0, 70)
 spawnCatalog.BackgroundColor3 = colors.PanelLight

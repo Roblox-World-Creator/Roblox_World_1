@@ -30,6 +30,10 @@ local MasteryService = require(script.Parent.Systems.MasteryService)
 local QuestService = require(script.Parent.Systems.QuestService)
 local SettingsService = require(script.Parent.Systems.SettingsService)
 local PowerService = require(script.Parent.Systems.PowerService)
+local SkillTreeConfig = require(ReplicatedStorage.Shared.SkillTreeConfig)
+local TransformationConfig = require(ReplicatedStorage.Shared.TransformationConfig)
+local SkillTreeService = require(script.Parent.Systems.SkillTreeService)
+local TransformationService = require(script.Parent.Systems.TransformationService)
 
 local marker = workspace:FindFirstChild("LiveSyncMarker")
 if not marker then
@@ -54,7 +58,8 @@ local remoteDefinitions = {
 	CombatFeedback = "RemoteEvent", EvolutionRemote = "RemoteEvent", DashRemote = "RemoteEvent",
 	DodgeRemote = "RemoteEvent", InventoryEvent = "RemoteEvent", QuestEvent = "RemoteEvent",
 	SettingsRemote = "RemoteEvent", AdminRemote = "RemoteFunction", InventoryRemote = "RemoteFunction",
-	StoreRemote = "RemoteFunction", QuestRemote = "RemoteFunction",
+	StoreRemote = "RemoteFunction", QuestRemote = "RemoteFunction", SkillRemote = "RemoteFunction",
+	TransformationRemote = "RemoteFunction",
 }
 for name, className in pairs(remoteDefinitions) do
 	local remote = remotes:FindFirstChild(name)
@@ -103,6 +108,12 @@ end)
 startSystem("Powers", function()
 	PowerService.Start(ProgressionConfig)
 end)
+startSystem("Skills", function()
+	SkillTreeService.Start(SkillTreeConfig, SaveService, PlayerProgression, ProgressionConfig)
+end)
+startSystem("Transformations", function()
+	TransformationService.Start(TransformationConfig, SaveService)
+end)
 startSystem("Combat", function()
 	CombatService.Start(ProgressionConfig, PlayerProgression, DamageService, InventoryService, MasteryService, QuestService, PowerService)
 end)
@@ -110,7 +121,7 @@ startSystem("WaveDefense", function()
 	WaveDefense.Start(GameConfig, EnemyConfig, WaveConfig, ProgressionConfig, PlayerProgression, InventoryService, QuestService)
 end)
 startSystem("Admin", function()
-	AdminService.Start(AdminConfig, WaveDefense, InventoryService, ItemConfig, EvolutionService, PlayerProgression, ProgressionConfig)
+	AdminService.Start(AdminConfig, WaveDefense, InventoryService, ItemConfig, EvolutionService, PlayerProgression, ProgressionConfig, SkillTreeService, TransformationService, TransformationConfig, CombatService)
 end)
 startSystem("Store", function()
 	StoreService.Start(ItemConfig, InventoryService)

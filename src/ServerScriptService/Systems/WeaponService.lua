@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+local AssetModelService = require(script.Parent.AssetModelService)
 
 local WeaponService = {}
 local itemConfig
@@ -8,6 +9,7 @@ local RARITY_COLORS = {
 	Common = Color3.fromRGB(185, 205, 225), Uncommon = Color3.fromRGB(95, 225, 135),
 	Rare = Color3.fromRGB(75, 155, 255), Epic = Color3.fromRGB(185, 95, 255),
 	Legendary = Color3.fromRGB(255, 180, 55),
+	Mythic = Color3.fromRGB(255, 75, 180),
 }
 
 local function visualPart(parent, name, size, color, material)
@@ -34,16 +36,35 @@ local function addGlow(part, definition)
 	light.Brightness, light.Parent = definition.Rarity == "Legendary" and 2.2 or 1.2, part
 end
 
+local function createImportedWeapon(container, hand, itemId, definition, secondary, offset)
+	local model = AssetModelService.Clone("Weapons", definition.ModelProfile)
+	if not model then return false end
+	model.Name = secondary and "SecondaryWeaponVisual" or "PrimaryWeaponVisual"
+	model:SetAttribute("ItemId", itemId)
+	model:SetAttribute("WeaponKind", definition.WeaponKind or "Melee")
+	model.Parent = container
+	local desired = definition.WeaponSize or Vector3.new(0.3, 4.2, 0.65)
+	local extents = model:GetExtentsSize()
+	local longest = math.max(extents.X, extents.Y, extents.Z)
+	if longest > 0 then pcall(function() model:ScaleTo(model:GetScale() * math.clamp(desired.Y / longest, 0.15, 6)) end) end
+	model:PivotTo(hand.CFrame * offset)
+	AssetModelService.WeldModel(model)
+	attach(model.PrimaryPart, hand, offset, secondary and "SecondaryGrip" or "SwordGrip")
+	addGlow(model.PrimaryPart, definition)
+	return true
+end
+
 local function createWeapon(container, hand, itemId, definition, secondary)
+	local size = definition.WeaponSize or Vector3.new(0.3, 4.2, 0.65)
+	local offset = secondary
+		and CFrame.new(0, -0.65, -0.35) * CFrame.Angles(math.rad(-90), 0, math.rad(-8))
+		or CFrame.new(0, -1.35, -0.2) * CFrame.Angles(0, 0, math.rad(10))
+	if definition.ModelProfile and createImportedWeapon(container, hand, itemId, definition, secondary, offset) then return end
 	local model = Instance.new("Model")
 	model.Name, model.Parent = secondary and "SecondaryWeaponVisual" or "PrimaryWeaponVisual", container
 	model:SetAttribute("ItemId", itemId)
 	model:SetAttribute("WeaponKind", definition.WeaponKind or "Melee")
-	local size = definition.WeaponSize or Vector3.new(0.3, 4.2, 0.65)
 	local blade = visualPart(model, definition.WeaponKind and "RangedWeapon" or "Blade", size, definition.WeaponColor or RARITY_COLORS[definition.Rarity])
-	local offset = secondary
-		and CFrame.new(0, -0.65, -0.35) * CFrame.Angles(math.rad(-90), 0, math.rad(-8))
-		or CFrame.new(0, -1.35, -0.2) * CFrame.Angles(0, 0, math.rad(10))
 	attach(blade, hand, offset, secondary and "SecondaryGrip" or "SwordGrip")
 	model.PrimaryPart = blade
 

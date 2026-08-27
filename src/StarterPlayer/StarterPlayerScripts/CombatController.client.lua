@@ -112,10 +112,15 @@ local abilityList = {
 	{"GravityPulse", "X", "O", Color3.fromRGB(185, 95, 255)},
 	{"ChainLightning", "C", "~", Color3.fromRGB(255, 235, 90)},
 	{"Tornado", "V", "@", Color3.fromRGB(170, 210, 255)},
+	{"FireBolt", "", "F", Color3.fromRGB(255, 95, 40)}, {"FlameWave", "", "W", Color3.fromRGB(255, 130, 45)}, {"Meteor", "", "M", Color3.fromRGB(255, 180, 55)},
+	{"IceShard", "", "I", Color3.fromRGB(105, 225, 255)}, {"FrostNova", "", "N", Color3.fromRGB(185, 245, 255)}, {"Blizzard", "", "B", Color3.fromRGB(125, 190, 255)},
+	{"LightningBolt", "", "L", Color3.fromRGB(255, 240, 80)}, {"Thunderstorm", "", "S", Color3.fromRGB(175, 205, 255)},
+	{"RockShot", "", "R", Color3.fromRGB(175, 125, 70)}, {"GroundSlam", "", "G", Color3.fromRGB(125, 210, 105)}, {"Boulder", "", "O", Color3.fromRGB(145, 105, 65)},
+	{"GravityPull", "", "P", Color3.fromRGB(190, 100, 255)}, {"GravityWell", "", "W", Color3.fromRGB(145, 65, 230)}, {"BlackHole", "", "H", Color3.fromRGB(95, 35, 150)},
 	{"PowerDash", "Q", ">", Color3.fromRGB(100, 180, 255)},
 	{"Dodge", "SHIFT", "↝", Color3.fromRGB(190, 235, 255)},
 }
-local gamepadHints = {EnergyBolt = "RT/LT", EnergyBurst = "RT/LT", EnergyBeam = "RT/LT", GravityPulse = "RT/LT", ChainLightning = "RT/LT", Tornado = "RT/LT", PowerDash = "B", Dodge = "LS"}
+local gamepadHints = setmetatable({PowerDash = "B", Dodge = "LS"}, {__index = function() return "RT/LT" end})
 
 local cooldownLabels = {}
 local cooldownEnds = {}
@@ -325,7 +330,7 @@ feedbackRemote.OnClientEvent:Connect(function(kind, xp, coins, duration)
 		feedbackMessage = "CAST: " .. tostring(xp)
 		feedbackExpires = os.clock() + 1
 		if xp ~= "Melee" and progressionConfig.Abilities[xp] then
-			cooldownEnds[xp] = os.clock() + progressionConfig.Abilities[xp].Cooldown
+			cooldownEnds[xp] = os.clock() + (duration or progressionConfig.Abilities[xp].Cooldown)
 		elseif xp == "PowerDash" then
 			cooldownEnds[xp] = os.clock() + (duration or coins or 1.25)
 		elseif xp == "Dodge" then

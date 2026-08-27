@@ -15,6 +15,8 @@ local SAVED_ATTRIBUTES = {
 	"XP",
 	"Coins",
 	"Evolution",
+	"SkillPoints",
+	"ElementPoints",
 }
 
 local function copyDefaults(defaults)
@@ -102,6 +104,7 @@ function SaveService.Load(player, defaults)
 				data[key] = saved[key]
 			end
 		end
+		data.SchemaVersion = math.max(1, tonumber(saved.SchemaVersion) or 1)
 	end
 	sessions[player] = data
 	return data
@@ -123,6 +126,11 @@ function SaveService.Save(player)
 	payload.Mastery = serializeValueFolder(player, "PowerMastery")
 	payload.Quests = serializeValueFolder(player, "QuestProgress")
 	payload.QuestClaims = serializeValueFolder(player, "QuestClaims")
+	payload.Skills = serializeValueFolder(player, "Skills")
+	payload.Transformations = serializeValueFolder(player, "Transformations")
+	for _, key in ipairs({"UnlockedWorlds", "UnlockedElements", "WeaponMastery", "BossKills"}) do
+		payload[key] = type(sessions[player][key]) == "table" and sessions[player][key] or {}
+	end
 	payload.Settings = {
 		EffectQuality = player:GetAttribute("EffectQuality") or "HIGH",
 		CameraShakeEnabled = player:GetAttribute("CameraShakeEnabled") ~= false,
