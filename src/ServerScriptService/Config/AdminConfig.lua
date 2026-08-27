@@ -32,5 +32,11 @@ return {
 		NullHunter = true,
 		LabyrinthHorror = true,
 		OrcChampion = true,
+		ShinyChicken = true,
+		LavaTitan = true,
+		FrostGiant = true,
+		StormColossus = true,
+		MountainGuardian = true,
+		PrismaticOverlord = true,
 	},
 }

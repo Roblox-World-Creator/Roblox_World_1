@@ -10,6 +10,12 @@ effectsFolder.Name = "ClientEffects"
 effectsFolder.Parent = workspace
 
 local ENERGY_COLOR = Color3.fromRGB(80, 220, 255)
+local ELEMENT_COLORS = {
+	Fire = Color3.fromRGB(255, 85, 35), Ice = Color3.fromRGB(95, 220, 255),
+	Lightning = Color3.fromRGB(255, 235, 75), Earth = Color3.fromRGB(145, 195, 95),
+	Gravity = Color3.fromRGB(180, 80, 255), Poison = Color3.fromRGB(105, 235, 80),
+	Prismatic = Color3.fromRGB(255, 105, 220), Arcane = ENERGY_COLOR, Wind = Color3.fromRGB(175, 235, 255),
+}
 
 local POWER_COLORS = {
 	EnergyBolt = Color3.fromRGB(80, 220, 255),
@@ -271,9 +277,15 @@ end
 
 local function renderPowerCast(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
-	local color = POWER_COLORS[data.Ability] or ENERGY_COLOR
+	local color = POWER_COLORS[data.Ability] or ELEMENT_COLORS[data.Element] or ENERGY_COLOR
 	local radius = data.Mode == "Close" and 5 or 2.5
 	renderRing("PowerCastRing", data.Origin - Vector3.new(0, 1.5, 0), radius, color, 0.22)
+	local tier = math.clamp(math.floor(tonumber(data.Tier) or 1), 1, 11)
+	for index = 2, math.min(5, math.ceil(tier / 2)) do
+		task.delay(index * 0.025, function()
+			renderRing("PowerTierRing", data.Origin - Vector3.new(0, 1.45 - index * 0.08, 0), radius * (1 + index * 0.28), index % 2 == 0 and color or Color3.new(1, 1, 1), 0.2 + tier * 0.018)
+		end)
+	end
 	local distance = (data.Target - data.Origin).Magnitude
 	if data.Mode == "Ranged" and distance > 2 then
 		local tracer = createEffectPart("PowerCastTravel", Enum.PartType.Block, color, Vector3.new(0.3, 0.3, distance), CFrame.lookAt(data.Origin:Lerp(data.Target, 0.5), data.Target))
@@ -287,7 +299,7 @@ end
 local function renderLocalPower(data)
 	if typeof(data.Origin) ~= "Vector3" then return end
 	local ability = tostring(data.Ability or "EnergyBolt")
-	local color = POWER_COLORS[ability] or ENERGY_COLOR
+	local color = POWER_COLORS[ability] or ELEMENT_COLORS[data.Element] or ENERGY_COLOR
 	local radius = math.clamp(tonumber(data.Radius) or 12, 4, 40)
 
 	-- Every LT form has its own readable silhouette while keeping the common color language.

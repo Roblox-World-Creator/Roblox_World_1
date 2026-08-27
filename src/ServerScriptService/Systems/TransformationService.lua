@@ -5,6 +5,20 @@ local TransformationService = {}
 local config
 local active = {}
 
+local function formSkillFolder(player)
+	local folder = player:FindFirstChild("FormSkills") or Instance.new("Folder")
+	folder.Name, folder.Parent = "FormSkills", player
+	return folder
+end
+
+local function skillCount(player, formId)
+	local folder, count = formSkillFolder(player), 0
+	for _, skill in ipairs((config.Forms[formId] and config.Forms[formId].Skills) or {}) do
+		if folder:FindFirstChild(skill.Id) and folder[skill.Id].Value then count += 1 end
+	end
+	return count
+end
+
 local function unlocked(player, id)
 	local unlocks = player:FindFirstChild("Transformations")
 	return player:GetAttribute("AdminAllTransformationsUnlocked") or (unlocks and unlocks:FindFirstChild(id) and unlocks[id].Value)
@@ -158,6 +172,10 @@ local function apply(player, id)
 	player:SetAttribute("TransformationMoveMultiplier", definition and (definition.StatModifiers.MoveSpeed or 1) or 1)
 	player:SetAttribute("TransformationDefense", definition and (definition.StatModifiers.Defense or 0) or 0)
 	player:SetAttribute("TransformationCriticalChance", definition and (definition.StatModifiers.CriticalChance or 0) or 0)
+	local unlockedSkillCount = definition and skillCount(player, id) or 0
+	player:SetAttribute("ActiveFormSkillCount", unlockedSkillCount)
+	player:SetAttribute("FormDamageMultiplier", 1 + unlockedSkillCount * 0.045 + (unlockedSkillCount >= 10 and 0.25 or 0))
+	player:SetAttribute("FormTravelUnlocked", unlockedSkillCount >= 3)
 	local baseSpeed = 36 * (player:GetAttribute("SpeedMultiplier") or 1) + (player:GetAttribute("EquipmentSpeed") or 0)
 	humanoid.WalkSpeed = player:GetAttribute("AdminSpeedOverride") or baseSpeed * (definition and (definition.StatModifiers.MoveSpeed or 1) or 1)
 	local baseHealth = player:GetAttribute("MaxHealth") or humanoid.MaxHealth
@@ -182,7 +200,46 @@ end
 local function state(player)
 	local unlockedForms = {}
 	for id in pairs(config.Forms) do unlockedForms[id] = unlocked(player, id) end
-	return {Active = active[player] or "", Unlocked = unlockedForms}
+	local skills = {}
+	for _, value in ipairs(formSkillFolder(player):GetChildren()) do if value:IsA("BoolValue") then skills[value.Name] = value.Value end end
+	return {Active = active[player] or "", Unlocked = unlockedForms, FormPoints = player:GetAttribute("FormPoints") or 0, Skills = skills}
+end
+
+local function purchaseSkill(player, formId, skillId)
+	local definition = config.Forms[formId]
+	if not definition or not unlocked(player, formId) then return false, "Form is locked" end
+	local selected, previous
+	for index, skill in ipairs(definition.Skills or {}) do
+		if skill.Id == skillId then selected = skill; previous = index > 1 and definition.Skills[index - 1] or nil break end
+	end
+	if not selected then return false, "Unknown form skill" end
+	local folder = formSkillFolder(player)
+	if folder:FindFirstChild(skillId) and folder[skillId].Value then return false, "Skill already unlocked" end
+	if previous and (not folder:FindFirstChild(previous.Id) or not folder[previous.Id].Value) then return false, "Unlock the previous form skill first" end
+	if (player:GetAttribute("Level") or 1) < selected.RequiredLevel then return false, "Reach level " .. selected.RequiredLevel end
+	if (player:GetAttribute("FormPoints") or 0) < selected.Cost then return false, "Not enough form points" end
+	player:SetAttribute("FormPoints", (player:GetAttribute("FormPoints") or 0) - selected.Cost)
+	local value = folder:FindFirstChild(skillId) or Instance.new("BoolValue")
+	value.Name, value.Value, value.Parent = skillId, true, folder
+	if active[player] == formId then apply(player, formId) end
+	return true, "Unlocked " .. selected.DisplayName
+end
+
+function TransformationService.GrantPoints(player, amount)
+	player:SetAttribute("FormPoints", (player:GetAttribute("FormPoints") or 0) + math.max(0, math.floor(tonumber(amount) or 0)))
+end
+
+function TransformationService.UnlockAllSkills(player)
+	local folder, count = formSkillFolder(player), 0
+	for _, definition in pairs(config.Forms) do
+		for _, skill in ipairs(definition.Skills or {}) do
+			local value = folder:FindFirstChild(skill.Id) or Instance.new("BoolValue")
+			if not value.Value then count += 1 end
+			value.Name, value.Value, value.Parent = skill.Id, true, folder
+		end
+	end
+	if active[player] then apply(player, active[player]) end
+	return count
 end
 
 function TransformationService.Unlock(player, id)
@@ -207,6 +264,12 @@ function TransformationService.Start(transformationConfig, saveService)
 		while player.Parent and not player:GetAttribute("DataLoaded") do player:GetAttributeChangedSignal("DataLoaded"):Wait() end
 		if not player.Parent then return end
 		local loaded = (saveService.GetLoadedData(player) or {}).Transformations or {}
+		local data = saveService.GetLoadedData(player) or {}
+		player:SetAttribute("FormPoints", math.max(0, math.floor(tonumber(data.FormPoints) or 0)))
+		local skillsFolder = formSkillFolder(player)
+		for skillId, owned in pairs(type(data.FormSkills) == "table" and data.FormSkills or {}) do
+			if owned == true then local value = Instance.new("BoolValue"); value.Name, value.Value, value.Parent = skillId, true, skillsFolder end
+		end
 		local folder = player:FindFirstChild("Transformations") or Instance.new("Folder")
 		folder.Name, folder.Parent = "Transformations", player
 		for id, definition in pairs(config.Forms) do
@@ -222,6 +285,7 @@ function TransformationService.Start(transformationConfig, saveService)
 	remote.OnServerInvoke = function(player, action, payload)
 		if action == "GetState" then return {Success = true, State = state(player)} end
 		if action == "Toggle" then local id = tostring(payload and payload.FormId or ""); if active[player] == id then id = "" end; local ok, message = TransformationService.Set(player, id); return {Success = ok, Message = message, State = state(player)} end
+		if action == "PurchaseSkill" then local ok, message = purchaseSkill(player, tostring(payload and payload.FormId), tostring(payload and payload.SkillId)); return {Success = ok, Message = message, State = state(player)} end
 		return {Success = false, Message = "Unknown transformation action", State = state(player)}
 	end
 	Players.PlayerAdded:Connect(function(player) task.spawn(setup, player) end)

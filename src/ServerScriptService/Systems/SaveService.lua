@@ -17,6 +17,7 @@ local SAVED_ATTRIBUTES = {
 	"Evolution",
 	"SkillPoints",
 	"ElementPoints",
+	"FormPoints",
 }
 
 local function copyDefaults(defaults)
@@ -128,6 +129,9 @@ function SaveService.Save(player)
 	payload.QuestClaims = serializeValueFolder(player, "QuestClaims")
 	payload.Skills = serializeValueFolder(player, "Skills")
 	payload.Transformations = serializeValueFolder(player, "Transformations")
+	payload.FormSkills = serializeValueFolder(player, "FormSkills")
+	payload.QuestActive = serializeValueFolder(player, "QuestActive")
+	payload.QuestHistory = serializeValueFolder(player, "QuestHistory")
 	local function attributeList(name)
 		local result = {}
 		for _, value in ipairs(string.split(player:GetAttribute(name) or "", ",")) do if value ~= "" then table.insert(result, value) end end

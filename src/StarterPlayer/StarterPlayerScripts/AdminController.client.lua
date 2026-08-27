@@ -55,7 +55,7 @@ local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(0.5, 0)
 panel.Position = UDim2.new(0.5, 0, 0, 54)
-panel.Size = UDim2.new(0.86, 0, 1, -68)
+panel.Size = UDim2.new(0.72, 0, 0.86, 0)
 panel.BackgroundColor3 = colors.Panel
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -64,7 +64,7 @@ round(panel, 12)
 
 local sizeConstraint = Instance.new("UISizeConstraint")
 sizeConstraint.MinSize = Vector2.new(320, 360)
-sizeConstraint.MaxSize = Vector2.new(900, 760)
+sizeConstraint.MaxSize = Vector2.new(720, 680)
 sizeConstraint.Parent = panel
 
 local title = Instance.new("TextLabel")
@@ -328,6 +328,8 @@ actionButton(levelRow, "SET LEVEL", "SetLevel", function() return {Level = level
 local skillRow = createRow()
 actionButton(skillRow, "GRANT 5 SKILL + ELEMENT", "GrantSkillPoints", function() return {Amount = 5, ElementAmount = 5} end, colors.Success)
 actionButton(skillRow, "RESET POWER COOLDOWNS", "ResetCooldowns", nil, colors.Success)
+local unlockSkillRow = createRow()
+actionButton(unlockSkillRow, "UNLOCK ALL SKILL TREES", "UnlockAllSkills", nil, colors.Accent)
 
 createSection("ANIMAL TRANSFORMATIONS")
 local transformUnlockRow = createRow()
@@ -367,7 +369,7 @@ selectedEnemyLabel.Parent = controls
 round(selectedEnemyLabel, 7)
 
 local enemyCatalog = Instance.new("ScrollingFrame")
-enemyCatalog.Size = UDim2.new(1, -6, 0, 310)
+enemyCatalog.Size = UDim2.new(1, -6, 0, 220)
 enemyCatalog.BackgroundColor3 = Color3.fromRGB(15, 20, 31)
 enemyCatalog.BorderSizePixel = 0
 enemyCatalog.ScrollBarThickness = 5
@@ -375,8 +377,8 @@ enemyCatalog.AutomaticCanvasSize = Enum.AutomaticSize.Y
 enemyCatalog.CanvasSize = UDim2.new()
 enemyCatalog.Parent = controls
 round(enemyCatalog, 8)
-local enemyCatalogLayout = Instance.new("UIListLayout")
-enemyCatalogLayout.Padding = UDim.new(0, 6)
+local enemyCatalogLayout = Instance.new("UIGridLayout")
+enemyCatalogLayout.CellSize, enemyCatalogLayout.CellPadding, enemyCatalogLayout.FillDirectionMaxCells = UDim2.fromOffset(116, 108), UDim2.fromOffset(6, 6), 4
 enemyCatalogLayout.Parent = enemyCatalog
 local enemyCatalogPadding = Instance.new("UIPadding")
 enemyCatalogPadding.PaddingTop = UDim.new(0, 7)
@@ -407,18 +409,22 @@ local function refreshEnemyCatalog()
 		if query == "" or string.find(haystack, query, 1, true) then
 			shown += 1
 			local card = Instance.new("TextButton")
-			card.Size = UDim2.new(1, -4, 0, 76)
+			card.Size = UDim2.fromOffset(116, 108)
 			card.BackgroundColor3 = selectedEnemyId == enemyId and colors.Success:Lerp(colors.PanelLight, 0.48) or colors.PanelLight
 			card.BorderSizePixel = 0
 			card.TextColor3 = definition.Color or colors.Text
 			card.TextWrapped = true
-			card.TextXAlignment = Enum.TextXAlignment.Left
-			card.TextYAlignment = Enum.TextYAlignment.Center
+			card.TextXAlignment = Enum.TextXAlignment.Center
+			card.TextYAlignment = Enum.TextYAlignment.Bottom
 			card.Font = Enum.Font.GothamBold
 			card.TextSize = 11
-			card.Text = string.format("  %s  [%s]\n  HP %d  |  DMG %d  |  SPD %d  |  %s\n  Ability: %s  |  Loot: %s", definition.DisplayName, enemyId, definition.Health, definition.Damage, definition.Speed, definition.AttackStyle or "Melee", definition.Ability or "Basic Strike", definition.LootTier or enemyId)
+			card.Text = string.format("\n\n\n%s\nHP %d | DMG %d", definition.DisplayName, definition.Health, definition.Damage)
 			round(card, 7)
 			card.Parent = enemyCatalog
+			local icon = Instance.new("TextLabel")
+			icon.Position, icon.Size, icon.BackgroundColor3, icon.BorderSizePixel = UDim2.new(0.5, -24, 0, 8), UDim2.fromOffset(48, 48), definition.Color or colors.Accent, 0
+			icon.Text, icon.TextColor3, icon.Font, icon.TextSize, icon.Parent = string.sub(string.upper(definition.DisplayName), 1, 2), Color3.new(1, 1, 1), Enum.Font.GothamBlack, 16, card
+			round(icon, 12)
 			card.Activated:Connect(function()
 				selectedEnemyId = enemyId
 				selectedEnemyLabel.Text = "SELECTED: " .. string.upper(definition.DisplayName)
@@ -441,7 +447,7 @@ enemySortButton.Activated:Connect(function()
 end)
 local creatureRow = createRow()
 actionButton(creatureRow, "SPAWN SELECTED", "SpawnEnemy", function() return {EnemyType = selectedEnemyId} end, colors.Success)
-actionButton(creatureRow, "SPAWN BOSS", "SpawnEnemy", function() return {EnemyType = "Boss"} end, colors.Danger)
+actionButton(creatureRow, "SELECTED AS BOSS", "SpawnEnemy", function() return {EnemyType = selectedEnemyId, BossMode = true} end, colors.Danger)
 refreshEnemyCatalog()
 
 local cleanupRow = createRow()
@@ -459,7 +465,7 @@ actionButton(row7, "LIST PLAYERS", "GetPlayers")
 createSection("ITEM GRANTS")
 local itemSearch = createTextBox("Search item name, type, rarity, or element", "")
 local quantityBox = createTextBox("Quantity (1-25 per grant)", "1")
-local grantCategories = {"All", "Weapon", "Armor", "Artifact", "Consumable", "Material"}
+local grantCategories = {"All", "Weapon", "Gun", "Rifle", "Armor", "Artifact", "Consumable", "Material"}
 local grantCategoryIndex = 1
 local selectedGrantItem = "HealthPotion"
 local grantPlayers = {{Name = "me", DisplayName = "Me", UserId = 0}}
@@ -480,7 +486,7 @@ local selectedItemLabel = choiceButton("SELECTED: HEALTH CORE")
 selectedItemLabel.AutoButtonColor = false
 local targetChoiceButton = choiceButton("TARGET: ME")
 local catalog = Instance.new("ScrollingFrame")
-catalog.Size, catalog.BackgroundColor3, catalog.BorderSizePixel = UDim2.new(1, -6, 0, 300), Color3.fromRGB(15, 20, 31), 0
+catalog.Size, catalog.BackgroundColor3, catalog.BorderSizePixel = UDim2.new(1, -6, 0, 220), Color3.fromRGB(15, 20, 31), 0
 catalog.ScrollBarThickness, catalog.AutomaticCanvasSize, catalog.CanvasSize, catalog.Parent = 5, Enum.AutomaticSize.Y, UDim2.new(), controls
 round(catalog, 8)
 local catalogLayout = Instance.new("UIListLayout") catalogLayout.Padding, catalogLayout.Parent = UDim.new(0, 6), catalog
@@ -514,11 +520,12 @@ local function refreshGrantItems()
 	local shown = 0
 	for _, itemId in ipairs(ids) do
 		local definition = itemConfig.Items[itemId]
-		local haystack = string.lower(table.concat({itemId, definition.DisplayName or "", definition.Category or "", definition.Rarity or "", definition.Element or ""}, " "))
-		if (category == "All" or definition.Category == category) and (query == "" or string.find(haystack, query, 1, true)) then
+		local haystack = string.lower(table.concat({itemId, definition.DisplayName or "", definition.Category or "", definition.WeaponKind or "", definition.WeaponType or "", definition.Rarity or "", definition.Element or ""}, " "))
+		local categoryMatch = category == "All" or definition.Category == category or ((category == "Gun" or category == "Rifle") and definition.WeaponKind == category)
+		if categoryMatch and (query == "" or string.find(haystack, query, 1, true)) then
 			shown += 1
 			local card = Instance.new("TextButton")
-			card.Size, card.TextWrapped, card.TextXAlignment, card.TextYAlignment = UDim2.new(1, -4, 0, 72), true, Enum.TextXAlignment.Left, Enum.TextYAlignment.Center
+			card.Size, card.TextWrapped, card.TextXAlignment, card.TextYAlignment = UDim2.new(1, -4, 0, 58), true, Enum.TextXAlignment.Left, Enum.TextYAlignment.Center
 			card.BackgroundColor3 = selectedGrantItem == itemId and colors.Success:Lerp(colors.PanelLight, 0.45) or colors.PanelLight
 			card.BorderSizePixel, card.TextColor3, card.Font, card.TextSize = 0, itemConfig.RarityColors[definition.Rarity] or colors.Text, Enum.Font.GothamBold, 11
 			card.Text = string.format("  %s  [%s %s]\n  Level %d  •  %s  •  %s\n  ID: %s", definition.DisplayName, definition.Rarity or "Common", definition.Category or "Item", definition.RequiredLevel or 1, statSummary(definition.Stats), definition.AbilityId and ("Ability: " .. definition.AbilityId) or (definition.Passive and ("Effect: " .. definition.Passive) or "Standard effect"), itemId)

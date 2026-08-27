@@ -96,6 +96,17 @@ function SkillTreeService.Grant(player, amount, elementAmount)
 	player:SetAttribute("ElementPoints", (player:GetAttribute("ElementPoints") or 0) + math.max(0, math.floor(tonumber(elementAmount) or 0)))
 end
 
+function SkillTreeService.UnlockAll(player)
+	local folder, count = player:FindFirstChild("Skills"), 0
+	if not folder then return count end
+	for id, definition in pairs(config.Nodes) do
+		local value = folder:FindFirstChild(id)
+		if value then count += math.max(0, definition.MaximumRank - value.Value); value.Value = definition.MaximumRank end
+	end
+	refresh(player)
+	return count
+end
+
 function SkillTreeService.Start(skillConfig, saveService, progressionService, playerProgressionConfig)
 	config, progression, progressionConfig = skillConfig, progressionService, playerProgressionConfig
 	local remote = ReplicatedStorage.Remotes:WaitForChild("SkillRemote")

@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CrowdControlService = require(script.Parent.CrowdControlService)
+local ElementConfig = require(ReplicatedStorage.Shared.ElementConfig)
 
 local CombatService = {}
 local activeAbilityCooldowns
@@ -11,7 +12,8 @@ local function getDamageMultiplier(player)
 	local admin = math.clamp(tonumber(player:GetAttribute("AdminDamageMultiplier")) or 1, 1, 3)
 	local consumable = math.clamp(tonumber(player:GetAttribute("ConsumableDamageMultiplier")) or 1, 1, 2)
 	local skill = math.clamp(tonumber(player:GetAttribute("SkillDamageMultiplier")) or 1, 1, 2)
-	return admin * consumable * skill
+	local form = math.clamp(tonumber(player:GetAttribute("FormDamageMultiplier")) or 1, 1, 2)
+	return admin * consumable * skill * form
 end
 
 local function getElementMultiplier(player, element)
@@ -19,7 +21,8 @@ local function getElementMultiplier(player, element)
 	local mastery = tonumber(player:GetAttribute(element .. "DamageMultiplier")) or 1
 	local capstone = (tonumber(player:GetAttribute(element .. "UltimateUnlocked")) or 0) > 0 and 0.15 or 0
 	local ascendant = (tonumber(player:GetAttribute("AscendantCoreUnlocked")) or 0) > 0 and 0.05 or 0
-	return math.clamp(mastery + capstone + ascendant, 1, 2.25)
+	local prismatic = element == "Prismatic" and ElementConfig.PrismaticDamageMultiplier or 1
+	return math.clamp((mastery + capstone + ascendant) * prismatic, 1, 3)
 end
 
 local function getOrCreateRemote(folder, name)
@@ -137,12 +140,22 @@ local function applyStun(enemy, duration, config, force)
 end
 
 local function damageEnemy(player, enemy, amount, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, heavy, abilityName)
+	local ability = abilityName and config.Abilities[abilityName]
+	local element = ability and ability.Element or player:GetAttribute("EquippedWeaponElement")
+	local enemyElement = enemy:GetAttribute("Element")
+	local elementDefinition = element and ElementConfig.Elements[element]
+	if elementDefinition and enemyElement == elementDefinition.OpposedBy then
+		amount *= 1 + (ElementConfig.OppositionDamageBonus or 0.25)
+	end
+	local execute = tonumber(player:GetAttribute((element or "") .. "ExecuteBonus")) or 0
+	local enemyHumanoid = enemy:FindFirstChildOfClass("Humanoid")
+	if enemyHumanoid and enemyHumanoid.Health / math.max(1, enemyHumanoid.MaxHealth) <= 0.25 then amount *= 1 + execute + (tonumber(player:GetAttribute("SkillExecuteBonus")) or 0) end
+	amount *= 1 + (tonumber(player:GetAttribute((element or "") .. "CriticalBonus")) or 0) * 0.5
+	amount *= 1 + (tonumber(player:GetAttribute((element or "") .. "Penetration")) or 0)
 	local result = damageService.ApplyEnemyDamage(player, enemy, amount)
 	if not result then
 		return nil
 	end
-	local ability = abilityName and config.Abilities[abilityName]
-	local element = ability and ability.Element
 	local statusBonus = element and (tonumber(player:GetAttribute(element .. "StatusBonus")) or 0) or 0
 	if element == "Fire" then
 		enemy:SetAttribute("BurningUntil", workspace:GetServerTimeNow() + 3 * (1 + statusBonus))
@@ -154,6 +167,19 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 		CrowdControlService.Stun(enemy, 0.45 * (1 + statusBonus), config.StunImmunitySeconds, false)
 	elseif element == "Gravity" then
 		enemy:SetAttribute("CompressedUntil", workspace:GetServerTimeNow() + 1.5)
+	elseif element == "Poison" then
+		local token = (enemy:GetAttribute("PoisonToken") or 0) + 1
+		enemy:SetAttribute("PoisonToken", token)
+		task.spawn(function()
+			for _ = 1, 5 do
+				task.wait(0.75)
+				if not enemy.Parent or enemy:GetAttribute("PoisonToken") ~= token then break end
+				local dot = math.max(1, amount * (0.08 + (tonumber(player:GetAttribute("PoisonDotBonus")) or 0)))
+				damageService.ApplyEnemyDamage(player, enemy, dot)
+			end
+		end)
+	elseif element == "Prismatic" then
+		enemy:SetAttribute("DamageTakenMultiplier", math.max(enemy:GetAttribute("DamageTakenMultiplier") or 1, 1.12))
 	end
 	effectsRemote:FireClient(player, "DamageNumber", {
 		Target = enemy,
@@ -174,6 +200,9 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 		progression.AddCoins(player, gold)
 		feedbackRemote:FireClient(player, "Reward", xp, gold)
 		inventoryService.RollLoot(player, enemy)
+		if math.random() <= math.clamp(0.35 + (player:GetAttribute("FormPointFind") or 0), 0, 0.9) then
+			player:SetAttribute("FormPoints", (player:GetAttribute("FormPoints") or 0) + (enemy:GetAttribute("IsElite") and 2 or 1))
+		end
 		if activeQuestService then
 			activeQuestService.Record(player, "Kill", 1)
 			if enemy:GetAttribute("IsElite") then activeQuestService.Record(player, "EliteKill", 1) end
@@ -272,6 +301,26 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			if result then
 				applyStun(enemy, comboDefinition.Stun, config, isFinisher)
 				applyKnockback(enemy, root.Position, comboDefinition.Knockback)
+				local form = player:GetAttribute("ActiveTransformation")
+				local formSkills = player:GetAttribute("ActiveFormSkillCount") or 0
+				if formSkills >= 2 and form == "Wolf" then
+					effectsRemote:FireAllClients("PowerLocal", {Ability = "RendingClaw", Element = "Poison", Origin = enemy:GetPivot().Position, Radius = 6, Tier = formSkills})
+					local token = (enemy:GetAttribute("BleedToken") or 0) + 1
+					enemy:SetAttribute("BleedToken", token)
+					task.spawn(function()
+						for _ = 1, math.min(6, 2 + math.floor(formSkills / 2)) do
+							task.wait(0.55)
+							if not enemy.Parent or enemy:GetAttribute("BleedToken") ~= token then break end
+							damageEnemy(player, enemy, damage * 0.07, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, nil)
+						end
+					end)
+				elseif formSkills >= 2 and form == "Bear" and isFinisher then
+					effectsRemote:FireAllClients("GroundSlam", {Ability = "TitanClaw", Element = "Earth", Origin = root.Position, Radius = 14 + formSkills})
+					for _, nearby in ipairs(getEnemiesInRadius(root.Position, 14 + formSkills)) do applyStun(nearby, 0.5 + formSkills * 0.06, config, true); applyKnockback(nearby, root.Position, 55 + formSkills * 4) end
+				elseif formSkills >= 2 and form == "Eagle" and isFinisher then
+					effectsRemote:FireAllClients("PowerLocal", {Ability = "GaleTalon", Element = "Lightning", Origin = root.Position, Radius = 16 + formSkills, Tier = formSkills})
+					for _, nearby in ipairs(getEnemiesInRadius(root.Position, 16 + formSkills)) do if nearby ~= enemy then damageEnemy(player, nearby, damage * 0.45, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, true, "LightningBolt") end end
+				end
 				if isFinisher then
 					effectsRemote:FireAllClients("FinisherImpact", {Origin = enemy:GetPivot().Position})
 				end
@@ -340,7 +389,8 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		player:SetAttribute("MP", mp - energyCost)
 		player:SetAttribute("Energy", mp - energyCost)
 		player:SetAttribute("Blocking", false)
-		local cooldown = ability.Cooldown * (1 - math.clamp(player:GetAttribute("SkillCooldownReduction") or 0, 0, 0.4))
+		local cooldownReduction = (player:GetAttribute("SkillCooldownReduction") or 0) + (player:GetAttribute((ability.Element or "") .. "CooldownBonus") or 0)
+		local cooldown = ability.Cooldown * (1 - math.clamp(cooldownReduction, 0, 0.55))
 		local elementMultiplier = getElementMultiplier(player, ability.Element)
 		player:SetAttribute("CurrentElement", ability.Element or "Arcane")
 		abilityCooldowns[player][abilityName] = os.clock() + cooldown
@@ -348,6 +398,8 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		masteryService.Add(player, abilityName, config.Mastery.XPPerCast)
 		effectsRemote:FireAllClients("PowerCast", {
 			Ability = abilityName,
+			Element = ability.Element,
+			Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
 			Mode = mode,
 			Origin = root.Position + Vector3.new(0, 2, 0),
 			Target = targetPosition,
@@ -359,6 +411,8 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local localRadius = ability.LocalRadius or math.max(ability.Radius or 8, 10)
 			effectsRemote:FireAllClients("PowerLocal", {
 				Ability = abilityName,
+				Element = ability.Element,
+				Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
 				Origin = areaOrigin,
 				Radius = localRadius,
 			})

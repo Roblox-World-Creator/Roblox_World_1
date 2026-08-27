@@ -37,10 +37,14 @@ function PlayerProgression.AddXP(player, amount, config)
 	local xp = (player:GetAttribute("XP") or 0) + math.max(0, amount)
 	local level = player:GetAttribute("Level") or config.StartingLevel
 	local required = xpRequired(config, level)
-	while xp >= required do
+	while xp >= required and level < (config.MaximumLevel or 100) do
 		xp -= required
 		level += 1
 		required = xpRequired(config, level)
+	end
+	if level >= (config.MaximumLevel or 100) then
+		level = config.MaximumLevel or 100
+		xp = math.min(xp, required - 1)
 	end
 	player:SetAttribute("XP", xp)
 	player:SetAttribute("Level", level)
@@ -61,7 +65,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 	local function setupPlayer(player)
 		player:SetAttribute("DataLoaded", false)
 		local data = saveService.Load(player, {
-			SchemaVersion = 5,
+			SchemaVersion = 6,
 			Level = config.StartingLevel,
 			XP = config.StartingXP,
 			Coins = config.StartingCoins,
@@ -75,10 +79,14 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 			Mastery = {},
 			Quests = {},
 			QuestClaims = {},
+			QuestActive = {},
+			QuestHistory = {},
 			Skills = {},
 			SkillPoints = 0,
 			ElementPoints = 0,
 			Transformations = {},
+			FormPoints = 0,
+			FormSkills = {},
 			PowerLoadout = {Attacks = {}, Motion = {"PowerDash", "Dodge"}},
 			UnlockedWorlds = {FireWorld = true},
 			UnlockedElements = {Fire = true, Ice = true, Lightning = true, Earth = true},
@@ -89,7 +97,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 		if not player.Parent then
 			return
 		end
-		player:SetAttribute("Level", math.max(config.StartingLevel, data.Level))
+		player:SetAttribute("Level", math.clamp(math.floor(tonumber(data.Level) or config.StartingLevel), config.StartingLevel, config.MaximumLevel or 100))
 		player:SetAttribute("XP", math.max(0, data.XP))
 		player:SetAttribute("Coins", math.max(0, data.Coins))
 		player:SetAttribute("Evolution", math.max(0, data.Evolution))

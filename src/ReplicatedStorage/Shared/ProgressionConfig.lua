@@ -1,5 +1,6 @@
-return {
+local config = {
 	StartingLevel = 1,
+	MaximumLevel = 100,
 	StartingXP = 0,
 	StartingCoins = 0,
 	StartingAttack = 25,
@@ -116,3 +117,41 @@ return {
 		XPBase = 30,
 	},
 }
+
+-- Every elemental family exposes a full level 1-100 progression. Existing authored
+-- powers remain; these add visually and mechanically distinct high-tier choices.
+local families = {
+	Fire = {"CinderLance", "PhoenixRush", "VolcanoCrown", "SolarJudgment", "InfernoDomain", "StarfallPyre", "Worldflame"},
+	Ice = {"HailLance", "GlacierRush", "CrystalCage", "WinterJudgment", "FrozenDomain", "Moonfrost", "EternalWinter"},
+	Lightning = {"ArcSpear", "FlashStep", "StormCage", "SkyJudgment", "TempestDomain", "Godspeed", "HeavensWrath"},
+	Earth = {"StoneLance", "QuakeRush", "MountainCage", "FaultJudgment", "TectonicDomain", "TitanRise", "WorldBreaker"},
+	Gravity = {"OrbitLance", "WarpRush", "EventCage", "VoidJudgment", "SingularityDomain", "StarCollapse", "ZeroHorizon"},
+	Poison = {"VenomDart", "ToxicRush", "SporeCage", "PlagueJudgment", "VenomDomain", "HydraCloud", "WorldBlight", "SerpentNova", "AcidRain", "PlagueStar"},
+	Prismatic = {"SpectrumBolt", "RainbowRush", "RefractionCage", "AuroraJudgment", "PrismDomain", "ChromaticNova", "SevenfoldRay", "DiamondStorm", "RadiantCrown", "PrismaticEnd"},
+}
+local elementColors = {Fire = "Flame", Ice = "Frost", Lightning = "Storm", Earth = "Stone", Gravity = "Void", Poison = "Venom", Prismatic = "Spectrum"}
+for element, names in pairs(families) do
+	for index, id in ipairs(names) do
+		if not config.Abilities[id] then
+			local level = math.min(100, index * 10 + (element == "Prismatic" and 0 or 10))
+			local castTypes = {"Projectile", "Beam", "Radial", "Chain", "Gravity", "Tornado"}
+			local castType = castTypes[(index - 1) % #castTypes + 1]
+			config.Abilities[id] = {
+				DisplayName = string.gsub(id, "(%l)(%u)", "%1 %2"), Element = element,
+				EffectProfile = elementColors[element] .. string.format("Tier%02d", index),
+				Description = string.format("Tier %d %s art with a unique %s combat pattern.", index, element, string.lower(castType)),
+				CastType = castType, Targeting = castType == "Gravity" and "Point" or "Point",
+				RequiredLevel = level, RequiredEvolution = math.min(2, math.floor(level / 30)),
+				Cooldown = 4 + index * 0.9, EnergyCost = 14 + index * 5,
+				Damage = 75 + index * index * 10, Range = 70 + index * 3,
+				Radius = 5 + index * 1.5, LocalRadius = 11 + index,
+				ProjectileSpeed = 80 + index * 5, Knockback = 18 + index * 4,
+				PullStrength = 45 + index * 5, ChainRange = 22, MaximumChains = 3 + index,
+				Duration = 2.5 + index * 0.25, TickInterval = 0.6,
+			}
+			table.insert(config.AbilityOrder, id)
+		end
+	end
+end
+
+return config

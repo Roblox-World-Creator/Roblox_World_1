@@ -40,6 +40,8 @@ return {
 		BattleSerum = {DisplayName = "Battle Serum", Category = "Consumable", Rarity = "Rare", MaximumStack = 20, BuyPrice = 300, Description = "Increases all damage by 25% for 60 seconds.", Consumable = {Kind = "DamageBuff", Multiplier = 1.25, Duration = 60, Cooldown = 30}},
 		StoneSkinTonic = {DisplayName = "Stone Skin Tonic", Category = "Consumable", Rarity = "Rare", MaximumStack = 20, BuyPrice = 275, Description = "Adds 25 defense for 60 seconds.", Consumable = {Kind = "DefenseBuff", Amount = 25, Duration = 60, Cooldown = 30}},
 		EnergySurge = {DisplayName = "Energy Surge", Category = "Consumable", Rarity = "Uncommon", MaximumStack = 20, BuyPrice = 180, Description = "Adds 8 MP regeneration per second for 45 seconds.", Consumable = {Kind = "RegenBuff", Amount = 8, Duration = 45, Cooldown = 25}},
+		LavaKatana = {DisplayName = "Katana Style: Lava Sword", Category = "Weapon", WeaponType = "Katana", Element = "Fire", Rarity = "Legendary", MaximumStack = 1, BuyPrice = 18000, RequiredLevel = 55, EquipSlot = "Weapon", ModelProfile = "InfernoSwordModel01", Passive = "Lava Edge: bonus fire damage and 25% Water/Ice resistance", AbilityId = "VolcanoCrown", Description = "A flowing volcanic katana that burns targets while tempering its wielder against cold.", Stats = {Attack = 72, Power = 38, Defense = 12, Speed = 5}, Resistances = {Ice = 0.25, Water = 0.25}, WeaponColor = Color3.fromRGB(255, 70, 25), WeaponSize = Vector3.new(0.24, 5.4, 0.55)},
+		PrismaticRelic = {DisplayName = "Prismatic Endblade", Category = "Weapon", WeaponType = "Greatsword", Element = "Prismatic", Rarity = "Mythic", MaximumStack = 1, BuyPrice = 100000, RequiredLevel = 100, EquipSlot = "Weapon", ModelProfile = "CelestialLightbladeModel01", Passive = "Legendary Spectrum: 100% elemental damage increase", AbilityId = "PrismaticEnd", Description = "The final ascendant weapon, refracting every element at double base damage.", Stats = {Attack = 160, Power = 120, Defense = 30, Speed = 8, CriticalChance = 0.12}, Resistances = {Fire = 0.15, Ice = 0.15, Lightning = 0.15, Earth = 0.15, Gravity = 0.15, Poison = 0.15}, WeaponColor = Color3.fromRGB(255, 105, 220), WeaponSize = Vector3.new(0.35, 6.2, 0.8)},
 		EvolutionShard = {DisplayName = "Evolution Shard", Category = "Material", Rarity = "Uncommon", MaximumStack = 99, Description = "Condensed evolution matter used in advanced crafting."},
 		RiftCrystal = {DisplayName = "Rift Crystal", Category = "Material", Rarity = "Rare", MaximumStack = 99, Description = "A crystalline fragment left by elite enemies."},
 		BossCore = {DisplayName = "Boss Core", Category = "Material", Rarity = "Epic", MaximumStack = 99, Description = "A guaranteed trophy from a defeated wave boss."},
@@ -71,6 +73,7 @@ return {
 		Boss = {
 			{ItemId = "Starbreaker", Weight = 2}, {ItemId = "StormCore", Weight = 8}, {ItemId = "TitanHeart", Weight = 4},
 			{ItemId = "CelestialLightblade", Weight = 2}, {ItemId = "SolarChaingun", Weight = 1}, {ItemId = "VoidStaff", Weight = 2},
+			{ItemId = "LavaKatana", Weight = 3}, {ItemId = "PrismaticRelic", Weight = 1},
 		},
 	},
 }

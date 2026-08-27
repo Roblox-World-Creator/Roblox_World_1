@@ -82,26 +82,27 @@ local function render()
 			card.Parent = list
 			local name = Instance.new("TextLabel")
 			name.Position, name.Size, name.BackgroundTransparency = UDim2.fromOffset(12, 8), UDim2.new(1, -150, 0, 24), 1
-			name.Text, name.TextColor3, name.TextXAlignment, name.Font, name.TextSize = definition.DisplayName, quest.Claimed and Color3.fromRGB(130, 145, 165) or Color3.fromRGB(235, 240, 255), Enum.TextXAlignment.Left, Enum.Font.GothamBold, 15
+			name.Text, name.TextColor3, name.TextXAlignment, name.Font, name.TextSize = definition.DisplayName, (not quest.Active) and Color3.fromRGB(165, 175, 195) or Color3.fromRGB(235, 240, 255), Enum.TextXAlignment.Left, Enum.Font.GothamBold, 15
 			name.Parent = card
 			local detail = Instance.new("TextLabel")
 			detail.Position, detail.Size, detail.BackgroundTransparency = UDim2.fromOffset(12, 34), UDim2.new(1, -150, 0, 50), 1
 			detail.Text = string.format("%s\n%d / %d  •  +%d XP  •  +%d Gold", definition.Description, quest.Progress, quest.Goal, definition.RewardXP, definition.RewardGold)
 			detail.TextColor3, detail.TextXAlignment, detail.TextYAlignment, detail.Font, detail.TextSize = Color3.fromRGB(170, 185, 210), Enum.TextXAlignment.Left, Enum.TextYAlignment.Top, Enum.Font.Gotham, 12
+			detail.Text ..= string.format("  |  History: %d", quest.Completions or 0)
 			detail.TextWrapped = true
 			detail.Parent = card
 			local claim = Instance.new("TextButton")
 			claim.AnchorPoint, claim.Position, claim.Size = Vector2.new(1, 0.5), UDim2.new(1, -10, 0.5, 0), UDim2.fromOffset(120, 38)
 			local complete = quest.Progress >= quest.Goal
-			claim.BackgroundColor3 = quest.Claimed and Color3.fromRGB(52, 58, 70) or complete and Color3.fromRGB(80, 175, 115) or Color3.fromRGB(55, 65, 85)
-			claim.BorderSizePixel, claim.Text = 0, quest.Claimed and "CLAIMED" or complete and "CLAIM" or "IN PROGRESS"
-			claim.TextColor3, claim.Font, claim.TextSize, claim.Active = Color3.new(1, 1, 1), Enum.Font.GothamBold, 12, complete and not quest.Claimed
+			claim.BackgroundColor3 = not quest.Active and Color3.fromRGB(80, 105, 165) or complete and Color3.fromRGB(80, 175, 115) or Color3.fromRGB(55, 65, 85)
+			claim.BorderSizePixel, claim.Text = 0, not quest.Active and "START" or complete and "CLAIM" or "IN PROGRESS"
+			claim.TextColor3, claim.Font, claim.TextSize, claim.Active = Color3.new(1, 1, 1), Enum.Font.GothamBold, 12, (not quest.Active) or complete
 			round(claim, 7)
 			claim.Parent = card
 			if claim.Active and not firstButton then firstButton = claim end
 			claim.Activated:Connect(function()
 				if not claim.Active then return end
-				local result = request("Claim", {QuestId = quest.Id})
+				local result = request(quest.Active and "Claim" or "Start", {QuestId = quest.Id})
 				if result then render() end
 			end)
 		end

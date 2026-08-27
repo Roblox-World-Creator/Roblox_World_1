@@ -54,14 +54,14 @@ local panel = Instance.new("Frame")
 panel.Name = "InventoryPanel"
 panel.AnchorPoint = Vector2.new(1, 0.5)
 panel.Position = UDim2.new(1, -18, 0.55, 0)
-panel.Size = UDim2.new(0.68, 0, 0.78, 0)
+panel.Size = UDim2.new(0.62, 0, 0.72, 0)
 panel.BackgroundColor3 = Color3.fromRGB(17, 22, 34)
 panel.BorderSizePixel = 0
 panel.Visible = false
 panel.Parent = gui
 round(panel, 13)
 local constraint = Instance.new("UISizeConstraint")
-constraint.MinSize, constraint.MaxSize = Vector2.new(330, 680), Vector2.new(760, 760)
+constraint.MinSize, constraint.MaxSize = Vector2.new(330, 500), Vector2.new(700, 660)
 constraint.Parent = panel
 
 local header = Instance.new("TextLabel")
@@ -136,8 +136,8 @@ list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 list.CanvasSize = UDim2.new()
 list.Parent = panel
 round(list, 9)
-local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 6)
+local listLayout = Instance.new("UIGridLayout")
+listLayout.CellSize, listLayout.CellPadding, listLayout.FillDirectionMaxCells = UDim2.fromOffset(100, 112), UDim2.fromOffset(6, 6), 4
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Parent = list
 local listPadding = Instance.new("UIPadding")
@@ -170,8 +170,8 @@ itemImage.Visible = false
 itemImage.Parent = itemIcon
 
 local equippedSummary = Instance.new("TextLabel")
-equippedSummary.Position = UDim2.fromOffset(12, 266)
-equippedSummary.Size = UDim2.new(1, -24, 0, 90)
+equippedSummary.Position = UDim2.fromOffset(12, 214)
+equippedSummary.Size = UDim2.new(1, -24, 0, 42)
 equippedSummary.BackgroundColor3 = Color3.fromRGB(21, 28, 42)
 equippedSummary.TextColor3 = Color3.fromRGB(205, 220, 240)
 equippedSummary.TextWrapped = true
@@ -195,7 +195,7 @@ itemName.Parent = detail
 
 local description = Instance.new("TextLabel")
 description.Position = UDim2.fromOffset(12, 126)
-description.Size = UDim2.new(1, -24, 0, 128)
+description.Size = UDim2.new(1, -24, 0, 78)
 description.BackgroundTransparency = 1
 description.Text = "Items, recipes, and store supplies appear here."
 description.TextColor3 = Color3.fromRGB(180, 195, 220)
@@ -209,12 +209,12 @@ description.Parent = detail
 local actionArea = Instance.new("Frame")
 actionArea.AnchorPoint = Vector2.new(0, 1)
 actionArea.Position = UDim2.new(0, 10, 1, -10)
-actionArea.Size = UDim2.new(1, -20, 0, 112)
+actionArea.Size = UDim2.new(1, -20, 0, 76)
 actionArea.BackgroundTransparency = 1
 actionArea.Parent = detail
 local actionGrid = Instance.new("UIGridLayout")
 actionGrid.CellPadding = UDim2.fromOffset(6, 6)
-actionGrid.CellSize = UDim2.new(0.5, -3, 0, 34)
+actionGrid.CellSize = UDim2.new(0.5, -3, 0, 22)
 actionGrid.Parent = actionArea
 local actions = {}
 for _, name in ipairs({"PRIMARY", "FAVORITE", "LOCK", "SELL", "CRAFT", "UNEQUIP"}) do
@@ -385,19 +385,19 @@ local function addCard(itemId, subtitle, clickAction)
 	local definition = config.Items[itemId]
 	local card = Instance.new("TextButton")
 	card.Name = itemId
-	card.Size = UDim2.new(1, -2, 0, 58)
+	card.Size = UDim2.fromOffset(100, 112)
 	card.BackgroundColor3 = selectedItem == itemId and Color3.fromRGB(54, 68, 94) or Color3.fromRGB(35, 43, 62)
 	card.BorderSizePixel = 0
 	card.Text = ""
 	round(card, 7)
 	local accent = Instance.new("Frame")
-	accent.Size = UDim2.fromOffset(5, 58)
+	accent.Size = UDim2.new(1, 0, 0, 4)
 	accent.BackgroundColor3 = config.RarityColors[definition.Rarity]
 	accent.BorderSizePixel = 0
 	accent.Parent = card
 	local icon = Instance.new("TextLabel")
-	icon.Position = UDim2.fromOffset(13, 7)
-	icon.Size = UDim2.fromOffset(42, 42)
+	icon.Position = UDim2.new(0.5, -24, 0, 10)
+	icon.Size = UDim2.fromOffset(48, 48)
 	icon.BackgroundColor3 = categoryColors[definition.Category] or Color3.fromRGB(65, 75, 95)
 	icon.TextColor3 = Color3.new(1, 1, 1)
 	icon.Font, icon.TextSize = Enum.Font.GothamBlack, 23
@@ -411,13 +411,14 @@ local function addCard(itemId, subtitle, clickAction)
 	iconImage.Visible = false
 	iconImage.Parent = icon
 	local label = Instance.new("TextLabel")
-	label.Position = UDim2.fromOffset(64, 7)
-	label.Size = UDim2.new(1, -70, 0, 44)
+	label.Position = UDim2.fromOffset(5, 62)
+	label.Size = UDim2.new(1, -10, 0, 44)
 	label.BackgroundTransparency = 1
 	label.Text = definition.DisplayName .. "\n" .. subtitle
 	label.TextColor3 = config.RarityColors[definition.Rarity]
-	label.TextXAlignment, label.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Center
-	label.Font, label.TextSize = Enum.Font.GothamBold, 13
+	label.TextXAlignment, label.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
+	label.TextWrapped = true
+	label.Font, label.TextSize = Enum.Font.GothamBold, 11
 	label.Parent = card
 	card.Activated:Connect(function() selectItem(itemId); if clickAction then clickAction() end; refresh() end)
 	card.Parent = list
@@ -430,10 +431,23 @@ refresh = function()
 	if currentTab == "Inventory" then
 		for _, item in ipairs(state.Items or {}) do
 			local definition = config.Items[item.Id]
-			if definition and (filter == "All" or definition.Category == filter) and (query == "" or string.find(string.lower(definition.DisplayName), query, 1, true)) then
+			local filterMatch = definition and (filter == "All" or definition.Category == filter or ((filter == "Gun" or filter == "Rifle") and definition.WeaponKind == filter))
+			if definition and filterMatch and (query == "" or string.find(string.lower(definition.DisplayName), query, 1, true)) then
 				local flags = (item.Favorite and "★ " or "") .. (item.Locked and "🔒 " or "")
 				addCard(item.Id, flags .. "x" .. item.Count .. "  •  " .. definition.Rarity)
 			end
+		end
+	elseif currentTab == "Character" then
+		itemName.Text = player.DisplayName
+		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		local buffs = {}
+		if (player:GetAttribute("ConsumableDamageMultiplier") or 1) > 1 then table.insert(buffs, "Damage serum") end
+		if (player:GetAttribute("ConsumableDefense") or 0) > 0 then table.insert(buffs, "Defense tonic") end
+		if (player:GetAttribute("BonusMPRegen") or 0) > 0 then table.insert(buffs, "Energy surge") end
+		if player:GetAttribute("ActiveTransformation") and player:GetAttribute("ActiveTransformation") ~= "" then table.insert(buffs, player:GetAttribute("ActiveTransformation") .. " form") end
+		description.Text = string.format("LEVEL %d\nHP %d / %d   MP %d / %d\nATTACK %d   DEFENSE %d\nMAGIC POWER %d   SPEED %.1f\nCRIT %.0f%%   CRIT DAMAGE %.0f%%\nELEMENT %s\nACTIVE BUFFS: %s", player:GetAttribute("Level") or 1, humanoid and humanoid.Health or 0, player:GetAttribute("MaxHealth") or 0, player:GetAttribute("MP") or 0, player:GetAttribute("MaxMP") or 0, player:GetAttribute("AttackPower") or 0, player:GetAttribute("Defense") or 0, player:GetAttribute("Power") or 0, humanoid and humanoid.WalkSpeed or 0, (player:GetAttribute("CriticalChance") or 0) * 100, (player:GetAttribute("CriticalDamage") or 1.5) * 100, player:GetAttribute("CurrentElement") or player:GetAttribute("EquippedWeaponElement") or "Physical", #buffs > 0 and table.concat(buffs, ", ") or "None")
+		for slot, itemId in pairs(state.Equipment or {}) do
+			if itemId ~= "" and config.Items[itemId] then addCard(itemId, "EQUIPPED: " .. slot) end
 		end
 	elseif currentTab == "Crafting" then
 		for itemId, recipe in pairs(config.Recipes) do
@@ -449,13 +463,14 @@ refresh = function()
 		end)
 		for _, itemId in ipairs(storeIds) do
 			local definition = config.Items[itemId]
-			if query == "" or string.find(string.lower(definition.DisplayName), query, 1, true) then addCard(itemId, definition.BuyPrice .. " GOLD | LV " .. (definition.RequiredLevel or 1)) end
+			local filterMatch = filter == "All" or definition.Category == filter or ((filter == "Gun" or filter == "Rifle") and definition.WeaponKind == filter)
+			if filterMatch and (query == "" or string.find(string.lower(definition.DisplayName), query, 1, true)) then addCard(itemId, definition.BuyPrice .. " GOLD | LV " .. (definition.RequiredLevel or 1)) end
 		end
 	end
 	for name, button in pairs(tabButtons) do button.BackgroundColor3 = name == currentTab and Color3.fromRGB(65, 125, 185) or Color3.fromRGB(42, 52, 73) end
 end
 
-for _, tabName in ipairs({"Inventory", "Crafting", "Store"}) do
+for _, tabName in ipairs({"Inventory", "Character", "Crafting", "Store"}) do
 	local button = Instance.new("TextButton")
 	button.Size = UDim2.fromOffset(118, 36)
 	button.Text = string.upper(tabName)
@@ -465,7 +480,7 @@ for _, tabName in ipairs({"Inventory", "Crafting", "Store"}) do
 	button.Activated:Connect(function() currentTab = tabName; filter = "All"; filterButton.Text = "FILTER: ALL"; refresh() end)
 end
 
-local filters = {"All", "Weapon", "Armor", "Artifact", "Consumable", "Material"}
+local filters = {"All", "Weapon", "Gun", "Rifle", "Armor", "Artifact", "Consumable", "Material"}
 filterButton.Activated:Connect(function()
 	local index = table.find(filters, filter) or 1
 	filter = filters[index % #filters + 1]
@@ -505,6 +520,18 @@ local function toggle()
 		GuiService.SelectedObject = nil
 	end
 end
+local connectedStorePrompts = {}
+local function connectStorePrompt(descendant)
+	if descendant:IsA("ProximityPrompt") and descendant.Name == "OpenStorePrompt" and not connectedStorePrompts[descendant] then
+		connectedStorePrompts[descendant] = true
+		descendant.Triggered:Connect(function()
+			currentTab = "Store"
+			if not panel.Visible then toggle() else refresh() end
+		end)
+	end
+end
+for _, descendant in ipairs(workspace:GetDescendants()) do connectStorePrompt(descendant) end
+workspace.DescendantAdded:Connect(connectStorePrompt)
 openButton.Activated:Connect(toggle)
 close.Activated:Connect(function() panel.Visible = false end)
 UserInputService.InputBegan:Connect(function(input, processed)
@@ -526,7 +553,7 @@ local function gamepadMenuAction(actionName, inputState)
 		return Enum.ContextActionResult.Sink
 	elseif actionName == "InventoryNextTab" or actionName == "InventoryPreviousTab" then
 		if panel.Visible then
-			local names = {"Inventory", "Crafting", "Store"}
+			local names = {"Inventory", "Character", "Crafting", "Store"}
 			local index = table.find(names, currentTab) or 1
 			currentTab = names[(index - 1 + (actionName == "InventoryNextTab" and 1 or -1)) % #names + 1]
 			filter, filterButton.Text = "All", "FILTER: ALL"

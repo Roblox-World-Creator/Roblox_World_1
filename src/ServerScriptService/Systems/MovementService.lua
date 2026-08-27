@@ -56,10 +56,12 @@ function MovementService.Start(resourceConfig, powerService)
 			feedbackRemote:FireClient(player, "CastAccepted", "EagleFlight", nil, 0)
 			return
 		end
-		local eagleFlight = powerName == "EagleFlight" and player:GetAttribute("ActiveTransformation") == "Eagle"
+		local eagleFlight = powerName == "EagleFlight" and player:GetAttribute("ActiveTransformation") == "Eagle" and player:GetAttribute("FormTravelUnlocked") == true
+		local formTravel = powerName == "FormTravel" and player:GetAttribute("ActiveTransformation") ~= "" and player:GetAttribute("FormTravelUnlocked") == true
 		local definition = eagleFlight and {Cooldown = 4, StaminaCost = 18}
+			or formTravel and {Cooldown = 3, StaminaCost = 16}
 			or (powerService and powerService.GetMotionDefinition and powerService.GetMotionDefinition(powerName))
-		if not definition or (not eagleFlight and not powerService.IsMotionActive(player, powerName)) then return end
+		if not definition or (not eagleFlight and not formTravel and not powerService.IsMotionActive(player, powerName)) then return end
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -71,7 +73,12 @@ function MovementService.Start(resourceConfig, powerService)
 		player:SetAttribute("LastStaminaUse", workspace:GetServerTimeNow())
 		specialCooldowns[player] = specialCooldowns[player] or {}
 		specialCooldowns[player][powerName] = os.clock() + (definition.Cooldown or 3)
-		if powerName == "SuperJump" then
+		if formTravel then
+			local form = player:GetAttribute("ActiveTransformation")
+			local speed = form == "Wolf" and 105 or form == "Bear" and 72 or 90
+			root.AssemblyLinearVelocity = root.CFrame.LookVector * speed + Vector3.new(0, form == "Bear" and 18 or 32, 0)
+			effectsRemote:FireAllClients("PowerLocal", {Ability = form .. "Travel", Element = form == "Bear" and "Earth" or form == "Eagle" and "Lightning" or "Ice", Origin = root.Position, Radius = 10, Tier = player:GetAttribute("ActiveFormSkillCount") or 3})
+		elseif powerName == "SuperJump" then
 			root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 82, root.AssemblyLinearVelocity.Z) + root.CFrame.LookVector * 24
 			effectsRemote:FireAllClients("PowerLocal", {Ability = "SuperJump", Origin = root.Position, Radius = 10})
 		elseif powerName == "EagleFlight" then

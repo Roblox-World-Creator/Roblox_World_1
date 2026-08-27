@@ -11,7 +11,7 @@ local movementRemote = ReplicatedStorage.Remotes:WaitForChild("MovementRemote")
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.DisplayOrder, gui.Parent = "AscensionUI", false, 128, player:WaitForChild("PlayerGui")
 
-local treeColors = {Universal = Color3.fromRGB(75, 145, 205), Fire = Color3.fromRGB(220, 82, 42), Ice = Color3.fromRGB(85, 185, 230), Lightning = Color3.fromRGB(215, 185, 55), Earth = Color3.fromRGB(105, 155, 78), Gravity = Color3.fromRGB(145, 80, 205)}
+local treeColors = {Universal = Color3.fromRGB(75, 145, 205), Fire = Color3.fromRGB(220, 82, 42), Ice = Color3.fromRGB(85, 185, 230), Lightning = Color3.fromRGB(215, 185, 55), Earth = Color3.fromRGB(105, 155, 78), Gravity = Color3.fromRGB(145, 80, 205), Poison = Color3.fromRGB(95, 190, 75), Prismatic = Color3.fromRGB(230, 90, 205)}
 local function round(object, radius) local corner = Instance.new("UICorner") corner.CornerRadius, corner.Parent = UDim.new(0, radius), object end
 local function styleButton(button, color)
 	button.BackgroundColor3, button.BorderSizePixel, button.TextColor3 = color, 0, Color3.new(1, 1, 1)
@@ -46,7 +46,7 @@ local tabs = Instance.new("Frame") tabs.Position, tabs.Size, tabs.BackgroundTran
 local tabLayout = Instance.new("UIListLayout") tabLayout.FillDirection, tabLayout.Padding, tabLayout.Parent = Enum.FillDirection.Horizontal, UDim.new(0, 6), tabs
 local treeCanvas = Instance.new("ScrollingFrame")
 treeCanvas.Position, treeCanvas.Size, treeCanvas.BackgroundColor3, treeCanvas.BorderSizePixel = UDim2.fromOffset(18, 128), UDim2.new(1, -36, 1, -146), Color3.fromRGB(24, 31, 47), 0
-treeCanvas.CanvasSize, treeCanvas.ScrollBarThickness, treeCanvas.Parent = UDim2.fromOffset(704, 430), 5, skillPanel
+treeCanvas.CanvasSize, treeCanvas.ScrollBarThickness, treeCanvas.Parent = UDim2.fromOffset(704, 1280), 5, skillPanel
 round(treeCanvas, 9)
 
 local selectedTree = "Universal"
@@ -126,24 +126,29 @@ flightHudButton.Name, flightHudButton.AnchorPoint = "EagleFlightControl", Vector
 flightHudButton.Position, flightHudButton.Size = UDim2.new(1, -24, 1, -112), UDim2.fromOffset(158, 46)
 flightHudButton.Visible, flightHudButton.Parent = false, gui
 styleButton(flightHudButton, Color3.fromRGB(164, 111, 43))
-flightHudButton.Activated:Connect(function() movementRemote:FireServer("EagleFlight") end)
+flightHudButton.Activated:Connect(function()
+	local form = player:GetAttribute("ActiveTransformation")
+	if form and form ~= "" then movementRemote:FireServer(form == "Eagle" and "EagleFlight" or "FormTravel") end
+end)
 local function updateFlightControl()
 	local isEagle = player:GetAttribute("ActiveTransformation") == "Eagle"
 	local flying = player:GetAttribute("EagleFlightActive") == true
-	flightHudButton.Visible = isEagle
-	flightHudButton.Text = flying and "LAND  [G]" or "TAKE FLIGHT  [G]"
+	local activeForm = player:GetAttribute("ActiveTransformation") or ""
+	flightHudButton.Visible = activeForm ~= "" and player:GetAttribute("FormTravelUnlocked") == true
+	flightHudButton.Text = isEagle and (flying and "LAND  [G]" or "TAKE FLIGHT  [G]") or (activeForm ~= "" and string.upper(activeForm) .. " TRAVEL [G]" or "FORM TRAVEL [G]")
 	flightHudButton.BackgroundColor3 = flying and Color3.fromRGB(50, 155, 190) or Color3.fromRGB(164, 111, 43)
 	eagleFlightButton.Text = flying and "LAND EAGLE  [G]" or "EAGLE SKY FLIGHT  [G]"
 end
 player:GetAttributeChangedSignal("ActiveTransformation"):Connect(updateFlightControl)
 player:GetAttributeChangedSignal("EagleFlightActive"):Connect(updateFlightControl)
+player:GetAttributeChangedSignal("FormTravelUnlocked"):Connect(updateFlightControl)
 updateFlightControl()
 local function renderForms()
 	local result = transformationRemote:InvokeServer("GetState")
 	if not result or not result.State then return end
 	for _, child in ipairs(formList:GetChildren()) do if child:IsA("GuiButton") then child:Destroy() end end
 	local state = result.State
-	eagleFlightButton.Visible = state.Active == "Eagle"
+	eagleFlightButton.Visible = state.Active == "Eagle" and player:GetAttribute("FormTravelUnlocked") == true
 	formStatus.Text = state.Active ~= "" and ("Active: " .. state.Active .. "  •  click again to return") or "Active: Ascendant  •  choose an unlocked spirit form"
 	for _, id in ipairs(transformationConfig.Order) do
 		local definition, unlocked = transformationConfig.Forms[id], state.Unlocked[id]
@@ -158,6 +163,20 @@ local function renderForms()
 			formStatus.Text = response.Message or "Transformation updated"
 			renderForms()
 		end)
+		for _, skill in ipairs(definition.Skills or {}) do
+			local owned = state.Skills and state.Skills[skill.Id]
+			local skillButton = Instance.new("TextButton")
+			skillButton.Size, skillButton.TextWrapped, skillButton.TextXAlignment = UDim2.new(1, -28, 0, 48), true, Enum.TextXAlignment.Left
+			skillButton.Text = string.format("    %s  |  Lv %d  |  %d point%s%s", skill.DisplayName, skill.RequiredLevel, skill.Cost, skill.Cost == 1 and "" or "s", owned and "  [UNLOCKED]" or "")
+			styleButton(skillButton, owned and Color3.fromRGB(45, 135, 100) or Color3.fromRGB(39, 48, 67))
+			skillButton.AutoButtonColor, skillButton.Parent = unlocked and not owned, formList
+			skillButton.Activated:Connect(function()
+				if owned or not unlocked then return end
+				local response = transformationRemote:InvokeServer("PurchaseSkill", {FormId = id, SkillId = skill.Id})
+				formStatus.Text = response.Message or "Form skill updated"
+				renderForms()
+			end)
+		end
 	end
 end
 
@@ -173,7 +192,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		toggle(skillPanel, renderSkills)
 	elseif input.KeyCode == Enum.KeyCode.T then
 		toggle(formPanel, renderForms)
-	elseif input.KeyCode == Enum.KeyCode.G and player:GetAttribute("ActiveTransformation") == "Eagle" then
-		movementRemote:FireServer("EagleFlight")
+	elseif input.KeyCode == Enum.KeyCode.G and player:GetAttribute("ActiveTransformation") ~= "" then
+		movementRemote:FireServer(player:GetAttribute("ActiveTransformation") == "Eagle" and "EagleFlight" or "FormTravel")
 	end
 end)

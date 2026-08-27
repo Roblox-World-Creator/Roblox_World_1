@@ -240,7 +240,12 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 			local amount = math.clamp(math.floor(tonumber(payload.Amount) or 1), 1, 100)
 			local elemental = math.clamp(math.floor(tonumber(payload.ElementAmount) or amount), 0, 100)
 			skillTreeService.Grant(target, amount, elemental)
-			return response(true, string.format("Granted %d skill and %d element points to %s", amount, elemental, target.Name))
+			if transformationService and transformationService.GrantPoints then transformationService.GrantPoints(target, amount) end
+			return response(true, string.format("Granted %d skill, %d element, and %d form points to %s", amount, elemental, amount, target.Name))
+		elseif action == "UnlockAllSkills" then
+			if not target or not skillTreeService then return response(false, "Target or skill service unavailable") end
+			local count = skillTreeService.UnlockAll(target)
+			return response(true, string.format("Unlocked %d ascendant skill ranks for %s", count, target.Name))
 		elseif action == "UnlockTransformation" then
 			if not target or not transformationService then return response(false, "Target or transformation service unavailable") end
 			return (function(success, message) return response(success, message) end)(transformationService.Unlock(target, tostring(payload.FormId)))
@@ -255,8 +260,9 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 		elseif action == "UnlockAllTransformations" then
 			if not target or not transformationService or not transformationConfig then return response(false, "Transformation service unavailable") end
 			for id in pairs(transformationConfig.Forms) do transformationService.Unlock(target, id) end
+			if transformationService.UnlockAllSkills then transformationService.UnlockAllSkills(target) end
 			target:SetAttribute("AdminAllTransformationsUnlocked", true)
-			return response(true, "Unlocked all transformation forms for " .. target.Name)
+			return response(true, "Unlocked all transformation forms and abilities for " .. target.Name)
 		elseif action == "ResetCooldowns" then
 			if not target or not combatService then return response(false, "Target or combat service unavailable") end
 			local success, message = combatService.ResetCooldowns(target)
@@ -319,7 +325,7 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 				return response(false, "Enemy type is not allowed")
 			end
 			spawnReadyAt[player] = now + config.SpawnCooldown
-			local success, message = waveDefense.SpawnAdminEnemy(enemyType, player)
+			local success, message = waveDefense.SpawnAdminEnemy(enemyType, player, payload.BossMode == true)
 			return response(success, message)
 		end
 

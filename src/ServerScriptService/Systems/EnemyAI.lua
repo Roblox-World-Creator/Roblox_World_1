@@ -61,6 +61,9 @@ local function damagePlayer(enemy, enemyRoot, player, targetHumanoid, targetRoot
 
 	local damage = enemy:GetAttribute("AttackDamage") or 5
 	local defense = math.max(0, (player:GetAttribute("Defense") or 0) + (player:GetAttribute("TransformationDefense") or 0))
+	local element = enemy:GetAttribute("Element") or "Physical"
+	local resistance = math.clamp((tonumber(player:GetAttribute(element .. "Resistance")) or 0) + (tonumber(player:GetAttribute("Skill" .. element .. "Resistance")) or 0) + (tonumber(player:GetAttribute("AllResistance")) or 0), 0, 0.75)
+	damage *= 1 - resistance
 	damage *= 100 / (100 + defense)
 	local toEnemy = enemyRoot.Position - targetRoot.Position
 	local facingEnemy = toEnemy.Magnitude > 0 and targetRoot.CFrame.LookVector:Dot(toEnemy.Unit) > 0.15
@@ -106,6 +109,16 @@ local function damagePlayer(enemy, enemyRoot, player, targetHumanoid, targetRoot
 			if player.Parent and player:GetAttribute("EnemySlowToken") == token and targetHumanoid.Parent then
 				local base = player:GetAttribute("AdminSpeedOverride") or (36 * (player:GetAttribute("SpeedMultiplier") or 1) + (player:GetAttribute("EquipmentSpeed") or 0))
 				targetHumanoid.WalkSpeed = base * (player:GetAttribute("TransformationMoveMultiplier") or 1)
+			end
+		end)
+	elseif statusEffect == "Poison" then
+		local token = (player:GetAttribute("PoisonToken") or 0) + 1
+		player:SetAttribute("PoisonToken", token)
+		task.spawn(function()
+			for _ = 1, 5 do
+				task.wait(0.8)
+				if not targetHumanoid.Parent or targetHumanoid.Health <= 0 or player:GetAttribute("PoisonToken") ~= token then break end
+				targetHumanoid:TakeDamage(math.max(1, damage * 0.12 * (1 - resistance)))
 			end
 		end)
 	end

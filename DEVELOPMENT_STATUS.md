@@ -1,6 +1,16 @@
 # Development Status
 
-Current playable milestone: imported-content gameplay, prerequisite skill trees, configurable 6+2 power loadouts, expanded realms, attached animal morphs, and catalog-safe equipment (`v0.15.2`).
+Current playable milestone: level-100 elemental/form progression, compact icon libraries, four 4x realms, shiny-triggered unique bosses, repeatable quest history, and a hub market (`v0.16.0`).
+
+## Complete (v0.16.0 progression and world pass)
+
+- [COMPLETE] Eight ten-tier ascendant trees (Universal plus Fire, Ice, Lightning, Earth, Gravity, Poison, and legendary Prismatic) with level gates, admin unlocks, and combat-consumed bonuses
+- [COMPLETE] Ten or more usable powers per elemental family, element icons/filters, compatible-slot filtering, tier-scaled effects, poison damage over time, opposition bonuses, and equipment/skill resistances
+- [COMPLETE] Three ten-skill animal-form paths funded by mob drops, unique combat effects, unlockable travel, persistent progress, and admin testing controls
+- [COMPLETE] Startable/repeatable quests with claims, persisted active state, rewards, and completion history
+- [COMPLETE] Level cap 100, gated/scaled realms at levels 10/30/50/70, four-times-wide realm maps, expanded scenery, and a character stats/buffs/equipment tab
+- [COMPLETE] Shiny heralds in every realm that summon unique bosses, plus the hub chicken trigger for the level-100 Prismatic Ascendant
+- [COMPLETE] Main-spawn buy/sell market prompt, Lava Katana with Fire/cold-resistance identity, and level-100 Prismatic double-damage gear
 
 ## Complete (v0.15.0 expansion)
 
@@ -11,6 +21,7 @@ Current playable milestone: imported-content gameplay, prerequisite skill trees,
 - [COMPLETE] Reliable admin form unlock/apply flow plus imported spirit-form presentation
 - [COMPLETE] Top-right responsive menu dock, compact top-left HUD, centered bottom hotbar, and blur/post-effect safety guards
 - [COMPLETE] Searchable, scrollable admin item and monster catalogs with stats and server-allowlisted actions
+- [COMPLETE] Every selected imported monster (including all Orc and Dragon profiles) can be promoted into a scaled, exact-model admin boss
 - [COMPLETE] All 21 imported weapon sources promoted to unique store items with prices, levels, stats, effects, abilities, equipment visuals, and loot entries
 - [COMPLETE] All 13 imported monster sources promoted to sanitized enemy profiles with unique identities, stats, attacks, statuses, loot tiers, realm placement, wave eligibility, and admin spawning
 - [COMPLETE] v0.15.1 dragon sizing, bounding-box ground alignment, aerial hovering, landing attacks, and rare wave cadence

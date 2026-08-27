@@ -55,12 +55,17 @@ end
 local function refreshEquipmentStats(player)
 	local _, equipment = getFolders(player)
 	local totals = {Attack = 0, Health = 0, Defense = 0, Power = 0, Speed = 0, MP = 0, CriticalChance = 0, CriticalDamage = 0}
+	local resistances = {Fire = 0, Ice = 0, Water = 0, Lightning = 0, Earth = 0, Gravity = 0, Poison = 0, Prismatic = 0}
 	for _, slot in ipairs(equipment:GetChildren()) do
 		local definition = slot:IsA("StringValue") and itemConfig.Items[slot.Value]
 		if definition and definition.Stats then
 			for stat, amount in pairs(definition.Stats) do if totals[stat] ~= nil then totals[stat] += amount end end
 		end
+		if definition and definition.Resistances then
+			for element, amount in pairs(definition.Resistances) do resistances[element] = (resistances[element] or 0) + amount end
+		end
 	end
+	for element, amount in pairs(resistances) do player:SetAttribute(element .. "Resistance", math.clamp(amount, 0, 0.75)) end
 	local previousMP = player:GetAttribute("EquipmentMP") or 0
 	for _, stat in ipairs({"Attack", "Health", "Speed"}) do player:SetAttribute("Equipment" .. stat, totals[stat]) end
 	player:SetAttribute("EquipmentDefense", totals.Defense)
