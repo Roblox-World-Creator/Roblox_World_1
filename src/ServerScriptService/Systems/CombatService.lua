@@ -16,7 +16,10 @@ end
 
 local function getElementMultiplier(player, element)
 	if not element or element == "Arcane" or element == "Wind" then return 1 end
-	return math.clamp(tonumber(player:GetAttribute(element .. "DamageMultiplier")) or 1, 1, 2)
+	local mastery = tonumber(player:GetAttribute(element .. "DamageMultiplier")) or 1
+	local capstone = (tonumber(player:GetAttribute(element .. "UltimateUnlocked")) or 0) > 0 and 0.15 or 0
+	local ascendant = (tonumber(player:GetAttribute("AscendantCoreUnlocked")) or 0) > 0 and 0.05 or 0
+	return math.clamp(mastery + capstone + ascendant, 1, 2.25)
 end
 
 local function getOrCreateRemote(folder, name)
@@ -140,14 +143,15 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 	end
 	local ability = abilityName and config.Abilities[abilityName]
 	local element = ability and ability.Element
+	local statusBonus = element and (tonumber(player:GetAttribute(element .. "StatusBonus")) or 0) or 0
 	if element == "Fire" then
-		enemy:SetAttribute("BurningUntil", workspace:GetServerTimeNow() + 3)
+		enemy:SetAttribute("BurningUntil", workspace:GetServerTimeNow() + 3 * (1 + statusBonus))
 	elseif element == "Ice" then
-		CrowdControlService.Slow(enemy, 0.55, 2.5)
-	elseif element == "Lightning" and math.random() < 0.22 then
+		CrowdControlService.Slow(enemy, math.max(0.3, 0.55 - statusBonus * 0.15), 2.5 * (1 + statusBonus))
+	elseif element == "Lightning" and math.random() < 0.22 + statusBonus * 0.2 then
 		CrowdControlService.Stun(enemy, 0.35, config.StunImmunitySeconds, false)
 	elseif element == "Earth" and heavy then
-		CrowdControlService.Stun(enemy, 0.45, config.StunImmunitySeconds, false)
+		CrowdControlService.Stun(enemy, 0.45 * (1 + statusBonus), config.StunImmunitySeconds, false)
 	elseif element == "Gravity" then
 		enemy:SetAttribute("CompressedUntil", workspace:GetServerTimeNow() + 1.5)
 	end
@@ -212,7 +216,8 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local damage = (player:GetAttribute("AttackPower") or config.MeleeDamage) * multiplier * getDamageMultiplier(player)
 			effectsRemote:FireAllClients("EnergyBolt", {Origin = startPosition, Target = impact, Duration = 0.2, ImpactTime = workspace:GetServerTimeNow() + 0.2, Radius = 3})
 			for _, enemy in ipairs(getEnemiesInRadius(impact, 3)) do
-				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, "RangedWeapon")
+				local weaponAbility = player:GetAttribute("EquippedRangedAbility")
+				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, config.Abilities[weaponAbility] and weaponAbility or nil)
 			end
 			return
 		end
@@ -262,7 +267,8 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				* comboDefinition.DamageMultiplier
 				* getDamageMultiplier(player)
 			local isFinisher = state.Index == #config.MeleeCombo
-			local result = damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, isFinisher)
+			local weaponAbility = player:GetAttribute("EquippedWeaponAbility")
+			local result = damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, isFinisher, config.Abilities[weaponAbility] and weaponAbility or nil)
 			if result then
 				applyStun(enemy, comboDefinition.Stun, config, isFinisher)
 				applyKnockback(enemy, root.Position, comboDefinition.Knockback)
@@ -311,13 +317,17 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		end
 		local masteryLevel = masteryService.GetLevel(player, abilityName)
 		ability = table.clone(ability)
-		local areaScale = (player:GetAttribute("SkillAreaMultiplier") or 1) * (1 + masteryLevel * 0.03)
+		local elementArea = tonumber(player:GetAttribute((ability.Element or "") .. "AreaBonus")) or 0
+		local areaScale = (player:GetAttribute("SkillAreaMultiplier") or 1) * (1 + masteryLevel * 0.03) * (1 + elementArea)
 		ability.Radius = (ability.Radius or 0) * areaScale
 		ability.LocalRadius = (ability.LocalRadius or ability.Radius) * areaScale
 		if ability.CastType == "Chain" then
 			ability.MaximumChains = (ability.MaximumChains or 3)
 				+ (masteryLevel >= 3 and 2 or 0) + (masteryLevel >= 5 and 3 or 0)
 				+ (masteryLevel >= 8 and 4 or 0) + (masteryLevel >= 10 and 5 or 0)
+		end
+		if ability.CastType == "Gravity" or ability.CastType == "Tornado" then
+			ability.PullStrength = (ability.PullStrength or 45) * (1 + (tonumber(player:GetAttribute((ability.Element or "") .. "StatusBonus")) or 0))
 		end
 		local energyCost = math.max(1, math.floor(ability.EnergyCost * (1 - masteryLevel * config.Mastery.CostReductionPerLevel)))
 		local masteryDamageMultiplier = 1 + masteryLevel * config.Mastery.DamagePerLevel

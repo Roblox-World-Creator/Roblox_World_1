@@ -568,12 +568,20 @@ local function renderEnemyTelegraph(data)
 	end
 	local duration = math.clamp(tonumber(data.Duration) or 0.4, 0.1, 1.5)
 	local radius = math.clamp(tonumber(data.Radius) or 6, 2, 20)
-	local ring = renderRing("EnemyAttackTelegraph", data.Origin - Vector3.new(0, 1.4, 0), radius, Color3.fromRGB(255, 70, 70), duration)
+	local color = typeof(data.Color) == "Color3" and data.Color or Color3.fromRGB(255, 70, 70)
+	local ring = renderRing("EnemyAttackTelegraph", data.Origin - Vector3.new(0, 1.4, 0), radius, color, duration)
 	ring.Transparency = 0.35
+	if data.Style == "Ranged" and typeof(data.Target) == "Vector3" then
+		local midpoint = data.Origin:Lerp(data.Target, 0.5) + Vector3.new(0, 1.5, 0)
+		local lane = createEffectPart("EnemyRangedLane", Enum.PartType.Block, color, Vector3.new(0.25, 0.25, (data.Target - data.Origin).Magnitude), CFrame.lookAt(midpoint, data.Target + Vector3.new(0, 1.5, 0)))
+		lane.Transparency = 0.3
+		TweenService:Create(lane, TweenInfo.new(duration), {Transparency = 0.9, Size = Vector3.new(0.7, 0.7, lane.Size.Z)}):Play()
+		Debris:AddItem(lane, duration + 0.05)
+	end
 	local warning = createEffectPart(
 		"EnemyAttackWarning",
 		Enum.PartType.Ball,
-		Color3.fromRGB(255, 55, 55),
+		color,
 		Vector3.new(1, 1, 1),
 		CFrame.new(data.Origin + Vector3.new(0, 2.5, 0))
 	)
@@ -592,7 +600,7 @@ local function renderEnemyHit(data)
 	local flash = createEffectPart(
 		"EnemyHit",
 		Enum.PartType.Ball,
-		Color3.fromRGB(255, 85, 65),
+		typeof(data.Color) == "Color3" and data.Color or Color3.fromRGB(255, 85, 65),
 		Vector3.new(1, 1, 1),
 		CFrame.new(data.Origin)
 	)

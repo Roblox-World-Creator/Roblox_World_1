@@ -1,4 +1,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ImportedAssetService = require(script.Parent.Systems.ImportedAssetService)
+
+-- Quarantine raw Toolbox folders before the rest of the game boots.
+local importedAssetsOk, importedAssetsError = pcall(ImportedAssetService.Start)
+if not importedAssetsOk then warn("Imported asset organization failed: " .. tostring(importedAssetsError)) end
 
 local WorldConfig = require(ReplicatedStorage.Shared.WorldConfig)
 local FlameBoosterConfig = require(ReplicatedStorage.Shared.FlameBoosterConfig)
@@ -60,6 +65,7 @@ local remoteDefinitions = {
 	SettingsRemote = "RemoteEvent", AdminRemote = "RemoteFunction", InventoryRemote = "RemoteFunction",
 	StoreRemote = "RemoteFunction", QuestRemote = "RemoteFunction", SkillRemote = "RemoteFunction",
 	TransformationRemote = "RemoteFunction",
+	MovementRemote = "RemoteEvent",
 }
 for name, className in pairs(remoteDefinitions) do
 	local remote = remotes:FindFirstChild(name)
@@ -106,7 +112,7 @@ startSystem("Settings", function()
 	SettingsService.Start(SaveService)
 end)
 startSystem("Powers", function()
-	PowerService.Start(ProgressionConfig)
+	PowerService.Start(ProgressionConfig, SaveService)
 end)
 startSystem("Skills", function()
 	SkillTreeService.Start(SkillTreeConfig, SaveService, PlayerProgression, ProgressionConfig)
@@ -144,3 +150,4 @@ end)
 if workspace:GetAttribute("WorldError") == "" then
 	workspace:SetAttribute("WorldStatus", "Ready")
 end
+print(string.format("Evolution Ascendant v%s server ready (%s)", tostring(WorldConfig.Version), tostring(workspace:GetAttribute("WorldStatus"))))

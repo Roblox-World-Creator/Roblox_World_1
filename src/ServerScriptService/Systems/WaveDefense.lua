@@ -2,10 +2,13 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EnemyAI = require(script.Parent.EnemyAI)
 local BossPhaseController = require(script.Parent.BossPhaseController)
+local AssetModelService = require(script.Parent.AssetModelService)
 local RealmConfig = require(ReplicatedStorage.Shared.RealmConfig)
 
 local WaveDefense = {}
 local runtimeState
+local HUB_CENTER = Vector3.new(0, 4, -700)
+local HUB_SPAWN = HUB_CENTER + Vector3.new(0, 0, -48)
 
 local function getOrCreateFolder(parent, name)
 	local folder = parent:FindFirstChild(name)
@@ -58,6 +61,7 @@ local function addLabel(parent, text, offset)
 	label.Size = UDim2.fromOffset(150, 30)
 	label.StudsOffset = offset
 	label.AlwaysOnTop = true
+	label.MaxDistance = 105
 	label.Parent = parent
 	local textLabel = label:FindFirstChild("Text") or Instance.new("TextLabel")
 	textLabel.Name = "Text"
@@ -135,7 +139,26 @@ local function createWarpPad(parent, name, position, destination, color, realmId
 	return pad
 end
 
-local function createElementalRealms(arena)
+local function placeImportedProp(parent, profile, position, targetHeight, yaw)
+	local model = AssetModelService.Clone("WorldProps", profile)
+	if not model then return nil end
+	model.Name = profile
+	model.Parent = parent
+	local _, size = model:GetBoundingBox()
+	if size.Y > 0.01 then pcall(function() model:ScaleTo(math.clamp(targetHeight / size.Y, 0.05, 4)) end) end
+	AssetModelService.WeldModel(model)
+	model:PivotTo(CFrame.new(position) * CFrame.Angles(0, yaw or 0, 0))
+	for _, object in ipairs(model:GetDescendants()) do
+		if object:IsA("BasePart") then
+			object.Anchored = true
+			object.CanCollide = true
+			object.CanTouch = false
+		end
+	end
+	return model
+end
+
+local function createElementalRealms(portalHome)
 	local realms = getOrCreateFolder(workspace, "ElementalRealms")
 	for _, realmId in ipairs(RealmConfig.Order) do
 		local definition = RealmConfig.Realms[realmId]
@@ -150,10 +173,14 @@ local function createElementalRealms(arena)
 			local height = 5 + index % 3 * 3
 			createPart(realm, "ElementPillar" .. index, Vector3.new(4, height, 4), center + Vector3.new(math.cos(angle) * 42, height / 2 - 1, math.sin(angle) * 42), definition.Color:Lerp(Color3.new(1, 1, 1), 0.2), index % 2 == 0 and Enum.Material.Neon or Enum.Material.Rock)
 		end
-		createWarpPad(realm, "ReturnToFort", center + Vector3.new(0, 0, 48), Vector3.new(0, 18, -48), Color3.fromRGB(80, 220, 255), "Fort", "RETURN TO ASCENDANT FORT")
+		for index, profile in ipairs(definition.Props or {}) do
+			local angle = (index - 1) / math.max(#definition.Props, 1) * math.pi * 2 + math.rad(30)
+			placeImportedProp(realm, profile, center + Vector3.new(math.cos(angle) * 31, 0, math.sin(angle) * 31), index == 1 and 13 or 8, -angle)
+		end
+		createWarpPad(realm, "ReturnToHub", center + Vector3.new(0, 0, 48), HUB_SPAWN, Color3.fromRGB(80, 220, 255), "Hub", "RETURN TO SAFE HUB")
 	end
 
-	local warps = getOrCreateFolder(arena, "Warps")
+	local warps = getOrCreateFolder(portalHome, "Warps")
 	for _, realmId in ipairs(RealmConfig.Order) do
 		local definition = RealmConfig.Realms[realmId]
 		local pad = warps:FindFirstChild(definition.PortalName)
@@ -294,16 +321,22 @@ local function createArena(config, inventoryService)
 	createPart(arena, "BoundarySouth", Vector3.new(config.ArenaRadius * 2, 18, 3), Vector3.new(0, 9, boundary), wallColor, Enum.Material.Brick)
 	createPart(arena, "BoundaryEast", Vector3.new(3, 18, config.ArenaRadius * 2), Vector3.new(boundary, 9, 0), wallColor, Enum.Material.Brick)
 	createPart(arena, "BoundaryWest", Vector3.new(3, 18, config.ArenaRadius * 2), Vector3.new(-boundary, 9, 0), wallColor, Enum.Material.Brick)
-	local warps = getOrCreateFolder(arena, "Warps")
-	createWarpPad(warps, "NORTH", Vector3.new(0, 1, -115), Vector3.new(0, 18, -48), Color3.fromRGB(80, 220, 255))
-	createWarpPad(warps, "SOUTH", Vector3.new(0, 1, 115), Vector3.new(0, 4, 72), Color3.fromRGB(100, 255, 180))
-	createWarpPad(warps, "EAST", Vector3.new(115, 1, 0), Vector3.new(48, 18, 0), Color3.fromRGB(255, 190, 80))
-	createWarpPad(warps, "WEST", Vector3.new(-115, 1, 0), Vector3.new(-48, 18, 0), Color3.fromRGB(190, 130, 255))
-	createElementalRealms(arena)
+	local hub = getOrCreateFolder(workspace, "AscendantSafeHub")
+	createPart(hub, "HubFloor", Vector3.new(170, 2, 120), HUB_CENTER - Vector3.new(0, 4, 0), Color3.fromRGB(29, 40, 58), Enum.Material.Slate)
+	local hubBeacon = createPart(hub, "HubBeacon", Vector3.new(8, 18, 8), HUB_CENTER + Vector3.new(0, 5, 20), Color3.fromRGB(80, 210, 255), Enum.Material.Neon)
+	addLabel(hubBeacon, "ASCENDANT SAFE HUB\nChoose a realm or enter Wave Defense", Vector3.new(0, 12, 0))
+	local warps = getOrCreateFolder(hub, "Warps")
+	createWarpPad(warps, "NORTH", HUB_CENTER + Vector3.new(-48, -3, -28), Vector3.zero, Color3.fromRGB(80, 220, 255))
+	createWarpPad(warps, "WEST", HUB_CENTER + Vector3.new(48, -3, -28), Vector3.zero, Color3.fromRGB(190, 130, 255))
+	createWarpPad(warps, "EAST", HUB_CENTER + Vector3.new(-48, -3, 24), Vector3.zero, Color3.fromRGB(255, 190, 80))
+	createWarpPad(warps, "SOUTH", HUB_CENTER + Vector3.new(48, -3, 24), Vector3.zero, Color3.fromRGB(100, 255, 180))
+	createWarpPad(warps, "WaveDefense", HUB_CENTER + Vector3.new(0, -3, 42), Vector3.new(0, 18, -48), Color3.fromRGB(255, 90, 115), "Arena", "ENTER WAVE DEFENSE")
+	createElementalRealms(hub)
+	createWarpPad(arena, "ReturnToSafeHub", Vector3.new(0, 1, -92), HUB_SPAWN, Color3.fromRGB(80, 220, 255), "Hub", "RETURN TO SAFE HUB")
 	local spawnLocation = workspace:FindFirstChild("SpawnLocation")
 	if spawnLocation and spawnLocation:IsA("SpawnLocation") then
 		spawnLocation.Size = Vector3.new(10, 1, 10)
-		spawnLocation.Position = Vector3.new(0, 18.5, -48)
+		spawnLocation.Position = HUB_SPAWN + Vector3.new(0, -2.5, 0)
 		spawnLocation.Neutral = true
 	end
 
@@ -329,7 +362,8 @@ local function createArena(config, inventoryService)
 		local spawnPosition = Vector3.new(math.cos(angle) * config.EnemySpawnRadius, config.EnemyHeight, math.sin(angle) * config.EnemySpawnRadius)
 		local spawn = createPart(spawns, string.format("Spawn%02d", index), Vector3.new(6, 0.4, 6), spawnPosition, Color3.fromRGB(255, 75, 100), Enum.Material.Neon)
 		spawn.Transparency = 0.2
-		addLabel(spawn, "ENEMY SPAWN", Vector3.new(0, 2.5, 0))
+		local oldLabel = spawn:FindFirstChild("WorldLabel")
+		if oldLabel then oldLabel:Destroy() end
 		local spawnLight = spawn:FindFirstChildOfClass("PointLight") or Instance.new("PointLight")
 		spawnLight.Color = spawn.Color
 		spawnLight.Range = 12
@@ -362,6 +396,13 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	model:SetAttribute("DamageTakenMultiplier", eliteDefinition and eliteDefinition.DamageTakenMultiplier or 1)
 	model:SetAttribute("IsElite", eliteName ~= nil)
 	model:SetAttribute("EliteModifier", eliteName)
+	model:SetAttribute("AbilityName", definition.Ability or "Basic Strike")
+	model:SetAttribute("AttackStyle", definition.AttackStyle or "Melee")
+	model:SetAttribute("AttackRange", definition.AttackRange)
+	model:SetAttribute("AbilityRadius", definition.AbilityRadius)
+	model:SetAttribute("StatusEffect", definition.StatusEffect)
+	model:SetAttribute("LootTier", definition.LootTier or enemyType)
+	model:SetAttribute("AbilityColor", definition.Color)
 
 	local body = Instance.new("Part")
 	body.Name = "HumanoidRootPart"
@@ -376,6 +417,7 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	body.Parent = model
 
 	local scale = enemyType == "Boss" and 1.7 or 1
+	local fallbackLimbs = {}
 	local function addLimb(name, size, offset, color, shape)
 		local limb = Instance.new("Part")
 		limb.Name = name
@@ -390,6 +432,7 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 		weld.Part0 = body
 		weld.Part1 = limb
 		weld.Parent = limb
+		table.insert(fallbackLimbs, limb)
 		return limb
 	end
 
@@ -399,6 +442,23 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	addLimb("RightArm", Vector3.new(0.65, 2.3, 0.65), Vector3.new(1.55, 2.55, 0), definition.Color)
 	addLimb("LeftLeg", Vector3.new(0.8, 2.4, 0.8), Vector3.new(-0.65, 0.2, 0), Color3.fromRGB(35, 45, 75))
 	addLimb("RightLeg", Vector3.new(0.8, 2.4, 0.8), Vector3.new(0.65, 0.2, 0), Color3.fromRGB(35, 45, 75))
+
+	local importedVisual = definition.ModelProfile and AssetModelService.Clone(enemyType == "Boss" and "Bosses" or "Enemies", definition.ModelProfile)
+	if importedVisual then
+		importedVisual.Name = "ImportedVisual"
+		importedVisual.Parent = model
+		local _, visualSize = importedVisual:GetBoundingBox()
+		local targetHeight = enemyType == "Boss" and 12 or (definition.Health >= 500 and 8 or 5.5)
+		if visualSize.Y > 0.01 then pcall(function() importedVisual:ScaleTo(math.clamp(targetHeight / visualSize.Y, 0.04, 4)) end) end
+		AssetModelService.WeldModel(importedVisual)
+		importedVisual:PivotTo(CFrame.new(position + Vector3.new(0, targetHeight * 0.46, 0)))
+		local visualRoot = importedVisual.PrimaryPart
+		if visualRoot then
+			local weld = Instance.new("WeldConstraint")
+			weld.Name, weld.Part0, weld.Part1, weld.Parent = "EnemyVisualWeld", body, visualRoot, visualRoot
+		end
+		for _, limb in ipairs(fallbackLimbs) do limb.Transparency = 1 end
+	end
 
 	local humanoid = Instance.new("Humanoid")
 	humanoid.MaxHealth = definition.Health * healthScale * (eliteDefinition and eliteDefinition.HealthMultiplier or 1)
@@ -489,17 +549,21 @@ local function getActivePlayerScale(config)
 	return 1 + ((playerCount - 1) * config.PlayersPerHealthScale)
 end
 
+local WAVE_ROSTER = {
+	{Id = "Basic", Wave = 1}, {Id = "Fast", Wave = 2}, {Id = "FireImp", Wave = 3},
+	{Id = "Tank", Wave = 4}, {Id = "FrostWolf", Wave = 5}, {Id = "StormOrc", Wave = 6},
+	{Id = "StoneWarrior", Wave = 7}, {Id = "AshwingDrake", Wave = 8}, {Id = "OrcChampion", Wave = 9},
+	{Id = "LavaGolem", Wave = 11}, {Id = "IceGolem", Wave = 12}, {Id = "NullHunter", Wave = 14},
+	{Id = "EarthGolem", Wave = 16}, {Id = "LabyrinthHorror", Wave = 18}, {Id = "RiftDragon", Wave = 20},
+}
+
 local function chooseEnemyType(wave, index)
-	if wave % 5 == 0 and index == 1 then
-		return "Tank"
+	local available = {}
+	for _, entry in ipairs(WAVE_ROSTER) do
+		if wave >= entry.Wave then table.insert(available, entry.Id) end
 	end
-	if wave >= 4 and index % 4 == 0 then
-		return "Fast"
-	end
-	if wave >= 3 and index % 6 == 0 then
-		return "Tank"
-	end
-	return "Basic"
+	if wave % 5 == 0 and index == 1 then return "Tank" end
+	return available[((index + wave - 2) % #available) + 1]
 end
 
 function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfig, progression, inventoryService, questService)
@@ -577,26 +641,27 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 		end
 	end
 
-	local practicePositions = {
-		Vector3.new(-18, gameConfig.EnemyHeight, 0),
-		Vector3.new(18, gameConfig.EnemyHeight, 0),
-		Vector3.new(0, gameConfig.EnemyHeight, -18),
-	}
-	for index, position in ipairs(practicePositions) do
-		local definition = enemyConfig.Basic
-		local practiceEnemy, practiceHumanoid, practiceDamage = createEnemy("Basic", definition, 1, 1, 0, position, enemyFolder)
-		practiceEnemy.Name = "PracticeTarget" .. index
-		practiceEnemy:SetAttribute("IsPractice", true)
-		EnemyAI.Run(practiceEnemy, core, gameConfig, true)
-		practiceHumanoid.Died:Connect(function()
-			task.delay(0.2, function()
-				if practiceEnemy.Parent then
-					practiceEnemy:Destroy()
-				end
-			end)
-		end)
+	-- The hub is intentionally peaceful. Each demo realm has its own spaced mob set.
+	for _, realmId in ipairs(RealmConfig.Order) do
+		local realm = RealmConfig.Realms[realmId]
+		for index, enemyType in ipairs(realm.Mobs or {}) do
+			local definition = enemyConfig[enemyType]
+			if definition then
+				local angle = (index - 1) / math.max(#realm.Mobs, 1) * math.pi * 2 + math.rad(45)
+				local radius = index % 2 == 0 and 37 or 26
+				local position = realm.Destination + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+				local realmEnemy, realmHumanoid = createEnemy(enemyType, definition, 1, 1, 0, position, enemyFolder)
+				realmEnemy:SetAttribute("IsPractice", true)
+				realmEnemy:SetAttribute("IsRealmMob", true)
+				realmEnemy:SetAttribute("RealmId", realmId)
+				EnemyAI.Run(realmEnemy, core, gameConfig, true)
+				realmHumanoid.Died:Connect(function()
+					task.delay(0.25, function() if realmEnemy.Parent then realmEnemy:Destroy() end end)
+				end)
+			end
+		end
 	end
-	setWaveAttributes(0, 0, "Practice")
+	setWaveAttributes(0, 0, "Safe Hub")
 
 	task.spawn(function()
 		while running do
@@ -742,7 +807,11 @@ function WaveDefense.GetSpawnCatalog()
 		for _, enemy in ipairs(runtimeState.EnemyFolder:GetChildren()) do
 			if enemy:GetAttribute("EnemyType") == enemyType then count += 1 end
 		end
-		table.insert(catalog, {Id = enemyType, Name = definition.DisplayName, Health = definition.Health, Damage = definition.Damage, Count = count})
+		table.insert(catalog, {
+			Id = enemyType, Name = definition.DisplayName, Health = definition.Health,
+			Damage = definition.Damage, Speed = definition.Speed, Ability = definition.Ability,
+			AttackStyle = definition.AttackStyle or "Melee", LootTier = definition.LootTier or enemyType, Count = count,
+		})
 	end
 	for _, boss in ipairs(runtimeState.WaveConfig.BossArchetypes or {}) do
 		table.insert(catalog, {Id = "Boss:" .. boss.Id, Name = boss.DisplayName, Health = runtimeState.EnemyConfig.Boss.Health, Damage = runtimeState.EnemyConfig.Boss.Damage, Count = 0})

@@ -36,6 +36,7 @@
         "PowerRemote": { "$className": "RemoteFunction" }
 		,"SkillRemote": { "$className": "RemoteFunction" }
 		,"TransformationRemote": { "$className": "RemoteFunction" }
+		,"MovementRemote": { "$className": "RemoteEvent" }
       }
     },
     "ServerScriptService": {
@@ -61,7 +62,7 @@
         "$className": "SpawnLocation",
         "$properties": {
           "Anchored": true,
-          "Position": [0, 1, 0],
+          "Position": [0, 1, -748],
           "Size": [12, 1, 12]
         }
       },

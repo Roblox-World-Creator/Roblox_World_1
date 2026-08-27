@@ -16,11 +16,28 @@ local function refresh(player)
 	if progression and progressionConfig then progression.RefreshStats(player, progressionConfig) end
 end
 
+local function requirementStatus(player, definition, ranks)
+	local level = player:GetAttribute("Level") or 1
+	if level < (definition.RequiredLevel or 1) then return false, "LEVEL " .. tostring(definition.RequiredLevel) end
+	for _, requirement in ipairs(definition.Prerequisites or {}) do
+		if (ranks[requirement.Id] or 0) < (requirement.Rank or 1) then
+			local requiredNode = config.Nodes[requirement.Id]
+			return false, string.format("%s %d", requiredNode and requiredNode.DisplayName or requirement.Id, requirement.Rank or 1)
+		end
+	end
+	return true, "AVAILABLE"
+end
+
 local function state(player)
 	local ranks = {}
 	local folder = player:FindFirstChild("Skills")
 	for _, value in ipairs(folder and folder:GetChildren() or {}) do ranks[value.Name] = value.Value end
-	return {SkillPoints = player:GetAttribute("SkillPoints") or 0, ElementPoints = player:GetAttribute("ElementPoints") or 0, Ranks = ranks}
+	local nodes = {}
+	for id, definition in pairs(config.Nodes) do
+		local available, reason = requirementStatus(player, definition, ranks)
+		nodes[id] = {Available = available, Reason = reason}
+	end
+	return {SkillPoints = player:GetAttribute("SkillPoints") or 0, ElementPoints = player:GetAttribute("ElementPoints") or 0, Ranks = ranks, Nodes = nodes}
 end
 
 local function purchase(player, id)
@@ -28,7 +45,10 @@ local function purchase(player, id)
 	local folder = player:FindFirstChild("Skills")
 	local rank = folder and folder:FindFirstChild(id)
 	if not definition or not rank then return false, "Unknown skill" end
-	if (player:GetAttribute("Level") or 1) < (definition.RequiredLevel or 1) then return false, "Required level not reached" end
+	local ranks = {}
+	for _, value in ipairs(folder:GetChildren()) do ranks[value.Name] = value.Value end
+	local available, reason = requirementStatus(player, definition, ranks)
+	if not available then return false, "Locked: " .. reason end
 	if rank.Value >= definition.MaximumRank then return false, "Skill is already max rank" end
 	local currency = definition.Tree == "Universal" and "SkillPoints" or "ElementPoints"
 	local cost = definition.Cost or 1

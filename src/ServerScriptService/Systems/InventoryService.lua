@@ -78,6 +78,13 @@ local function refreshEquipmentStats(player)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid and not player:GetAttribute("AdminSpeedOverride") then humanoid.WalkSpeed = 36 * (player:GetAttribute("SpeedMultiplier") or 1) + totals.Speed end
 	player:SetAttribute("EquippedWeapon", equipment.Weapon.Value)
+	local primary = itemConfig.Items[equipment.Weapon.Value]
+	local secondary = itemConfig.Items[equipment.SecondaryWeapon.Value]
+	player:SetAttribute("EquippedWeaponAbility", primary and primary.AbilityId or "")
+	player:SetAttribute("EquippedWeaponEffect", primary and primary.Passive or "")
+	player:SetAttribute("EquippedWeaponElement", primary and primary.Element or "Physical")
+	player:SetAttribute("EquippedRangedAbility", secondary and secondary.AbilityId or "")
+	player:SetAttribute("EquippedRangedEffect", secondary and secondary.Passive or "")
 end
 
 local function createStack(inventory, itemId, saved)
@@ -143,7 +150,8 @@ end
 
 function InventoryService.RollLoot(player, enemy)
 	if enemy:GetAttribute("IsPractice") then return end
-	local tables = {itemConfig.LootTables[enemy:GetAttribute("EnemyType") or "Basic"]}
+	local lootTier = enemy:GetAttribute("LootTier") or enemy:GetAttribute("EnemyType") or "Basic"
+	local tables = {itemConfig.LootTables[lootTier] or itemConfig.LootTables.Basic}
 	if enemy:GetAttribute("IsElite") then table.insert(tables, itemConfig.LootTables.Elite) end
 	for _, lootTable in ipairs(tables) do
 		for _, entry in ipairs(lootTable or {}) do

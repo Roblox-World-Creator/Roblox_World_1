@@ -5,6 +5,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("AdminRemote")
 local itemConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ItemConfig"))
+local enemyConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("EnemyConfig"))
 local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
 local colors = {
@@ -323,29 +324,91 @@ actionButton(realmRow2, "STORM REALM", "TeleportRealm", function() return {Realm
 actionButton(realmRow2, "EARTH REALM", "TeleportRealm", function() return {RealmId = "EarthWorld"} end, Color3.fromRGB(75, 125, 65))
 
 createSection("PRACTICE SPAWNS")
+local enemySearch = createTextBox("Search monster name, ability, style, or loot tier", "")
+local selectedEnemyId = "Basic"
+local selectedEnemyLabel = Instance.new("TextLabel")
+selectedEnemyLabel.Size = UDim2.new(1, -6, 0, 38)
+selectedEnemyLabel.BackgroundColor3 = colors.PanelLight
+selectedEnemyLabel.BorderSizePixel = 0
+selectedEnemyLabel.TextColor3 = colors.Success
+selectedEnemyLabel.Font = Enum.Font.GothamBold
+selectedEnemyLabel.TextSize = 12
+selectedEnemyLabel.Text = "SELECTED: " .. string.upper(enemyConfig[selectedEnemyId].DisplayName)
+selectedEnemyLabel.Parent = controls
+round(selectedEnemyLabel, 7)
 
-local row5 = createRow()
-actionButton(row5, "SPAWN BASIC", "SpawnEnemy", function() return {EnemyType = "Basic"} end)
-actionButton(row5, "SPAWN FAST", "SpawnEnemy", function() return {EnemyType = "Fast"} end)
-local row6 = createRow()
-actionButton(row6, "SPAWN TANK", "SpawnEnemy", function() return {EnemyType = "Tank"} end)
-actionButton(row6, "SPAWN BOSS", "SpawnEnemy", function() return {EnemyType = "Boss"} end, colors.Danger)
+local enemyCatalog = Instance.new("ScrollingFrame")
+enemyCatalog.Size = UDim2.new(1, -6, 0, 310)
+enemyCatalog.BackgroundColor3 = Color3.fromRGB(15, 20, 31)
+enemyCatalog.BorderSizePixel = 0
+enemyCatalog.ScrollBarThickness = 5
+enemyCatalog.AutomaticCanvasSize = Enum.AutomaticSize.Y
+enemyCatalog.CanvasSize = UDim2.new()
+enemyCatalog.Parent = controls
+round(enemyCatalog, 8)
+local enemyCatalogLayout = Instance.new("UIListLayout")
+enemyCatalogLayout.Padding = UDim.new(0, 6)
+enemyCatalogLayout.Parent = enemyCatalog
+local enemyCatalogPadding = Instance.new("UIPadding")
+enemyCatalogPadding.PaddingTop = UDim.new(0, 7)
+enemyCatalogPadding.PaddingLeft = UDim.new(0, 7)
+enemyCatalogPadding.PaddingRight = UDim.new(0, 7)
+enemyCatalogPadding.PaddingBottom = UDim.new(0, 7)
+enemyCatalogPadding.Parent = enemyCatalog
+
+local function refreshEnemyCatalog()
+	for _, child in ipairs(enemyCatalog:GetChildren()) do
+		if child:IsA("GuiButton") or child:IsA("TextLabel") then child:Destroy() end
+	end
+	local ids = {}
+	for enemyId in pairs(enemyConfig) do table.insert(ids, enemyId) end
+	table.sort(ids, function(left, right) return enemyConfig[left].DisplayName < enemyConfig[right].DisplayName end)
+	local query = string.lower(enemySearch.Text)
+	local shown = 0
+	for _, enemyId in ipairs(ids) do
+		local definition = enemyConfig[enemyId]
+		local haystack = string.lower(table.concat({enemyId, definition.DisplayName or "", definition.Ability or "", definition.AttackStyle or "Melee", definition.LootTier or enemyId}, " "))
+		if query == "" or string.find(haystack, query, 1, true) then
+			shown += 1
+			local card = Instance.new("TextButton")
+			card.Size = UDim2.new(1, -4, 0, 76)
+			card.BackgroundColor3 = selectedEnemyId == enemyId and colors.Success:Lerp(colors.PanelLight, 0.48) or colors.PanelLight
+			card.BorderSizePixel = 0
+			card.TextColor3 = definition.Color or colors.Text
+			card.TextWrapped = true
+			card.TextXAlignment = Enum.TextXAlignment.Left
+			card.TextYAlignment = Enum.TextYAlignment.Center
+			card.Font = Enum.Font.GothamBold
+			card.TextSize = 11
+			card.Text = string.format("  %s  [%s]\n  HP %d  |  DMG %d  |  SPD %d  |  %s\n  Ability: %s  |  Loot: %s", definition.DisplayName, enemyId, definition.Health, definition.Damage, definition.Speed, definition.AttackStyle or "Melee", definition.Ability or "Basic Strike", definition.LootTier or enemyId)
+			round(card, 7)
+			card.Parent = enemyCatalog
+			card.Activated:Connect(function()
+				selectedEnemyId = enemyId
+				selectedEnemyLabel.Text = "SELECTED: " .. string.upper(definition.DisplayName)
+				setStatus("Selected " .. definition.DisplayName .. " — " .. (definition.Ability or "Basic Strike"), true)
+				refreshEnemyCatalog()
+			end)
+		end
+	end
+	if shown == 0 then
+		local empty = Instance.new("TextLabel")
+		empty.Size, empty.BackgroundTransparency, empty.Text, empty.TextColor3 = UDim2.new(1, -4, 0, 42), 1, "No monsters match this search.", colors.Muted
+		empty.Parent = enemyCatalog
+	end
+end
+enemySearch:GetPropertyChangedSignal("Text"):Connect(refreshEnemyCatalog)
+local creatureRow = createRow()
+actionButton(creatureRow, "SPAWN SELECTED", "SpawnEnemy", function() return {EnemyType = selectedEnemyId} end, colors.Success)
+actionButton(creatureRow, "SPAWN BOSS", "SpawnEnemy", function() return {EnemyType = "Boss"} end, colors.Danger)
+refreshEnemyCatalog()
+
 local cleanupRow = createRow()
 actionButton(cleanupRow, "CLEAR PRACTICE ENEMIES", "ClearPracticeEnemies", nil, colors.Danger)
 local stressCount = createTextBox("Stress count (1-100)", "25")
 local stressRow = createRow()
 actionButton(stressRow, "STRESS: BASIC", "SpawnStressTest", function() return {EnemyType = "Basic", Count = stressCount.Text} end, colors.Danger)
 actionButton(stressRow, "STRESS: TANK", "SpawnStressTest", function() return {EnemyType = "Tank", Count = stressCount.Text} end, colors.Danger)
-spawnCatalog = Instance.new("TextLabel")
-spawnCatalog.Size = UDim2.new(1, -6, 0, 70)
-spawnCatalog.BackgroundColor3 = colors.PanelLight
-spawnCatalog.TextColor3 = colors.Text
-spawnCatalog.TextWrapped = true
-spawnCatalog.TextXAlignment = Enum.TextXAlignment.Left
-spawnCatalog.TextYAlignment = Enum.TextYAlignment.Top
-spawnCatalog.Text = "CREATURE CATALOG: press LIST SPAWNS"
-spawnCatalog.Parent = controls
-local spawnListButton = actionButton(createRow(), "LIST SPAWNS + COUNTS", "GetSpawnCatalog")
 
 local waveBox = createTextBox("Next wave (1-50)", "10")
 local row7 = createRow()
@@ -353,13 +416,11 @@ actionButton(row7, "SET NEXT WAVE", "SetWave", function() return {Wave = waveBox
 actionButton(row7, "LIST PLAYERS", "GetPlayers")
 
 createSection("ITEM GRANTS")
-local itemBox = createTextBox("IronBlade / HealthPotion / ManaPotion / EvolutionShard", "HealthPotion")
+local itemSearch = createTextBox("Search item name, type, rarity, or element", "")
 local quantityBox = createTextBox("Quantity (1-25 per grant)", "1")
-itemBox.Visible = false
-local grantCategories = {"Weapon", "Armor", "Artifact", "Consumable", "Material"}
-local grantCategoryIndex = 4
-local grantItemIds = {}
-local grantItemIndex = 1
+local grantCategories = {"All", "Weapon", "Armor", "Artifact", "Consumable", "Material"}
+local grantCategoryIndex = 1
+local selectedGrantItem = "HealthPotion"
 local grantPlayers = {{Name = "me", DisplayName = "Me", UserId = 0}}
 local grantPlayerIndex = 0
 local function choiceButton(text)
@@ -370,33 +431,63 @@ local function choiceButton(text)
 	button.Parent = controls
 	return button
 end
-local categoryButton = choiceButton("TYPE: CONSUMABLE")
-local itemChoiceButton = choiceButton("ITEM: HEALTH CORE")
+local categoryButton = choiceButton("TYPE: ALL")
+local selectedItemLabel = choiceButton("SELECTED: HEALTH CORE")
+selectedItemLabel.AutoButtonColor = false
 local targetChoiceButton = choiceButton("TARGET: ME")
-local function refreshGrantItems()
-	grantItemIds = {}
-	local category = grantCategories[grantCategoryIndex]
-	for itemId, definition in pairs(require(ReplicatedStorage.Shared.ItemConfig).Items) do
-		if definition.Category == category then table.insert(grantItemIds, itemId) end
+local catalog = Instance.new("ScrollingFrame")
+catalog.Size, catalog.BackgroundColor3, catalog.BorderSizePixel = UDim2.new(1, -6, 0, 300), Color3.fromRGB(15, 20, 31), 0
+catalog.ScrollBarThickness, catalog.AutomaticCanvasSize, catalog.CanvasSize, catalog.Parent = 5, Enum.AutomaticSize.Y, UDim2.new(), controls
+round(catalog, 8)
+local catalogLayout = Instance.new("UIListLayout") catalogLayout.Padding, catalogLayout.Parent = UDim.new(0, 6), catalog
+local catalogPadding = Instance.new("UIPadding") catalogPadding.PaddingTop, catalogPadding.PaddingLeft, catalogPadding.PaddingRight, catalogPadding.PaddingBottom, catalogPadding.Parent = UDim.new(0, 7), UDim.new(0, 7), UDim.new(0, 7), UDim.new(0, 7), catalog
+local function statSummary(stats)
+	local parts = {}
+	for _, key in ipairs({"Attack", "Power", "Defense", "Health", "MP", "Speed", "CriticalChance", "CriticalDamage"}) do
+		local value = stats and stats[key]
+		if value then table.insert(parts, key .. " +" .. tostring(value)) end
 	end
-	table.sort(grantItemIds)
-	grantItemIndex = math.clamp(grantItemIndex, 1, math.max(1, #grantItemIds))
-	local itemId = grantItemIds[grantItemIndex]
-	itemBox.Text = itemId or ""
-	local definition = itemId and itemConfig.Items[itemId]
-	local symbol = ({Weapon = "SWORD", Armor = "ARMOR", Artifact = "CORE", Consumable = "POTION", Material = "MATERIAL"})[definition and definition.Category] or "ITEM"
-	itemChoiceButton.Text = string.format("%s: %s | %s", symbol, definition and definition.DisplayName or "NONE", definition and (definition.Stats and "STATS " .. tostring(definition.Stats.Attack or definition.Stats.Power or definition.Stats.Health or 0) or "NO STATS") or "")
+	return #parts > 0 and table.concat(parts, "  •  ") or "No direct stat bonus"
+end
+local function refreshGrantItems()
+	for _, child in ipairs(catalog:GetChildren()) do if child:IsA("GuiButton") or child:IsA("TextLabel") then child:Destroy() end end
+	local ids = {}
+	for itemId in pairs(itemConfig.Items) do table.insert(ids, itemId) end
+	table.sort(ids, function(left, right) return itemConfig.Items[left].DisplayName < itemConfig.Items[right].DisplayName end)
+	local query, category = string.lower(itemSearch.Text), grantCategories[grantCategoryIndex]
+	local shown = 0
+	for _, itemId in ipairs(ids) do
+		local definition = itemConfig.Items[itemId]
+		local haystack = string.lower(table.concat({itemId, definition.DisplayName or "", definition.Category or "", definition.Rarity or "", definition.Element or ""}, " "))
+		if (category == "All" or definition.Category == category) and (query == "" or string.find(haystack, query, 1, true)) then
+			shown += 1
+			local card = Instance.new("TextButton")
+			card.Size, card.TextWrapped, card.TextXAlignment, card.TextYAlignment = UDim2.new(1, -4, 0, 72), true, Enum.TextXAlignment.Left, Enum.TextYAlignment.Center
+			card.BackgroundColor3 = selectedGrantItem == itemId and colors.Success:Lerp(colors.PanelLight, 0.45) or colors.PanelLight
+			card.BorderSizePixel, card.TextColor3, card.Font, card.TextSize = 0, itemConfig.RarityColors[definition.Rarity] or colors.Text, Enum.Font.GothamBold, 11
+			card.Text = string.format("  %s  [%s %s]\n  Level %d  •  %s  •  %s\n  ID: %s", definition.DisplayName, definition.Rarity or "Common", definition.Category or "Item", definition.RequiredLevel or 1, statSummary(definition.Stats), definition.AbilityId and ("Ability: " .. definition.AbilityId) or (definition.Passive and ("Effect: " .. definition.Passive) or "Standard effect"), itemId)
+			round(card, 7)
+			local effectText = definition.Passive and ("Effect: " .. definition.Passive) or "Standard effect"
+			if definition.AbilityId then effectText ..= " | Cast: " .. definition.AbilityId end
+			card.Text = string.format("  %s  [%s %s]\n  Level %d  |  %s\n  %s  |  ID: %s", definition.DisplayName, definition.Rarity or "Common", definition.Category or "Item", definition.RequiredLevel or 1, statSummary(definition.Stats), effectText, itemId)
+			card.Parent = catalog
+			card.Activated:Connect(function()
+				selectedGrantItem = itemId
+				selectedItemLabel.Text = "SELECTED: " .. string.upper(definition.DisplayName)
+				refreshGrantItems()
+			end)
+		end
+	end
+	if shown == 0 then
+		local empty = Instance.new("TextLabel") empty.Size, empty.BackgroundTransparency, empty.Text, empty.TextColor3, empty.Parent = UDim2.new(1, -4, 0, 42), 1, "No items match this filter.", colors.Muted, catalog
+	end
 end
 categoryButton.Activated:Connect(function()
 	grantCategoryIndex = grantCategoryIndex % #grantCategories + 1
 	categoryButton.Text = "TYPE: " .. string.upper(grantCategories[grantCategoryIndex])
 	refreshGrantItems()
 end)
-itemChoiceButton.Activated:Connect(function()
-	if #grantItemIds == 0 then return end
-	grantItemIndex = grantItemIndex % #grantItemIds + 1
-	refreshGrantItems()
-end)
+itemSearch:GetPropertyChangedSignal("Text"):Connect(refreshGrantItems)
 targetChoiceButton.Activated:Connect(function()
 	local result = invoke("GetPlayers")
 	if result and type(result.Data) == "table" and #result.Data > 0 then grantPlayers = result.Data end
@@ -407,7 +498,7 @@ targetChoiceButton.Activated:Connect(function()
 end)
 local itemRow = createRow()
 actionButton(itemRow, "GRANT ITEM", "GrantItem", function()
-	return {ItemId = itemBox.Text, Quantity = quantityBox.Text}
+	return {ItemId = selectedGrantItem, Quantity = quantityBox.Text}
 end, colors.Accent)
 refreshGrantItems()
 

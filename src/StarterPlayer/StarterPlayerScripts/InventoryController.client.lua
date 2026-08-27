@@ -353,6 +353,11 @@ local function selectItem(itemId)
 		if compareDefinition then compareText = "\nCompared with " .. compareDefinition.DisplayName .. ": " .. statDeltaText(definition.Stats, compareDefinition.Stats) end
 	end
 	description.Text = string.format("%s • %s%s\n%s\n\n%s%s%s", definition.Rarity, definition.Category, equippedSlot and (" • Equipped: " .. equippedSlot) or "", definition.Description, statText(definition.Stats), compareText, recipeText)
+	local combatDetails = ""
+	if definition.Category == "Weapon" then
+		combatDetails = string.format("\nLevel %d | %s %s\nUnique effect: %s\nAssigned ability: %s", definition.RequiredLevel or 1, definition.Element or "Physical", definition.WeaponType or definition.WeaponKind or "Weapon", definition.Passive or "Standard impact", definition.AbilityId or "Basic weapon attack")
+	end
+	description.Text = string.format("%s | %s%s\n%s%s\n\n%s%s%s", definition.Rarity, definition.Category, equippedSlot and (" | Equipped: " .. equippedSlot) or "", definition.Description, combatDetails, statText(definition.Stats), compareText, recipeText)
 	if currentTab == "Store" then
 		actions.PRIMARY.Text, actions.PRIMARY.Visible = "BUY " .. tostring(definition.BuyPrice or 0), definition.BuyPrice ~= nil
 	else
@@ -436,8 +441,15 @@ refresh = function()
 			if query == "" or string.find(string.lower(definition.DisplayName), query, 1, true) then addCard(itemId, "CRAFT x" .. recipe.Quantity) end
 		end
 	else
-		for itemId, definition in pairs(config.Items) do
-			if definition.BuyPrice and (query == "" or string.find(string.lower(definition.DisplayName), query, 1, true)) then addCard(itemId, definition.BuyPrice .. " GOLD") end
+		local storeIds = {}
+		for itemId, definition in pairs(config.Items) do if definition.BuyPrice then table.insert(storeIds, itemId) end end
+		table.sort(storeIds, function(left, right)
+			local a, b = config.Items[left], config.Items[right]
+			return a.BuyPrice == b.BuyPrice and a.DisplayName < b.DisplayName or a.BuyPrice < b.BuyPrice
+		end)
+		for _, itemId in ipairs(storeIds) do
+			local definition = config.Items[itemId]
+			if query == "" or string.find(string.lower(definition.DisplayName), query, 1, true) then addCard(itemId, definition.BuyPrice .. " GOLD | LV " .. (definition.RequiredLevel or 1)) end
 		end
 	end
 	for name, button in pairs(tabButtons) do button.BackgroundColor3 = name == currentTab and Color3.fromRGB(65, 125, 185) or Color3.fromRGB(42, 52, 73) end

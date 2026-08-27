@@ -246,7 +246,12 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 			return (function(success, message) return response(success, message) end)(transformationService.Unlock(target, tostring(payload.FormId)))
 		elseif action == "SetTransformation" then
 			if not target or not transformationService then return response(false, "Target or transformation service unavailable") end
-			return (function(success, message) return response(success, message) end)(transformationService.Set(target, tostring(payload.FormId or "")))
+			local formId = tostring(payload.FormId or "")
+			if formId ~= "" then
+				local granted, grantMessage = transformationService.Unlock(target, formId)
+				if not granted then return response(false, grantMessage) end
+			end
+			return (function(success, message) return response(success, message) end)(transformationService.Set(target, formId))
 		elseif action == "UnlockAllTransformations" then
 			if not target or not transformationService or not transformationConfig then return response(false, "Transformation service unavailable") end
 			for id in pairs(transformationConfig.Forms) do transformationService.Unlock(target, id) end

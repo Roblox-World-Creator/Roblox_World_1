@@ -61,7 +61,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 	local function setupPlayer(player)
 		player:SetAttribute("DataLoaded", false)
 		local data = saveService.Load(player, {
-			SchemaVersion = 4,
+			SchemaVersion = 5,
 			Level = config.StartingLevel,
 			XP = config.StartingXP,
 			Coins = config.StartingCoins,
@@ -79,6 +79,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 			SkillPoints = 0,
 			ElementPoints = 0,
 			Transformations = {},
+			PowerLoadout = {Attacks = {}, Motion = {"PowerDash", "Dodge"}},
 			UnlockedWorlds = {FireWorld = true},
 			UnlockedElements = {Fire = true, Ice = true, Lightning = true, Earth = true},
 			WeaponMastery = {},

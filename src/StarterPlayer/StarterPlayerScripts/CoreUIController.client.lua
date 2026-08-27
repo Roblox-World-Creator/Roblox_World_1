@@ -15,7 +15,8 @@ local function suppressCoreGui()
 	for _, coreGuiType in ipairs(disabledCoreGui) do
 		pcall(StarterGui.SetCoreGuiEnabled, StarterGui, coreGuiType, false)
 	end
-	pcall(StarterGui.SetCore, StarterGui, "TopbarEnabled", false)
+	-- Roblox reserves the system/top-bar menu in live experiences. Custom HUDs
+	-- respect its inset instead of repeatedly fighting an unsupported hide call.
 end
 
 -- Core scripts can re-apply their defaults during loading and respawn. Repeat

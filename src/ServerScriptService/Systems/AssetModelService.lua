@@ -2,7 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AssetModelService = {}
 local ALLOWED_CONTAINERS = {Weapons = true, Transformations = true, Enemies = true, Bosses = true, Projectiles = true, Pickups = true, WorldProps = true}
-local UNSAFE_CLASSES = {Script = true, LocalScript = true, ModuleScript = true, RemoteEvent = true, RemoteFunction = true, BindableEvent = true, BindableFunction = true}
+local UNSAFE_CLASSES = {Script = true, LocalScript = true, ModuleScript = true, RemoteEvent = true, RemoteFunction = true, BindableEvent = true, BindableFunction = true, Humanoid = true, Animator = true}
 
 local function sanitize(root)
 	for _, descendant in ipairs(root:GetDescendants()) do

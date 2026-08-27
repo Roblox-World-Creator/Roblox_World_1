@@ -30,10 +30,49 @@ function MovementService.Start(resourceConfig, powerService)
 	local dodgeRemote = remotes:FindFirstChild("DodgeRemote") or Instance.new("RemoteEvent")
 	dodgeRemote.Name = "DodgeRemote"
 	dodgeRemote.Parent = remotes
+	local movementRemote = remotes:FindFirstChild("MovementRemote") or Instance.new("RemoteEvent")
+	movementRemote.Name, movementRemote.Parent = "MovementRemote", remotes
 	local feedbackRemote = remotes:WaitForChild("CombatFeedback")
 	local effectsRemote = remotes:WaitForChild("AbilityEffects")
 	local cooldowns = {}
 	local dodgeCooldowns = {}
+	local specialCooldowns = {}
+
+	movementRemote.OnServerEvent:Connect(function(player, powerName)
+		local definition = powerService and powerService.GetMotionDefinition and powerService.GetMotionDefinition(powerName)
+		if not definition or not powerService.IsMotionActive(player, powerName) then return end
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not humanoid or not root or humanoid.Health <= 0 or (specialCooldowns[player] and (specialCooldowns[player][powerName] or 0) > os.clock()) then return end
+		local stamina = player:GetAttribute("Stamina") or 0
+		local cost = definition.StaminaCost or 20
+		if stamina < cost then feedbackRemote:FireClient(player, "CastRejected", "Need more stamina"); return end
+		player:SetAttribute("Stamina", stamina - cost)
+		player:SetAttribute("LastStaminaUse", workspace:GetServerTimeNow())
+		specialCooldowns[player] = specialCooldowns[player] or {}
+		specialCooldowns[player][powerName] = os.clock() + (definition.Cooldown or 3)
+		if powerName == "SuperJump" then
+			root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 82, root.AssemblyLinearVelocity.Z) + root.CFrame.LookVector * 24
+			effectsRemote:FireAllClients("PowerLocal", {Ability = "SuperJump", Origin = root.Position, Radius = 10})
+		elseif powerName == "Flight" then
+			task.spawn(function()
+				local finish = os.clock() + 3.5
+				while os.clock() < finish and root.Parent and humanoid.Health > 0 do
+					local direction = humanoid.MoveDirection.Magnitude > 0.1 and humanoid.MoveDirection or root.CFrame.LookVector
+					root.AssemblyLinearVelocity = direction * 58 + Vector3.new(0, 8, 0)
+					task.wait(0.08)
+				end
+			end)
+			effectsRemote:FireAllClients("PowerCast", {Ability = "Flight", Origin = root.Position, Target = root.Position + root.CFrame.LookVector * 30, Duration = 3.5})
+		elseif powerName == "PhaseGuard" then
+			player:SetAttribute("InvulnerableUntil", workspace:GetServerTimeNow() + 1.4)
+			effectsRemote:FireAllClients("PowerLocal", {Ability = "PhaseGuard", Origin = root.Position, Radius = 12})
+		else
+			return
+		end
+		feedbackRemote:FireClient(player, "CastAccepted", powerName, nil, definition.Cooldown or 3)
+	end)
 
 	dashRemote.OnServerEvent:Connect(function(player)
 		if powerService and not powerService.IsMotionActive(player, "PowerDash") then return end
@@ -120,6 +159,7 @@ function MovementService.Start(resourceConfig, powerService)
 	Players.PlayerRemoving:Connect(function(player)
 		cooldowns[player] = nil
 		dodgeCooldowns[player] = nil
+		specialCooldowns[player] = nil
 	end)
 end
 

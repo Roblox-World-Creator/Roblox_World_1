@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local AssetModelService = require(script.Parent.AssetModelService)
 
 local TransformationService = {}
 local config
@@ -13,9 +14,31 @@ end
 local function clearVisual(character)
 	local visual = character and character:FindFirstChild("TransformationVisual")
 	if visual then visual:Destroy() end
+	local spirit = character and character:FindFirstChild("TransformationSpiritModel")
+	if spirit then spirit:Destroy() end
 	for _, descendant in ipairs(character and character:GetDescendants() or {}) do
 		if descendant:GetAttribute("TransformationVisual") then descendant:Destroy() end
 	end
+end
+
+local function addSpiritModel(character, root, definition)
+	local model = definition.ModelProfile and AssetModelService.Clone("Transformations", definition.ModelProfile)
+	if not model then return end
+	model.Name = "TransformationSpiritModel"
+	model.Parent = character
+	local _, originalSize = model:GetBoundingBox()
+	local largest = math.max(originalSize.X, originalSize.Y, originalSize.Z)
+	if largest > 0 then model:ScaleTo(math.clamp(6 / largest, 0.35, 2.5)) end
+	AssetModelService.WeldModel(model)
+	model:PivotTo(root.CFrame * CFrame.new(2.8, -1.8, 1.8) * CFrame.Angles(0, math.rad(155), 0))
+	for _, descendant in ipairs(model:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			descendant.Transparency = math.max(descendant.Transparency, 0.22)
+			descendant:SetAttribute("TransformationVisual", true)
+		end
+	end
+	local weld = Instance.new("WeldConstraint")
+	weld.Name, weld.Part0, weld.Part1, weld.Parent = "TransformationSpiritWeld", root, model.PrimaryPart, model.PrimaryPart
 end
 
 local function apply(player, id)
@@ -40,6 +63,7 @@ local function apply(player, id)
 	visual.FillTransparency, visual.OutlineTransparency, visual.Parent = 0.68, 0.05, character
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if root then
+		addSpiritModel(character, root, definition)
 		local emitter = Instance.new("ParticleEmitter")
 		emitter.Name, emitter.Color = "SpiritAura", ColorSequence.new(definition.Color, Color3.new(1, 1, 1))
 		emitter.Rate, emitter.Lifetime, emitter.Speed, emitter.Parent = 22, NumberRange.new(0.5, 1), NumberRange.new(1, 3), root
@@ -55,9 +79,11 @@ local function state(player)
 end
 
 function TransformationService.Unlock(player, id)
-	local folder = player:FindFirstChild("Transformations")
-	local value = folder and folder:FindFirstChild(id)
-	if not value then return false, "Unknown transformation" end
+	if not config.Forms[id] then return false, "Unknown transformation" end
+	local folder = player:FindFirstChild("Transformations") or Instance.new("Folder")
+	folder.Name, folder.Parent = "Transformations", player
+	local value = folder:FindFirstChild(id) or Instance.new("BoolValue")
+	value.Name, value.Parent = id, folder
 	value.Value = true
 	return true, "Unlocked " .. config.Forms[id].DisplayName
 end
@@ -74,11 +100,11 @@ function TransformationService.Start(transformationConfig, saveService)
 		while player.Parent and not player:GetAttribute("DataLoaded") do player:GetAttributeChangedSignal("DataLoaded"):Wait() end
 		if not player.Parent then return end
 		local loaded = (saveService.GetLoadedData(player) or {}).Transformations or {}
-		local folder = Instance.new("Folder")
+		local folder = player:FindFirstChild("Transformations") or Instance.new("Folder")
 		folder.Name, folder.Parent = "Transformations", player
 		for id, definition in pairs(config.Forms) do
-			local value = Instance.new("BoolValue")
-			value.Name, value.Value, value.Parent = id, loaded[id] == true or (player:GetAttribute("Level") or 1) >= definition.RequiredLevel, folder
+			local value = folder:FindFirstChild(id) or Instance.new("BoolValue")
+			value.Name, value.Value, value.Parent = id, value.Value or loaded[id] == true or (player:GetAttribute("Level") or 1) >= definition.RequiredLevel, folder
 		end
 		player:GetAttributeChangedSignal("Level"):Connect(function()
 			local level = player:GetAttribute("Level") or 1

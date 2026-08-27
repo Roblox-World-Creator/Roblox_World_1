@@ -11,65 +11,80 @@ local progressionConfig
 local abilityRemote
 local dashRemote
 local dodgeRemote
+local movementRemote
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "WaveDefenseHUD"
 screenGui.ResetOnSpawn = false
 screenGui.Enabled = true
 screenGui.DisplayOrder = 100
-screenGui.IgnoreGuiInset = true
+screenGui.IgnoreGuiInset = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local status = Instance.new("TextLabel")
 status.Name = "Status"
-status.Size = UDim2.fromOffset(360, 160)
-status.Position = UDim2.fromOffset(18, 18)
+status.Size = UDim2.fromOffset(300, 118)
+status.Position = UDim2.fromOffset(18, 8)
 status.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
 status.BackgroundTransparency = 0.15
 status.TextColor3 = Color3.fromRGB(235, 245, 255)
 status.Font = Enum.Font.GothamBold
-status.TextSize = 18
+status.TextSize = 14
 status.TextXAlignment = Enum.TextXAlignment.Left
 status.TextYAlignment = Enum.TextYAlignment.Top
 status.Text = "CONNECTING TO EVOLUTION ASCENDANT..."
 status.Parent = screenGui
+local statusPadding = Instance.new("UIPadding")
+statusPadding.PaddingTop, statusPadding.PaddingLeft, statusPadding.PaddingRight = UDim.new(0, 8), UDim.new(0, 10), UDim.new(0, 8)
+statusPadding.Parent = status
 local statusCorner = Instance.new("UICorner")
 statusCorner.CornerRadius = UDim.new(0, 10)
 statusCorner.Parent = status
 
 local abilities = Instance.new("Frame")
 abilities.Name = "Abilities"
-abilities.Size = UDim2.new(0.96, 0, 0, 78)
+abilities.Size = UDim2.new(1, -24, 0, 78)
 abilities.AnchorPoint = Vector2.new(0.5, 1)
 abilities.Position = UDim2.new(0.5, 0, 1, -14)
 abilities.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
 abilities.BackgroundTransparency = 0.15
 abilities.Parent = screenGui
+local abilitiesConstraint = Instance.new("UISizeConstraint")
+abilitiesConstraint.MinSize, abilitiesConstraint.MaxSize, abilitiesConstraint.Parent = Vector2.new(320, 78), Vector2.new(820, 78), abilities
 local abilitiesCorner = Instance.new("UICorner")
 abilitiesCorner.CornerRadius = UDim.new(0, 10)
 abilitiesCorner.Parent = abilities
 
 local bars = Instance.new("Frame")
 bars.Name = "PlayerBars"
-bars.Size = UDim2.fromOffset(360, 116)
-bars.Position = UDim2.fromOffset(18, 185)
+bars.Size = UDim2.fromOffset(300, 104)
+bars.Position = UDim2.fromOffset(18, 132)
 bars.BackgroundTransparency = 1
 bars.Parent = screenGui
 
+local function updateHudPlacement()
+	local camera = workspace.CurrentCamera
+	local compact = camera and camera.ViewportSize.X < 960
+	status.Position = UDim2.fromOffset(18, compact and 64 or 8)
+	bars.Position = UDim2.fromOffset(18, compact and 188 or 132)
+end
+updateHudPlacement()
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateHudPlacement) end
+
 local function makeBar(name, y, color)
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromOffset(55, 22)
+	label.Size = UDim2.fromOffset(45, 20)
 	label.Position = UDim2.fromOffset(0, y)
 	label.BackgroundTransparency = 1
 	label.Text = name
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 14
+	label.TextSize = 12
 	label.Parent = bars
 	local back = Instance.new("Frame")
 	back.Name = name .. "Bar"
-	back.Size = UDim2.fromOffset(300, 18)
-	back.Position = UDim2.fromOffset(58, y + 2)
+	back.Size = UDim2.fromOffset(250, 16)
+	back.Position = UDim2.fromOffset(48, y + 2)
 	back.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
 	back.BorderSizePixel = 0
 	back.Parent = bars
@@ -88,15 +103,15 @@ local function makeBar(name, y, color)
 	value.BackgroundTransparency = 1
 	value.TextColor3 = Color3.new(1, 1, 1)
 	value.Font = Enum.Font.GothamBold
-	value.TextSize = 13
+	value.TextSize = 12
 	value.Parent = back
 	return back, fill, value
 end
 
 local _, healthFill, healthValue = makeBar("HP", 0, Color3.fromRGB(240, 70, 85))
-local _, mpFill, mpValue = makeBar("MP", 28, Color3.fromRGB(65, 145, 255))
-local _, staminaFill, staminaValue = makeBar("STA", 56, Color3.fromRGB(90, 230, 155))
-local _, xpFill, xpValue = makeBar("XP", 84, Color3.fromRGB(185, 105, 255))
+local _, mpFill, mpValue = makeBar("MP", 24, Color3.fromRGB(65, 145, 255))
+local _, staminaFill, staminaValue = makeBar("STA", 48, Color3.fromRGB(90, 230, 155))
+local _, xpFill, xpValue = makeBar("XP", 72, Color3.fromRGB(185, 105, 255))
 
 local grid = Instance.new("UIGridLayout")
 grid.CellSize = UDim2.fromOffset(64, 66)
@@ -118,9 +133,12 @@ local abilityList = {
 	{"RockShot", "", "R", Color3.fromRGB(175, 125, 70)}, {"GroundSlam", "", "G", Color3.fromRGB(125, 210, 105)}, {"Boulder", "", "O", Color3.fromRGB(145, 105, 65)},
 	{"GravityPull", "", "P", Color3.fromRGB(190, 100, 255)}, {"GravityWell", "", "W", Color3.fromRGB(145, 65, 230)}, {"BlackHole", "", "H", Color3.fromRGB(95, 35, 150)},
 	{"PowerDash", "Q", ">", Color3.fromRGB(100, 180, 255)},
+	{"SuperJump", "Q", "^", Color3.fromRGB(105, 235, 170)},
+	{"Flight", "Q", "F", Color3.fromRGB(125, 205, 255)},
 	{"Dodge", "SHIFT", "↝", Color3.fromRGB(190, 235, 255)},
+	{"PhaseGuard", "SHIFT", "O", Color3.fromRGB(195, 130, 255)},
 }
-local gamepadHints = setmetatable({PowerDash = "B", Dodge = "LS"}, {__index = function() return "RT/LT" end})
+local gamepadHints = setmetatable({PowerDash = "B", SuperJump = "B", Flight = "B", Dodge = "LS", PhaseGuard = "LS"}, {__index = function() return "RT/LT" end})
 
 local cooldownLabels = {}
 local cooldownEnds = {}
@@ -128,6 +146,15 @@ local targetPosition
 local selectedAbilityIndex = 1
 local feedbackMessage = ""
 local feedbackExpires = 0
+local function attributeList(name)
+	local values = {}
+	for _, value in ipairs(string.split(player:GetAttribute(name) or "", ",")) do if value ~= "" then table.insert(values, value) end end
+	return values
+end
+
+local function isMotionPower(name)
+	return progressionConfig and progressionConfig.MotionPowers and progressionConfig.MotionPowers[name] ~= nil
+end
 
 local function isGamepadInput(inputType)
 	return inputType and string.find(inputType.Name, "Gamepad") ~= nil
@@ -145,7 +172,7 @@ end
 
 local function isAbilityAvailable(entry)
 	local name = entry[1]
-	if name == "PowerDash" or name == "Dodge" then return false end
+	if isMotionPower(name) then return false end
 	local active = "," .. (player:GetAttribute("ActiveAttacks") or "") .. ","
 	local definition = progressionConfig and progressionConfig.Abilities[name]
 	local unlocked = definition and (player:GetAttribute("AdminAllPowersUnlocked")
@@ -156,8 +183,13 @@ end
 
 local function cycleAbility(direction)
 	local available = {}
-	for index, entry in ipairs(abilityList) do
-		if isAbilityAvailable(entry) then table.insert(available, index) end
+	for _, activeName in ipairs(attributeList("ActiveAttacks")) do
+		for index, entry in ipairs(abilityList) do
+			if entry[1] == activeName and isAbilityAvailable(entry) then
+				table.insert(available, index)
+				break
+			end
+		end
 	end
 	if #available == 0 then return end
 	local position = table.find(available, selectedAbilityIndex) or (direction > 0 and 0 or 1)
@@ -180,6 +212,9 @@ local function castAbility(name, mode)
 				dodgeRemote:FireServer(direction)
 			end
 		end
+		return
+	elseif isMotionPower(name) then
+		if (cooldownEnds[name] or 0) <= os.clock() then movementRemote:FireServer(name) end
 		return
 	end
 	local definition = progressionConfig.Abilities[name]
@@ -289,6 +324,7 @@ local combatRemote = remotes:WaitForChild("CombatRemote")
 abilityRemote = remotes:WaitForChild("AbilityRemote")
 dashRemote = remotes:WaitForChild("DashRemote")
 dodgeRemote = remotes:WaitForChild("DodgeRemote")
+movementRemote = remotes:WaitForChild("MovementRemote")
 local evolutionRemote = remotes:WaitForChild("EvolutionRemote")
 local feedbackRemote = remotes:WaitForChild("CombatFeedback")
 
@@ -333,7 +369,7 @@ feedbackRemote.OnClientEvent:Connect(function(kind, xp, coins, duration)
 			cooldownEnds[xp] = os.clock() + (duration or progressionConfig.Abilities[xp].Cooldown)
 		elseif xp == "PowerDash" then
 			cooldownEnds[xp] = os.clock() + (duration or coins or 1.25)
-		elseif xp == "Dodge" then
+		elseif xp == "Dodge" or (progressionConfig.MotionPowers and progressionConfig.MotionPowers[xp]) then
 			cooldownEnds[xp] = os.clock() + (duration or coins or 1)
 		end
 		return
@@ -399,20 +435,14 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 		local target = targetPosition(120)
 		if target then combatRemote:FireServer("Ranged", target) end
-	elseif input.KeyCode == Enum.KeyCode.One then
-		castAbility("EnergyBolt")
-	elseif input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.E then
-		castAbility("EnergyBurst")
-	elseif input.KeyCode == Enum.KeyCode.Z then
-		castAbility("EnergyBeam")
-	elseif input.KeyCode == Enum.KeyCode.X then
-		castAbility("GravityPulse")
-	elseif input.KeyCode == Enum.KeyCode.C then
-		castAbility("ChainLightning")
-	elseif input.KeyCode == Enum.KeyCode.V then
-		castAbility("Tornado")
+	elseif input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.Three
+		or input.KeyCode == Enum.KeyCode.Four or input.KeyCode == Enum.KeyCode.Five or input.KeyCode == Enum.KeyCode.Six then
+		local keySlots = {[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4, [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6}
+		local active = attributeList("ActiveAttacks")
+		if active[keySlots[input.KeyCode]] then castAbility(active[keySlots[input.KeyCode]]) end
 	elseif input.KeyCode == Enum.KeyCode.Q then
-		castAbility("PowerDash")
+		local motion = attributeList("ActiveMotion")
+		if motion[1] then castAbility(motion[1]) end
 	elseif input.KeyCode == Enum.KeyCode.R then
 		evolutionRemote:FireServer()
 	end
@@ -440,8 +470,26 @@ task.spawn(function()
 				button.BackgroundTransparency = unlocked and 0 or 0.55
 				button.Visible = isAbilityAvailable(entry)
 			elseif button then
-				local activeMotion = "," .. (player:GetAttribute("ActiveMotion") or "") .. ","
-				button.Visible = activeMotion == ",," or string.find(activeMotion, "," .. entry[1] .. ",", 1, true) ~= nil
+				local motion = attributeList("ActiveMotion")
+				local motionSlot = table.find(motion, entry[1])
+				button.Visible = motionSlot ~= nil
+				if motionSlot then
+					button.LayoutOrder = 6 + motionSlot
+					local keyHint = button:FindFirstChild("KeyHint")
+					if keyHint then
+						keyHint:SetAttribute("KeyboardHint", motionSlot == 1 and "Q" or "SHIFT")
+						keyHint.Text = motionSlot == 1 and "Q" or "SHIFT"
+					end
+				end
+			end
+		end
+		local attacks = attributeList("ActiveAttacks")
+		for slot, name in ipairs(attacks) do
+			local button = abilities:FindFirstChild(name)
+			if button then
+				button.LayoutOrder = slot
+				local keyHint = button:FindFirstChild("KeyHint")
+				if keyHint then keyHint:SetAttribute("KeyboardHint", tostring(slot)); keyHint.Text = tostring(slot) end
 			end
 		end
 		if not isAbilityAvailable(abilityList[selectedAbilityIndex]) then cycleAbility(1) end
@@ -460,11 +508,14 @@ local function handleAction(actionName, inputState)
 		return Enum.ContextActionResult.Pass
 	end
 	local playerGui = player:FindFirstChildOfClass("PlayerGui")
-	for _, guiName in ipairs({"InventoryUI", "QuestLog", "AdminControls", "CombatSettings", "PowersUI", "EvolutionUI"}) do
+	for _, guiName in ipairs({"InventoryUI", "QuestLog", "AdminControls", "CombatSettings", "PowersUI", "EvolutionUI", "AscensionUI"}) do
 		local gui = playerGui and playerGui:FindFirstChild(guiName)
-		local panel = gui and (gui:FindFirstChild("Panel") or gui:FindFirstChild("PowersPanel") or gui:FindFirstChild("InventoryPanel") or gui:FindFirstChild("EvolutionPanel"))
-		if panel and panel:IsA("GuiObject") and panel.Visible then
-			return Enum.ContextActionResult.Pass
+		if gui then
+			for _, child in ipairs(gui:GetChildren()) do
+				if child:IsA("GuiObject") and string.find(child.Name, "Panel", 1, true) and child.Visible then
+					return Enum.ContextActionResult.Pass
+				end
+			end
 		end
 	end
 	if actionName == "CyclePowerNext" then
@@ -481,11 +532,13 @@ local function handleAction(actionName, inputState)
 		local target = targetPosition(120)
 		if target then combatRemote:FireServer("Ranged", target) end
 	elseif actionName == "PowerDash" then
-		castAbility("PowerDash")
+		local motion = attributeList("ActiveMotion")
+		if motion[1] then castAbility(motion[1]) end
 	elseif actionName == "Evolve" then
 		evolutionRemote:FireServer()
 	elseif actionName == "Dodge" then
-		castAbility("Dodge")
+		local motion = attributeList("ActiveMotion")
+		if motion[2] then castAbility(motion[2]) end
 	else
 		return Enum.ContextActionResult.Pass
 	end

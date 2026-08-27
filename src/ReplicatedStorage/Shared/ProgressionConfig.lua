@@ -99,6 +99,14 @@ return {
 		GravityWell = {DisplayName = "Gravity Well", Description = "Compress enemies in a powerful gravity field.", Element = "Gravity", EffectProfile = "GravityWell01", CastType = "Gravity", Targeting = "Point", RequiredLevel = 24, RequiredEvolution = 2, Cooldown = 12, EnergyCost = 44, Damage = 105, Range = 78, Radius = 22, LocalRadius = 23, PullStrength = 82},
 		BlackHole = {DisplayName = "Black Hole", Description = "Create a sustained singularity that pulls, damages, and launches on collapse.", Element = "Gravity", EffectProfile = "BlackHole01", CastType = "Tornado", Targeting = "Point", RequiredLevel = 35, RequiredEvolution = 2, Cooldown = 18, EnergyCost = 62, Damage = 64, Range = 90, Radius = 24, LocalRadius = 25, Duration = 5, TickInterval = 0.5, PullStrength = 105, ProjectileSpeed = 48},
 	},
+	MotionOrder = {"PowerDash", "SuperJump", "Flight", "Dodge", "PhaseGuard"},
+	MotionPowers = {
+		PowerDash = {DisplayName = "Power Dash", Category = "Mobility", RequiredLevel = 1, Cooldown = 1.25, StaminaCost = 18, Description = "Burst forward through danger."},
+		SuperJump = {DisplayName = "Super Jump", Category = "Mobility", RequiredLevel = 4, Cooldown = 3.5, StaminaCost = 20, Description = "Launch high with forward momentum."},
+		Flight = {DisplayName = "Sky Flight", Category = "Mobility", RequiredLevel = 16, Cooldown = 10, StaminaCost = 30, Description = "Fly and steer for a short duration."},
+		Dodge = {DisplayName = "Phase Dodge", Category = "Technique", RequiredLevel = 1, Cooldown = 1, StaminaCost = 20, Description = "Evade with a brief invulnerability window."},
+		PhaseGuard = {DisplayName = "Phase Guard", Category = "Technique", RequiredLevel = 12, Cooldown = 8, StaminaCost = 24, Description = "Become invulnerable briefly and release a pulse."},
+	},
 	Mastery = {
 		MaximumLevel = 10,
 		XPPerDamage = 0.04,

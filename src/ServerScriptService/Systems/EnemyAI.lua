@@ -83,9 +83,37 @@ local function damagePlayer(enemy, enemyRoot, player, targetHumanoid, targetRoot
 	end
 
 	targetHumanoid:TakeDamage(damage)
+	local statusEffect = enemy:GetAttribute("StatusEffect")
+	if statusEffect == "Burn" then
+		task.delay(0.55, function()
+			if targetHumanoid.Parent and targetHumanoid.Health > 0 then targetHumanoid:TakeDamage(math.max(1, damage * 0.25)) end
+		end)
+	elseif statusEffect == "Shock" then
+		player:SetAttribute("Stamina", math.max(0, (player:GetAttribute("Stamina") or 0) - 14))
+	elseif statusEffect == "Void" then
+		local remaining = math.max(0, (player:GetAttribute("MP") or 0) - 12)
+		player:SetAttribute("MP", remaining)
+		player:SetAttribute("Energy", remaining)
+	elseif statusEffect == "Crush" then
+		local push = targetRoot.Position - enemyRoot.Position
+		targetRoot.AssemblyLinearVelocity += (push.Magnitude > 0.1 and push.Unit or enemyRoot.CFrame.LookVector) * 24 + Vector3.new(0, 10, 0)
+	elseif statusEffect == "Slow" then
+		local token = (player:GetAttribute("EnemySlowToken") or 0) + 1
+		player:SetAttribute("EnemySlowToken", token)
+		targetHumanoid.WalkSpeed *= 0.7
+		task.delay(1.5, function()
+			if player.Parent and player:GetAttribute("EnemySlowToken") == token and targetHumanoid.Parent then
+				local base = player:GetAttribute("AdminSpeedOverride") or (36 * (player:GetAttribute("SpeedMultiplier") or 1) + (player:GetAttribute("EquipmentSpeed") or 0))
+				targetHumanoid.WalkSpeed = base * (player:GetAttribute("TransformationMoveMultiplier") or 1)
+			end
+		end)
+	end
 	effectsRemote:FireAllClients("EnemyHit", {
 		Origin = targetRoot.Position,
 		Direction = toEnemy.Magnitude > 0 and -toEnemy.Unit or enemyRoot.CFrame.LookVector,
+		Color = enemy:GetAttribute("AbilityColor"),
+		Ability = enemy:GetAttribute("AbilityName"),
+		Status = statusEffect,
 	})
 end
 
@@ -138,8 +166,11 @@ function EnemyAI.Run(enemy, core, config, holdPosition)
 			local targetPlayer, targetHumanoid, targetRoot = choosePlayerTarget(root, config)
 			local goalPosition = targetRoot and targetRoot.Position or (holdPosition and homePosition or core.Position)
 			local distanceToGoal = (goalPosition - root.Position).Magnitude
+			local attackStyle = enemy:GetAttribute("AttackStyle") or "Melee"
+			local attackRange = enemy:GetAttribute("AttackRange") or config.EnemyAttackRange
+			local abilityRadius = enemy:GetAttribute("AbilityRadius") or attackRange
 
-			if targetRoot and distanceToGoal <= config.EnemyAttackRange then
+			if targetRoot and distanceToGoal <= attackRange then
 				humanoid:MoveTo(root.Position)
 				if os.clock() >= nextAttack then
 					nextAttack = os.clock() + config.EnemyAttackCooldown * (enemy:GetAttribute("AttackCooldownMultiplier") or 1)
@@ -147,15 +178,30 @@ function EnemyAI.Run(enemy, core, config, holdPosition)
 					effectsRemote:FireAllClients("EnemyTelegraph", {
 						Origin = root.Position,
 						Duration = config.EnemyAttackWindup,
-						Radius = config.EnemyAttackRange,
+						Radius = attackStyle == "Area" and abilityRadius or math.min(attackRange, 8),
+						Target = targetRoot.Position,
+						Color = enemy:GetAttribute("AbilityColor"),
+						Ability = enemy:GetAttribute("AbilityName"),
+						Style = attackStyle,
 					})
+					if attackStyle == "Lunge" and distanceToGoal > 0 then
+						root.AssemblyLinearVelocity = (targetRoot.Position - root.Position).Unit * 34 + Vector3.new(0, 5, 0)
+					end
 					task.wait(config.EnemyAttackWindup)
-					local _, currentHumanoid, currentRoot = getLivingCharacter(targetPlayer)
-					if enemy.Parent and humanoid.Health > 0
-						and workspace:GetServerTimeNow() >= (enemy:GetAttribute("StunnedUntil") or 0)
-						and currentHumanoid and currentRoot
-						and (currentRoot.Position - root.Position).Magnitude <= config.EnemyAttackRange + 2 then
-						damagePlayer(enemy, root, targetPlayer, currentHumanoid, currentRoot, config, effectsRemote)
+					if enemy.Parent and humanoid.Health > 0 and workspace:GetServerTimeNow() >= (enemy:GetAttribute("StunnedUntil") or 0) then
+						if attackStyle == "Area" then
+							for _, nearbyPlayer in ipairs(Players:GetPlayers()) do
+								local _, nearbyHumanoid, nearbyRoot = getLivingCharacter(nearbyPlayer)
+								if nearbyRoot and (nearbyRoot.Position - root.Position).Magnitude <= abilityRadius then
+									damagePlayer(enemy, root, nearbyPlayer, nearbyHumanoid, nearbyRoot, config, effectsRemote)
+								end
+							end
+						else
+							local _, currentHumanoid, currentRoot = getLivingCharacter(targetPlayer)
+							if currentHumanoid and currentRoot and (currentRoot.Position - root.Position).Magnitude <= attackRange + 2 then
+								damagePlayer(enemy, root, targetPlayer, currentHumanoid, currentRoot, config, effectsRemote)
+							end
+						end
 					end
 				end
 			elseif not targetRoot and not holdPosition and distanceToGoal <= config.CoreAttackRange then

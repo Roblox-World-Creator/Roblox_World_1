@@ -1,6 +1,18 @@
 # Development Status
 
-Current playable milestone: unobstructed docked UI and persistent CoreGui suppression (`v0.11.2`).
+Current playable milestone: imported-content gameplay, prerequisite skill trees, configurable 6+2 power loadouts, and overhauled admin catalogs (`v0.15.0`).
+
+## Complete (v0.15.0 expansion)
+
+- [COMPLETE] Searchable/sortable power library with six ordered combat slots, one Mobility slot, and one Technique slot
+- [COMPLETE] Persisted loadouts, slot-ordered bumper switching, RT ranged casts, LT local casts, and Q/Shift special-power controls
+- [COMPLETE] Super Jump, short-duration Flight, Power Dash, Phase Dodge, and Phase Guard special powers
+- [COMPLETE] Six visual skill-tree branches with prerequisite connectors, level gates, purchasable nodes, and capstones
+- [COMPLETE] Reliable admin form unlock/apply flow plus imported spirit-form presentation
+- [COMPLETE] Top-right responsive menu dock, compact top-left HUD, centered bottom hotbar, and blur/post-effect safety guards
+- [COMPLETE] Searchable, scrollable admin item and monster catalogs with stats and server-allowlisted actions
+- [COMPLETE] All 21 imported weapon sources promoted to unique store items with prices, levels, stats, effects, abilities, equipment visuals, and loot entries
+- [COMPLETE] All 13 imported monster sources promoted to sanitized enemy profiles with unique identities, stats, attacks, statuses, loot tiers, realm placement, wave eligibility, and admin spawning
 
 ## Complete (Phase 1 scope)
 

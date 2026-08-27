@@ -85,3 +85,13 @@ Stage-one foundation:
 ## Asset policy
 
 No Creator Store asset is accepted without a recorded creator/ID/URL and inspection of every Script, LocalScript, ModuleScript, RemoteEvent, and RemoteFunction. Imported gameplay/damage scripts are not trusted; safe VFX/animation helpers may be adapted. See `ASSET_CREDITS.md`.
+
+## Checkpoint 2 result - IMPLEMENTED (v0.15.0)
+
+- Raw imported folders are moved out of the rendered world, executable content is removed, and sanitized model copies resolve through stable gameplay profiles.
+- Twenty-one imported weapon sources now have unique item names, level gates, prices, configurable damage stats, elemental casts, named effects, character-held visuals, store entries, loot entries, and admin grants.
+- Thirteen imported monster sources now have unique enemies with health/damage/speed, named attacks, melee/lunge/ranged/area behavior, status effects, loot tiers, wave progression, realm placement, and searchable admin spawning.
+- The power loadout is a persistent 6+2 system: six attacks, one Mobility special, and one Technique special. Its library filters and sorts by unlock state, level, name, mastery, and element.
+- The skill list is now a visual prerequisite tree with branch connectors, level requirements, rank requirements, and functional universal/element capstones.
+- Wolf/Bear/Eagle admin grants unlock before applying, and imported spirit models make active forms visible without replacing equipped weapon presentation.
+- The menu dock, HUD, hotbar, powers, skills, admin item grants, and monster spawn tools use the new responsive layout.

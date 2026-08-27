@@ -4,140 +4,168 @@ local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 
 local player = Players.LocalPlayer
-local config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ProgressionConfig"))
-local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("PowerRemote")
+local config = require(ReplicatedStorage.Shared.ProgressionConfig)
+local remote = ReplicatedStorage.Remotes:WaitForChild("PowerRemote")
 local gui = Instance.new("ScreenGui")
-gui.Name = "PowersUI"
-gui.ResetOnSpawn = false
-gui.DisplayOrder = 125
-gui.IgnoreGuiInset = true
-gui.Parent = player:WaitForChild("PlayerGui")
-local panel = Instance.new("Frame")
-panel.Name = "PowersPanel"
-panel.AnchorPoint = Vector2.new(0.5, 0.5)
-panel.Position = UDim2.fromScale(0.5, 0.5)
-panel.Size = UDim2.fromOffset(520, 500)
-panel.BackgroundColor3 = Color3.fromRGB(17, 22, 34)
-panel.Visible = false
-panel.Parent = gui
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = panel
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -70, 0, 42)
-title.Position = UDim2.fromOffset(18, 10)
-title.BackgroundTransparency = 1
-title.Text = "POWERS  •  MASTERY  •  LOADOUT"
-title.TextColor3 = Color3.fromRGB(120, 220, 255)
-title.Font = Enum.Font.GothamBlack
-title.TextSize = 18
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = panel
-local close = Instance.new("TextButton")
-close.Size = UDim2.fromOffset(34, 34)
-close.Position = UDim2.new(1, -46, 0, 10)
-close.Text = "X"
-close.TextColor3 = Color3.new(1, 1, 1)
-close.BackgroundColor3 = Color3.fromRGB(190, 60, 75)
-close.Parent = panel
-local info = Instance.new("TextLabel")
-info.Position = UDim2.fromOffset(18, 54)
-info.Size = UDim2.new(1, -36, 0, 45)
-info.BackgroundTransparency = 1
-info.TextColor3 = Color3.fromRGB(190, 205, 225)
-info.TextWrapped = true
-info.TextXAlignment = Enum.TextXAlignment.Left
-info.Text = "Active attacks: 0/6    Motion powers: 0/2\nSelect unlocked powers to build your active combat loadout."
-info.Parent = panel
-local list = Instance.new("ScrollingFrame")
-list.Position = UDim2.fromOffset(18, 108)
-list.Size = UDim2.new(1, -36, 1, -126)
-list.BackgroundColor3 = Color3.fromRGB(25, 32, 48)
-list.BorderSizePixel = 0
-list.ScrollBarThickness = 5
-list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-list.CanvasSize = UDim2.new()
-list.Parent = panel
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 6)
-layout.Parent = list
-local padding = Instance.new("UIPadding")
-padding.PaddingTop = UDim.new(0, 8)
-padding.PaddingLeft = UDim.new(0, 8)
-padding.PaddingRight = UDim.new(0, 8)
-padding.Parent = list
-local open = Instance.new("TextButton")
-open.Size = UDim2.fromOffset(110, 36)
-open.Position = UDim2.new(1, -390, 0, 14)
-open.Text = "POWERS [P]"
-open.TextColor3 = Color3.new(1, 1, 1)
-open.BackgroundColor3 = Color3.fromRGB(95, 110, 190)
-open.Parent = gui
+gui.Name, gui.ResetOnSpawn, gui.DisplayOrder, gui.IgnoreGuiInset, gui.Parent = "PowersUI", false, 125, false, player:WaitForChild("PlayerGui")
 
-local function style(button, active, unlocked)
-	button.BackgroundColor3 = active and Color3.fromRGB(55, 135, 105) or Color3.fromRGB(43, 53, 75)
-	button.TextColor3 = unlocked and Color3.new(1, 1, 1) or Color3.fromRGB(130, 140, 160)
-	button.AutoButtonColor = unlocked
+local colors = {Panel = Color3.fromRGB(17, 23, 35), Card = Color3.fromRGB(39, 50, 72), Active = Color3.fromRGB(45, 142, 107), Locked = Color3.fromRGB(47, 48, 58), Accent = Color3.fromRGB(105, 215, 255), Gold = Color3.fromRGB(255, 205, 90)}
+local function round(object, radius) local value = Instance.new("UICorner") value.CornerRadius, value.Parent = UDim.new(0, radius), object end
+local function style(button, color)
+	button.BackgroundColor3, button.BorderSizePixel, button.TextColor3 = color or colors.Card, 0, Color3.new(1, 1, 1)
+	button.Font, button.TextSize = Enum.Font.GothamBold, 12
+	round(button, 7)
 end
-local function getState()
-	local ok, state = pcall(function() return remote:InvokeServer("GetState") end)
-	return ok and state or nil
+
+local open = Instance.new("TextButton")
+open.Size, open.Position, open.Text, open.BackgroundColor3, open.TextColor3, open.Parent = UDim2.fromOffset(110, 36), UDim2.new(1, -390, 0, 14), "POWERS [P]", Color3.fromRGB(95, 110, 190), Color3.new(1, 1, 1), gui
+
+local panel = Instance.new("Frame")
+panel.Name, panel.AnchorPoint, panel.Position, panel.Size = "PowersPanel", Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.53), UDim2.fromOffset(780, 610)
+panel.BackgroundColor3, panel.BorderSizePixel, panel.Visible, panel.Parent = colors.Panel, 0, false, gui
+round(panel, 12)
+local constraint = Instance.new("UISizeConstraint")
+constraint.MinSize, constraint.MaxSize, constraint.Parent = Vector2.new(560, 500), Vector2.new(780, 610), panel
+
+local title = Instance.new("TextLabel")
+title.Position, title.Size, title.BackgroundTransparency, title.Text = UDim2.fromOffset(18, 10), UDim2.new(1, -75, 0, 34), 1, "POWER LIBRARY  •  6 COMBAT  •  2 SPECIAL"
+title.TextColor3, title.Font, title.TextSize, title.TextXAlignment, title.Parent = colors.Accent, Enum.Font.GothamBlack, 18, Enum.TextXAlignment.Left, panel
+local close = Instance.new("TextButton")
+close.Position, close.Size, close.Text, close.Parent = UDim2.new(1, -48, 0, 9), UDim2.fromOffset(36, 36), "X", panel
+style(close, Color3.fromRGB(190, 60, 75))
+local info = Instance.new("TextLabel")
+info.Position, info.Size, info.BackgroundTransparency = UDim2.fromOffset(18, 46), UDim2.new(1, -36, 0, 34), 1
+info.TextColor3, info.TextXAlignment, info.Font, info.TextSize, info.Parent = Color3.fromRGB(180, 195, 215), Enum.TextXAlignment.Left, Enum.Font.Gotham, 12, panel
+
+local slots = Instance.new("Frame")
+slots.Position, slots.Size, slots.BackgroundTransparency, slots.Parent = UDim2.fromOffset(18, 82), UDim2.new(1, -36, 0, 106), 1, panel
+local slotGrid = Instance.new("UIGridLayout")
+slotGrid.CellSize, slotGrid.CellPadding, slotGrid.FillDirectionMaxCells, slotGrid.Parent = UDim2.new(0.25, -6, 0, 48), UDim2.fromOffset(7, 7), 4, slots
+
+local filterValues = {"ALL", "UNLOCKED", "LOCKED", "FIRE", "ICE", "LIGHTNING", "EARTH", "GRAVITY", "WIND", "ARCANE", "SPECIAL"}
+local sortValues = {"LEVEL", "NAME", "MASTERY", "ELEMENT"}
+local filterIndex, sortIndex, selectedSlot = 1, 1, 1
+local filterButton = Instance.new("TextButton")
+filterButton.Position, filterButton.Size, filterButton.Parent = UDim2.fromOffset(18, 198), UDim2.fromOffset(150, 36), panel
+style(filterButton)
+local sortButton = Instance.new("TextButton")
+sortButton.Position, sortButton.Size, sortButton.Parent = UDim2.fromOffset(176, 198), UDim2.fromOffset(150, 36), panel
+style(sortButton)
+local hint = Instance.new("TextLabel")
+hint.Position, hint.Size, hint.BackgroundTransparency, hint.Text = UDim2.fromOffset(340, 198), UDim2.new(1, -358, 0, 36), 1, "Select a slot, then choose a power."
+hint.TextColor3, hint.Font, hint.TextSize, hint.TextXAlignment, hint.Parent = Color3.fromRGB(145, 165, 190), Enum.Font.Gotham, 12, Enum.TextXAlignment.Right, panel
+
+local list = Instance.new("ScrollingFrame")
+list.Position, list.Size, list.BackgroundColor3, list.BorderSizePixel = UDim2.fromOffset(18, 244), UDim2.new(1, -36, 1, -262), Color3.fromRGB(24, 31, 47), 0
+list.ScrollBarThickness, list.AutomaticCanvasSize, list.CanvasSize, list.Parent = 5, Enum.AutomaticSize.Y, UDim2.new(), panel
+local layout = Instance.new("UIListLayout") layout.Padding, layout.Parent = UDim.new(0, 7), list
+local padding = Instance.new("UIPadding") padding.PaddingTop, padding.PaddingLeft, padding.PaddingRight, padding.PaddingBottom, padding.Parent = UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8), list
+
+local currentState
+local function masteryLevel(name)
+	local folder = player:FindFirstChild("PowerMastery")
+	local value = folder and folder:FindFirstChild(name)
+	return value and (value:GetAttribute("Level") or 0) or 0
 end
-local function render()
-	for _, child in ipairs(list:GetChildren()) do
-		if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end
+local function request(action, payload)
+	local ok, result = pcall(function() return remote:InvokeServer(action, payload) end)
+	if not ok then info.Text = "Power server unavailable"; return nil end
+	if result and result.Message then info.Text = result.Message end
+	return result
+end
+local function getDefinitions(state)
+	local values = {}
+	for _, name in ipairs(config.AbilityOrder or {}) do
+		local definition = config.Abilities[name]
+		table.insert(values, {Name = name, Definition = definition, Kind = "Attack", Unlocked = state.Unlocked[name] == true, Mastery = masteryLevel(name)})
 	end
-	local state = getState()
-	if not state then return end
-	local activeAttacks, activeMotion = {}, {}
-	for _, name in ipairs(state.Attacks) do activeAttacks[name] = true end
-	for _, name in ipairs(state.Motion) do activeMotion[name] = true end
-	info.Text = string.format("Active attacks: %d/6    Motion powers: %d/2\nA green button is active. Click or press A to toggle.", #state.Attacks, #state.Motion)
-	local function addPower(name, isMotion)
-		local ability = config.Abilities[name]
-		local unlocked = isMotion or state.Unlocked[name]
-		local mastery = player:FindFirstChild("PowerMastery")
-		local value = mastery and mastery:FindFirstChild(name)
-		local level = value and (value:GetAttribute("Level") or 0) or 0
+	for _, name in ipairs(config.MotionOrder or {}) do
+		local definition = config.MotionPowers[name]
+		table.insert(values, {Name = name, Definition = definition, Kind = definition.Category, Unlocked = state.MotionUnlocked[name] == true, Mastery = 0})
+	end
+	return values
+end
+local function matches(entry)
+	local filter = filterValues[filterIndex]
+	if filter == "ALL" then return true end
+	if filter == "UNLOCKED" then return entry.Unlocked end
+	if filter == "LOCKED" then return not entry.Unlocked end
+	if filter == "SPECIAL" then return entry.Kind ~= "Attack" end
+	return string.upper(entry.Definition.Element or "") == filter
+end
+local function save(attacks, motion)
+	local result = request("SetLoadout", {Attacks = attacks, Motion = motion})
+	if result and result.Success then currentState = request("GetState"); return true end
+	return false
+end
+local render
+local function renderSlots()
+	for _, child in ipairs(slots:GetChildren()) do if child:IsA("GuiButton") then child:Destroy() end end
+	for index = 1, 8 do
+		local isAttack = index <= 6
+		local name = isAttack and currentState.Attacks[index] or currentState.Motion[index - 6]
+		local definition = name and (config.Abilities[name] or config.MotionPowers[name])
 		local button = Instance.new("TextButton")
-		button.Size = UDim2.new(1, -4, 0, 38)
-		button.TextXAlignment = Enum.TextXAlignment.Left
-		button.Font = Enum.Font.GothamBold
-		button.TextSize = 13
-		button.Text = string.format("%s  |  Mastery %d  |  %s", ability and ability.DisplayName or name, level, unlocked and (isMotion and (activeMotion[name] and "ACTIVE" or "INACTIVE") or (activeAttacks[name] and "ACTIVE" or "INACTIVE")) or "LOCKED")
-		style(button, isMotion and activeMotion[name] or activeAttacks[name], unlocked)
-		button.Parent = list
-		button.Activated:Connect(function()
-			if not unlocked then return end
-			local attacks = table.clone(state.Attacks)
-			local motion = table.clone(state.Motion)
-			local values = isMotion and motion or attacks
-			local index = table.find(values, name)
-			if index then table.remove(values, index) elseif #values < (isMotion and 2 or 6) then table.insert(values, name) else return end
-			local result = remote:InvokeServer("SetLoadout", {Attacks = attacks, Motion = motion})
-			if result and result.Success then render() end
-		end)
+		button.LayoutOrder, button.TextWrapped = index, true
+		button.Text = string.format("%s%d  %s", isAttack and "SLOT " or "SPECIAL ", isAttack and index or index - 6, definition and definition.DisplayName or "EMPTY")
+		style(button, selectedSlot == index and Color3.fromRGB(62, 105, 145) or (isAttack and colors.Card or Color3.fromRGB(77, 58, 105)))
+		button.Parent = slots
+		button.Activated:Connect(function() selectedSlot = index; render() end)
 	end
-	local heading = Instance.new("TextLabel")
-	heading.Size = UDim2.new(1, -4, 0, 24)
-	heading.BackgroundTransparency = 1
-	heading.Text = "ATTACKS (6 ACTIVE SLOTS)"
-	heading.TextColor3 = Color3.fromRGB(255, 205, 100)
-	heading.TextXAlignment = Enum.TextXAlignment.Left
-	heading.Parent = list
-	for _, name in ipairs(config.AbilityOrder or {}) do addPower(name, false) end
-	local motionHeading = heading:Clone()
-	motionHeading.Text = "MOTION (2 ACTIVE SLOTS)"
-	motionHeading.Parent = list
-	addPower("PowerDash", true)
-	addPower("Dodge", true)
 end
-local function toggle()
-	panel.Visible = not panel.Visible
-	if panel.Visible then render(); GuiService.SelectedObject = close else GuiService.SelectedObject = nil end
+local function assign(entry)
+	if not entry.Unlocked then info.Text = string.format("Locked until level %d / evolution %d", entry.Definition.RequiredLevel or 1, entry.Definition.RequiredEvolution or 0); return end
+	local attacks, motion = table.clone(currentState.Attacks), table.clone(currentState.Motion)
+	if entry.Kind == "Attack" then
+		if selectedSlot > 6 then info.Text = "Select one of the six combat slots first"; return end
+		local existing = table.find(attacks, entry.Name)
+		local target = math.min(selectedSlot, #attacks + 1)
+		if existing and existing ~= target then attacks[existing], attacks[target] = attacks[target], attacks[existing]
+		elseif not existing then attacks[target] = entry.Name end
+	else
+		local target = entry.Kind == "Mobility" and 1 or 2
+		motion[target] = entry.Name
+		selectedSlot = target + 6
+	end
+	if save(attacks, motion) then render() end
 end
-open.Activated:Connect(toggle)
-close.Activated:Connect(toggle)
-UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.P then toggle() end
-end)
+render = function()
+	currentState = currentState or request("GetState")
+	if not currentState then return end
+	filterButton.Text, sortButton.Text = "FILTER: " .. filterValues[filterIndex], "SORT: " .. sortValues[sortIndex]
+	info.Text = string.format("Combat %d/6  •  Mobility: %s  •  Technique: %s", #currentState.Attacks, currentState.Motion[1] or "EMPTY", currentState.Motion[2] or "EMPTY")
+	renderSlots()
+	for _, child in ipairs(list:GetChildren()) do if child:IsA("GuiButton") or child:IsA("TextLabel") then child:Destroy() end end
+	local entries = getDefinitions(currentState)
+	table.sort(entries, function(left, right)
+		local mode = sortValues[sortIndex]
+		if mode == "NAME" then return left.Definition.DisplayName < right.Definition.DisplayName end
+		if mode == "MASTERY" and left.Mastery ~= right.Mastery then return left.Mastery > right.Mastery end
+		if mode == "ELEMENT" then
+			local a, b = left.Definition.Element or left.Kind, right.Definition.Element or right.Kind
+			if a ~= b then return a < b end
+		end
+		local a, b = left.Definition.RequiredLevel or 1, right.Definition.RequiredLevel or 1
+		return a == b and left.Definition.DisplayName < right.Definition.DisplayName or a < b
+	end)
+	for _, entry in ipairs(entries) do if matches(entry) then
+		local active = table.find(currentState.Attacks, entry.Name) or table.find(currentState.Motion, entry.Name)
+		local card = Instance.new("TextButton")
+		card.Size, card.TextXAlignment, card.TextYAlignment, card.TextWrapped = UDim2.new(1, -4, 0, 68), Enum.TextXAlignment.Left, Enum.TextYAlignment.Center, true
+		card.Font, card.TextSize = Enum.Font.GothamBold, 12
+		local definition = entry.Definition
+		local details = entry.Kind == "Attack" and string.format("%s • Level %d • Evo %d • CD %.1fs • Range %d • Mastery %d", definition.Element or "Arcane", definition.RequiredLevel or 1, definition.RequiredEvolution or 0, definition.Cooldown or 0, definition.Range or 0, entry.Mastery)
+			or string.format("%s SPECIAL • Level %d • CD %.1fs • Stamina %d", string.upper(entry.Kind), definition.RequiredLevel or 1, definition.Cooldown or 0, definition.StaminaCost or 0)
+		card.Text = string.format("  %s%s\n  %s\n  %s", definition.DisplayName, active and "   [EQUIPPED]" or "", details, definition.Description or "")
+		style(card, not entry.Unlocked and colors.Locked or active and colors.Active or colors.Card)
+		card.TextColor3 = entry.Unlocked and Color3.new(1, 1, 1) or Color3.fromRGB(135, 140, 155)
+		card.Parent = list
+		card.Activated:Connect(function() assign(entry) end)
+	end end
+end
+
+filterButton.Activated:Connect(function() filterIndex = filterIndex % #filterValues + 1; render() end)
+sortButton.Activated:Connect(function() sortIndex = sortIndex % #sortValues + 1; render() end)
+local function toggle() panel.Visible = not panel.Visible; if panel.Visible then currentState = request("GetState"); render(); GuiService.SelectedObject = close else GuiService.SelectedObject = nil end end
+open.Activated:Connect(toggle) close.Activated:Connect(toggle)
+UserInputService.InputBegan:Connect(function(input, processed) if not processed and input.KeyCode == Enum.KeyCode.P then toggle() end end)
