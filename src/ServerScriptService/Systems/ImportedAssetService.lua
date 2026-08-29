@@ -89,6 +89,14 @@ local function removeExecutableContent(root)
 	end
 end
 
+local function makeArchivable(root)
+	-- Toolbox assets frequently disable Archivable on the root or important nested
+	-- meshes. Normalize it at runtime so approved visuals can always be cloned even
+	-- when Studio's property editor or export workflow did not update the source.
+	root.Archivable = true
+	for _, descendant in ipairs(root:GetDescendants()) do descendant.Archivable = true end
+end
+
 local function removeForcedBlur(object)
 	if object:IsA("BlurEffect") or object:IsA("DepthOfFieldEffect") then object:Destroy() end
 end
@@ -136,6 +144,7 @@ function ImportedAssetService.Start()
 		-- organizing folder. Direct-child-only lookup silently missed those models.
 		local root = findNamedDescendant(workspace, rootName)
 		if root then
+			makeArchivable(root)
 			removeExecutableContent(root)
 			root.Parent = archive
 		end
@@ -144,7 +153,10 @@ function ImportedAssetService.Start()
 	Lighting.DescendantAdded:Connect(removeForcedBlur)
 	-- Repository-backed Toolbox sources live in ServerStorage, where scripts cannot
 	-- execute. Remove them from the raw archive as well before cloning any visuals.
-	for _, sourceRoot in ipairs(archive:GetChildren()) do removeExecutableContent(sourceRoot) end
+for _, sourceRoot in ipairs(archive:GetChildren()) do
+		makeArchivable(sourceRoot)
+		removeExecutableContent(sourceRoot)
+	end
 
 	for category, entries in pairs(IMPORT_MAP) do
 		local destination = assets:FindFirstChild(category)
@@ -153,6 +165,7 @@ function ImportedAssetService.Start()
 				local sourceRoot = archive:FindFirstChild(entry.Root or (category == "Weapons" and "Swords" or "Mobs"))
 				local source = findNamedDescendant(sourceRoot, entry.Source)
 				if source and not destination:FindFirstChild(entry.Target) then
+					makeArchivable(source)
 					local model = asModel(source, entry.Target)
 					if model then model.Parent = destination end
 				end
