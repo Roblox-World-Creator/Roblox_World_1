@@ -399,6 +399,10 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		effectsRemote:FireAllClients("PowerCast", {
 			Ability = abilityName,
 			Element = ability.Element,
+			CastType = ability.CastType,
+			EffectProfile = ability.EffectProfile,
+			VisualVariant = ability.VisualVariant,
+			SoundPitch = ability.SoundPitch,
 			Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
 			Mode = mode,
 			Origin = root.Position + Vector3.new(0, 2, 0),
@@ -440,6 +444,9 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local travelTime = math.clamp((impactPosition - startPosition).Magnitude / ability.ProjectileSpeed, 0.08, 1.5)
 			effectsRemote:FireAllClients("EnergyBolt", {
 				Ability = abilityName,
+				Element = ability.Element,
+				Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
+				VisualVariant = ability.VisualVariant,
 				Origin = startPosition,
 				Target = impactPosition,
 				Duration = travelTime,
@@ -459,6 +466,9 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		elseif ability.CastType == "Radial" then
 			effectsRemote:FireAllClients(abilityName == "GroundSlam" and "GroundSlam" or "EnergyBurst", {
 				Ability = abilityName,
+				Element = ability.Element,
+				Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
+				VisualVariant = ability.VisualVariant,
 				Origin = ability.Targeting == "Self" and targetPosition or targetPosition,
 				Radius = ability.Radius,
 			})
@@ -479,7 +489,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			beamParameters.RespectCanCollide = true
 			local beamObstruction = workspace:Raycast(startPosition, endPosition - startPosition, beamParameters)
 			if beamObstruction then endPosition = beamObstruction.Position end
-			effectsRemote:FireAllClients("EnergyBeam", {Origin = startPosition, Target = endPosition, Radius = ability.Radius})
+			effectsRemote:FireAllClients("EnergyBeam", {Ability = abilityName, Element = ability.Element, Origin = startPosition, Target = endPosition, Radius = ability.Radius, Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1), VisualVariant = ability.VisualVariant})
 			for _, enemy in ipairs(getLivingEnemies()) do
 				local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
 				local distance = enemyRoot and distanceToSegment(enemyRoot.Position, startPosition, endPosition)
@@ -489,7 +499,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				end
 			end
 		elseif ability.CastType == "Gravity" then
-			effectsRemote:FireAllClients("GravityPulse", {Origin = targetPosition, Radius = ability.Radius})
+			effectsRemote:FireAllClients("GravityPulse", {Ability = abilityName, Element = ability.Element, Origin = targetPosition, Radius = ability.Radius, Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1), VisualVariant = ability.VisualVariant})
 			for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
 				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 1.15) * getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
@@ -505,7 +515,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				struck[current] = true
 				local currentRoot = current:FindFirstChild("HumanoidRootPart")
 				if not currentRoot then break end
-				effectsRemote:FireAllClients("ChainLightning", {Origin = previousPosition, Target = currentRoot.Position, Index = chainIndex})
+				effectsRemote:FireAllClients("ChainLightning", {Ability = abilityName, Element = ability.Element, Origin = previousPosition, Target = currentRoot.Position, Index = chainIndex, Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1), VisualVariant = ability.VisualVariant})
 				local damage = (ability.Damage * (0.88 ^ (chainIndex - 1)) + (player:GetAttribute("Power") or 0)) * getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 				damageEnemy(player, current, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
 				previousPosition = currentRoot.Position
@@ -523,6 +533,9 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local travelTime = math.clamp(distance / (ability.ProjectileSpeed or 42), 0.15, 1.5)
 			effectsRemote:FireAllClients("TornadoTravel", {
 				Ability = abilityName,
+				Element = ability.Element,
+				Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
+				VisualVariant = ability.VisualVariant,
 				Origin = startPosition,
 				Target = targetPosition,
 				Duration = travelTime,
@@ -532,6 +545,9 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				if not player.Parent then return end
 				effectsRemote:FireAllClients("TornadoStart", {
 					Ability = abilityName,
+					Element = ability.Element,
+					Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
+					VisualVariant = ability.VisualVariant,
 					Origin = targetPosition,
 					Radius = ability.Radius,
 					Duration = ability.Duration,
