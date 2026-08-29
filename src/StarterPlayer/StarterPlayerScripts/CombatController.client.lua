@@ -7,7 +7,7 @@ local ContextActionService = game:GetService("ContextActionService")
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 local shared
-local progressionConfig
+local progressionConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ProgressionConfig"))
 local abilityRemote
 local dashRemote
 local dodgeRemote
@@ -120,24 +120,32 @@ grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 grid.VerticalAlignment = Enum.VerticalAlignment.Center
 grid.Parent = abilities
 
-local abilityList = {
-	{"EnergyBolt", "1", "+", Color3.fromRGB(80, 220, 255)},
-	{"EnergyBurst", "2", "*", Color3.fromRGB(120, 245, 255)},
-	{"EnergyBeam", "Z", "=", Color3.fromRGB(95, 245, 255)},
-	{"GravityPulse", "X", "O", Color3.fromRGB(185, 95, 255)},
-	{"ChainLightning", "C", "~", Color3.fromRGB(255, 235, 90)},
-	{"Tornado", "V", "@", Color3.fromRGB(170, 210, 255)},
-	{"FireBolt", "", "F", Color3.fromRGB(255, 95, 40)}, {"FlameWave", "", "W", Color3.fromRGB(255, 130, 45)}, {"Meteor", "", "M", Color3.fromRGB(255, 180, 55)},
-	{"IceShard", "", "I", Color3.fromRGB(105, 225, 255)}, {"FrostNova", "", "N", Color3.fromRGB(185, 245, 255)}, {"Blizzard", "", "B", Color3.fromRGB(125, 190, 255)},
-	{"LightningBolt", "", "L", Color3.fromRGB(255, 240, 80)}, {"Thunderstorm", "", "S", Color3.fromRGB(175, 205, 255)},
-	{"RockShot", "", "R", Color3.fromRGB(175, 125, 70)}, {"GroundSlam", "", "G", Color3.fromRGB(125, 210, 105)}, {"Boulder", "", "O", Color3.fromRGB(145, 105, 65)},
-	{"GravityPull", "", "P", Color3.fromRGB(190, 100, 255)}, {"GravityWell", "", "W", Color3.fromRGB(145, 65, 230)}, {"BlackHole", "", "H", Color3.fromRGB(95, 35, 150)},
-	{"PowerDash", "Q", ">", Color3.fromRGB(100, 180, 255)},
-	{"SuperJump", "Q", "^", Color3.fromRGB(105, 235, 170)},
-	{"Flight", "Q", "F", Color3.fromRGB(125, 205, 255)},
-	{"Dodge", "SHIFT", "↝", Color3.fromRGB(190, 235, 255)},
-	{"PhaseGuard", "SHIFT", "O", Color3.fromRGB(195, 130, 255)},
+local elementColors = {
+	Arcane = Color3.fromRGB(80, 220, 255), Fire = Color3.fromRGB(255, 95, 40),
+	Ice = Color3.fromRGB(105, 225, 255), Lightning = Color3.fromRGB(255, 235, 75),
+	Earth = Color3.fromRGB(145, 195, 95), Gravity = Color3.fromRGB(180, 80, 255),
+	Poison = Color3.fromRGB(105, 230, 80), Prismatic = Color3.fromRGB(255, 105, 220),
+	Wind = Color3.fromRGB(175, 225, 255),
 }
+local castGlyphs = {Projectile = "◆", Radial = "✦", Beam = "═", Gravity = "◎", Chain = "ϟ", Tornado = "◉"}
+local abilityList = {}
+-- The library and hotbar must use the same configuration. The old hand-authored
+-- list omitted every generated high-level power.
+for _, abilityName in ipairs(progressionConfig.AbilityOrder or {}) do
+	local definition = progressionConfig.Abilities[abilityName]
+	if definition then
+		table.insert(abilityList, {abilityName, "", castGlyphs[definition.CastType] or "✦", elementColors[definition.Element] or elementColors.Arcane})
+	end
+end
+local motionPresentation = {
+	PowerDash = {"Q", ">", Color3.fromRGB(100, 180, 255)}, SuperJump = {"Q", "^", Color3.fromRGB(105, 235, 170)},
+	Flight = {"Q", "F", Color3.fromRGB(125, 205, 255)}, Dodge = {"SHIFT", "↝", Color3.fromRGB(190, 235, 255)},
+	PhaseGuard = {"SHIFT", "O", Color3.fromRGB(195, 130, 255)},
+}
+for _, powerName in ipairs(progressionConfig.MotionOrder or {}) do
+	local presentation = motionPresentation[powerName] or {"", "✦", elementColors.Arcane}
+	table.insert(abilityList, {powerName, presentation[1], presentation[2], presentation[3]})
+end
 local gamepadHints = setmetatable({PowerDash = "B", SuperJump = "B", Flight = "B", Dodge = "LS", PhaseGuard = "LS"}, {__index = function() return "RT/LT" end})
 
 local cooldownLabels = {}
@@ -355,7 +363,6 @@ targetPosition = function(maximumRange)
 end
 
 shared = ReplicatedStorage:WaitForChild("Shared")
-progressionConfig = require(shared:WaitForChild("ProgressionConfig"))
 
 feedbackRemote.OnClientEvent:Connect(function(kind, xp, coins, duration)
 	if kind == "CastRejected" then

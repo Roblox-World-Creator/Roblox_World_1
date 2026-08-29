@@ -69,6 +69,20 @@ local IMPORT_MAP = {
 
 local SOURCE_ROOTS = {"Swords", "Weapons", "Mobs", "Nature Artifacts", "Art Items", "Towers", "Altars", "Ancient Ruins"}
 
+local function normalizedName(value)
+	return string.lower(string.gsub(tostring(value or ""), "[^%w]", ""))
+end
+
+local function findNamedDescendant(root, wantedName)
+	if not root then return nil end
+	local wanted = normalizedName(wantedName)
+	if normalizedName(root.Name) == wanted then return root end
+	for _, descendant in ipairs(root:GetDescendants()) do
+		if normalizedName(descendant.Name) == wanted then return descendant end
+	end
+	return nil
+end
+
 local function removeExecutableContent(root)
 	for _, descendant in ipairs(root:GetDescendants()) do
 		if UNSAFE_CLASSES[descendant.ClassName] then descendant:Destroy() end
@@ -118,7 +132,9 @@ function ImportedAssetService.Start()
 
 	-- Move every raw Toolbox pile out of the rendered world immediately.
 	for _, rootName in ipairs(SOURCE_ROOTS) do
-		local root = workspace:FindFirstChild(rootName)
+		-- Toolbox folders are commonly dropped beneath ImportQuarantine or another
+		-- organizing folder. Direct-child-only lookup silently missed those models.
+		local root = findNamedDescendant(workspace, rootName)
 		if root then
 			removeExecutableContent(root)
 			root.Parent = archive
@@ -126,13 +142,16 @@ function ImportedAssetService.Start()
 	end
 	for _, object in ipairs(Lighting:GetDescendants()) do removeForcedBlur(object) end
 	Lighting.DescendantAdded:Connect(removeForcedBlur)
+	-- Repository-backed Toolbox sources live in ServerStorage, where scripts cannot
+	-- execute. Remove them from the raw archive as well before cloning any visuals.
+	for _, sourceRoot in ipairs(archive:GetChildren()) do removeExecutableContent(sourceRoot) end
 
 	for category, entries in pairs(IMPORT_MAP) do
 		local destination = assets:FindFirstChild(category)
 		if destination then
 			for _, entry in ipairs(entries) do
 				local sourceRoot = archive:FindFirstChild(entry.Root or (category == "Weapons" and "Swords" or "Mobs"))
-				local source = sourceRoot and sourceRoot:FindFirstChild(entry.Source)
+				local source = findNamedDescendant(sourceRoot, entry.Source)
 				if source and not destination:FindFirstChild(entry.Target) then
 					local model = asModel(source, entry.Target)
 					if model then model.Parent = destination end
@@ -142,6 +161,11 @@ function ImportedAssetService.Start()
 	end
 
 	workspace:SetAttribute("ImportedAssetsOrganized", true)
+	local enemyContainer = assets:FindFirstChild("Enemies")
+	workspace:SetAttribute("ImportedEnemyModelCount", enemyContainer and #enemyContainer:GetChildren() or 0)
+	if enemyContainer and #enemyContainer:GetChildren() == 0 then
+		warn("No imported enemy models were found. Export sanitized models to assets/models and map them in default.project.json for Rojo builds.")
+	end
 end
 
 return ImportedAssetService

@@ -5,6 +5,7 @@ local TweenService = game:GetService("TweenService")
 
 local effectsRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("AbilityEffects")
 local localPlayer = Players.LocalPlayer
+local progressionConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ProgressionConfig"))
 local effectsFolder = workspace:FindFirstChild("ClientEffects") or Instance.new("Folder")
 effectsFolder.Name = "ClientEffects"
 effectsFolder.Parent = workspace
@@ -98,6 +99,37 @@ local function createEffectPart(name, shape, color, size, cframe)
 	return part
 end
 
+-- Built-in Roblox sound content keeps the effect layer self-contained and avoids
+-- shipping an unaudited Creator Store model or script. Pitch and timbre are varied
+-- per element/cast family so high-tier powers do not all sound identical.
+local CAST_SOUNDS = {
+	Projectile = "rbxasset://sounds/action_jump.mp3",
+	Beam = "rbxasset://sounds/volume_slider.ogg",
+	Radial = "rbxasset://sounds/impact_explosion_03.mp3",
+	Gravity = "rbxasset://sounds/action_jump_land.mp3",
+	Chain = "rbxasset://sounds/volume_slider.ogg",
+	Tornado = "rbxasset://sounds/impact_water.mp3",
+}
+
+local function effectColor(data)
+	local definition = progressionConfig.Abilities[tostring(data.Ability or "")]
+	return POWER_COLORS[data.Ability] or ELEMENT_COLORS[data.Element or (definition and definition.Element)] or ENERGY_COLOR
+end
+local ELEMENT_PITCH = {Fire = 0.88, Ice = 1.18, Lightning = 1.38, Earth = 0.72, Gravity = 0.58, Poison = 0.96, Prismatic = 1.28, Wind = 1.08, Arcane = 1}
+local function playEffectSound(position, data)
+	if typeof(position) ~= "Vector3" then return end
+	local holder = createEffectPart("EffectSound", Enum.PartType.Ball, Color3.new(), Vector3.new(0.1, 0.1, 0.1), CFrame.new(position))
+	holder.Transparency = 1
+	local sound = Instance.new("Sound")
+	sound.SoundId = CAST_SOUNDS[data.CastType] or CAST_SOUNDS.Projectile
+	sound.Volume = math.clamp(0.32 + (tonumber(data.Tier) or 1) * 0.025, 0.32, 0.62)
+	sound.PlaybackSpeed = math.clamp((tonumber(data.SoundPitch) or 1) * (ELEMENT_PITCH[data.Element] or 1), 0.5, 1.7)
+	sound.RollOffMinDistance, sound.RollOffMaxDistance = 10, 95
+	sound.Parent = holder
+	sound:Play()
+	Debris:AddItem(holder, 4)
+end
+
 local function renderRing(name, position, radius, color, duration)
 	local ring = createEffectPart(
 		name,
@@ -137,7 +169,7 @@ local function renderEnergyBolt(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then
 		return
 	end
-	local projectileColor = POWER_COLORS[data.Ability] or ENERGY_COLOR
+	local projectileColor = effectColor(data)
 	local projectile = createEffectPart(
 		"EnergyBolt",
 		Enum.PartType.Ball,
@@ -196,18 +228,20 @@ end
 
 local function renderTornadoTravel(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
-	local vortex = createEffectPart("TornadoTravel", Enum.PartType.Ball, Color3.fromRGB(150, 220, 255), Vector3.new(3, 3, 3), CFrame.new(data.Origin))
+	local color = effectColor(data)
+	local vortex = createEffectPart("TornadoTravel", Enum.PartType.Ball, color, Vector3.new(3, 3, 3), CFrame.new(data.Origin))
 	vortex.Transparency = 0.2
 	local duration = math.clamp((tonumber(data.ImpactTime) or 0) - workspace:GetServerTimeNow(), 0.05, 2)
 	TweenService:Create(vortex, TweenInfo.new(duration, Enum.EasingStyle.Linear), {Position = data.Target, Size = Vector3.new(7, 7, 7), Transparency = 0.85}):Play()
 	local light = Instance.new("PointLight")
-	light.Color, light.Range, light.Brightness = Color3.fromRGB(120, 210, 255), 18, 3
+	light.Color, light.Range, light.Brightness = color, 18, 3
 	light.Parent = vortex
 	Debris:AddItem(vortex, duration + 0.1)
 end
 
 local function renderTornado(data)
 	if typeof(data.Origin) ~= "Vector3" then return end
+	local color = effectColor(data)
 	local radius = math.clamp(tonumber(data.Radius) or 16, 4, 60)
 	local duration = math.clamp(tonumber(data.Duration) or 4, 0.5, 8)
 	if data.Ability == "BlackHole" then
@@ -224,15 +258,15 @@ local function renderTornado(data)
 		shakeCamera(data.Origin, radius * 3, 0.9)
 		return
 	end
-	local core = createEffectPart("RiftTornado", Enum.PartType.Cylinder, Color3.fromRGB(135, 205, 255), Vector3.new(2, 8, 8), CFrame.new(data.Origin + Vector3.new(0, 4, 0)))
+	local core = createEffectPart("RiftTornado", Enum.PartType.Cylinder, color, Vector3.new(2, 8, 8), CFrame.new(data.Origin + Vector3.new(0, 4, 0)))
 	core.Transparency = 0.4
 	local rings = {}
 	for index = 1, 5 do
-		local ring = createEffectPart("TornadoVortex", Enum.PartType.Cylinder, Color3.fromRGB(190, 240, 255), Vector3.new(0.28, radius * (1 - index * 0.1), radius * (1 - index * 0.1)), CFrame.new(data.Origin + Vector3.new(0, index * 1.5, 0)) * CFrame.Angles(0, 0, math.rad(90)))
+		local ring = createEffectPart("TornadoVortex", Enum.PartType.Cylinder, color:Lerp(Color3.new(1, 1, 1), 0.45), Vector3.new(0.28, radius * (1 - index * 0.1), radius * (1 - index * 0.1)), CFrame.new(data.Origin + Vector3.new(0, index * 1.5, 0)) * CFrame.Angles(0, 0, math.rad(90)))
 		ring.Transparency = 0.22
 		table.insert(rings, ring)
 	end
-	renderRing("TornadoGround", data.Origin - Vector3.new(0, 2.5, 0), radius, Color3.fromRGB(100, 180, 255), 0.5)
+	renderRing("TornadoGround", data.Origin - Vector3.new(0, 2.5, 0), radius, color, 0.5)
 	task.spawn(function()
 		local endAt = os.clock() + duration
 		while os.clock() < endAt and core.Parent do
@@ -252,10 +286,11 @@ local function renderEnergyBurst(data)
 		return
 	end
 	local radius = math.clamp(tonumber(data.Radius) or 12, 1, 60)
+	local color = effectColor(data)
 	local sphere = createEffectPart(
 		"EnergyBurst",
 		Enum.PartType.Ball,
-		ENERGY_COLOR,
+		color,
 		Vector3.new(2, 2, 2),
 		CFrame.new(data.Origin)
 	)
@@ -265,10 +300,10 @@ local function renderEnergyBurst(data)
 		Transparency = 1,
 	}):Play()
 
-	renderRing("EnergyBurstRing", data.Origin - Vector3.new(0, 2.5, 0), radius * 1.2, Color3.fromRGB(170, 245, 255), 0.45)
+	renderRing("EnergyBurstRing", data.Origin - Vector3.new(0, 2.5, 0), radius * 1.2, color:Lerp(Color3.new(1, 1, 1), 0.45), 0.45)
 	if highQualityEffects() then
 		task.delay(0.08, function()
-			renderRing("EnergyBurstEcho", data.Origin - Vector3.new(0, 2.45, 0), radius * 0.9, Color3.fromRGB(90, 150, 255), 0.38)
+			renderRing("EnergyBurstEcho", data.Origin - Vector3.new(0, 2.45, 0), radius * 0.9, color, 0.38)
 		end)
 	end
 	shakeCamera(data.Origin, radius * 3, 0.65)
@@ -279,12 +314,27 @@ local function renderPowerCast(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
 	local color = POWER_COLORS[data.Ability] or ELEMENT_COLORS[data.Element] or ENERGY_COLOR
 	local radius = data.Mode == "Close" and 5 or 2.5
-	renderRing("PowerCastRing", data.Origin - Vector3.new(0, 1.5, 0), radius, color, 0.22)
 	local tier = math.clamp(math.floor(tonumber(data.Tier) or 1), 1, 11)
+	local variant = math.clamp(math.floor(tonumber(data.VisualVariant) or tier), 1, 12)
+	playEffectSound(data.Origin, data)
+	renderRing("PowerCastRing", data.Origin - Vector3.new(0, 1.5, 0), radius, color, 0.22)
 	for index = 2, math.min(5, math.ceil(tier / 2)) do
 		task.delay(index * 0.025, function()
 			renderRing("PowerTierRing", data.Origin - Vector3.new(0, 1.45 - index * 0.08, 0), radius * (1 + index * 0.28), index % 2 == 0 and color or Color3.new(1, 1, 1), 0.2 + tier * 0.018)
 		end)
+	end
+	if highQualityEffects() then
+		local count = math.min(3 + math.floor(tier / 2), 8)
+		for index = 1, count do
+			local angle = index / count * math.pi * 2 + variant * 0.37
+			local start = data.Origin + Vector3.new(math.cos(angle) * (1.2 + variant * 0.08), (index % 3) * 0.65, math.sin(angle) * (1.2 + variant * 0.08))
+			local shape = data.Element == "Earth" and Enum.PartType.Block or Enum.PartType.Ball
+			local mote = createEffectPart("PowerSignature", shape, index % 2 == 0 and color or color:Lerp(Color3.new(1, 1, 1), 0.55), Vector3.one * (0.28 + tier * 0.035), CFrame.new(start))
+			local spread = data.CastType == "Beam" and Vector3.new(math.cos(angle) * 2, 0, math.sin(angle) * 2)
+				or Vector3.new(math.cos(angle) * (3 + variant * 0.2), 1.5 + (index % 2) * 1.2, math.sin(angle) * (3 + variant * 0.2))
+			TweenService:Create(mote, TweenInfo.new(0.28 + variant * 0.012, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = start + spread, Size = Vector3.one * 0.05, Transparency = 1}):Play()
+			Debris:AddItem(mote, 0.5)
+		end
 	end
 	local distance = (data.Target - data.Origin).Magnitude
 	if data.Mode == "Ranged" and distance > 2 then
@@ -648,9 +698,10 @@ end
 local function renderGravityPulse(data)
 	if typeof(data.Origin) ~= "Vector3" then return end
 	local radius = tonumber(data.Radius) or 20
+	local color = effectColor(data)
 	for index = 1, highQualityEffects() and 4 or 2 do
 		task.delay((index - 1) * 0.08, function()
-			local sphere = createEffectPart("GravityPulse", Enum.PartType.Ball, Color3.fromRGB(170, 75, 255), Vector3.new(radius * 2, radius * 2, radius * 2), CFrame.new(data.Origin))
+			local sphere = createEffectPart("GravityPulse", Enum.PartType.Ball, color, Vector3.new(radius * 2, radius * 2, radius * 2), CFrame.new(data.Origin))
 			sphere.Transparency = 0.78
 			TweenService:Create(sphere, TweenInfo.new(0.45), {Size = Vector3.new(1, 1, 1), Transparency = 1}):Play()
 			Debris:AddItem(sphere, 0.5)
@@ -676,6 +727,7 @@ end
 
 local function renderLightningArc(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
+	local color = effectColor(data)
 	local points = {data.Origin}
 	local segments = highQualityEffects() and 8 or 4
 	for index = 1, segments - 1 do
@@ -685,7 +737,7 @@ local function renderLightningArc(data)
 	table.insert(points, data.Target)
 	for index = 1, #points - 1 do
 		local offset = points[index + 1] - points[index]
-		local segment = createEffectPart("SegmentedLightning", Enum.PartType.Block, Color3.fromRGB(255, 240, 105), Vector3.new(0.28, 0.28, offset.Magnitude), CFrame.lookAt(points[index]:Lerp(points[index + 1], 0.5), points[index + 1]))
+		local segment = createEffectPart("SegmentedLightning", Enum.PartType.Block, color, Vector3.new(0.28, 0.28, offset.Magnitude), CFrame.lookAt(points[index]:Lerp(points[index + 1], 0.5), points[index + 1]))
 		TweenService:Create(segment, TweenInfo.new(0.2), {Transparency = 1, Size = Vector3.new(0.05, 0.05, offset.Magnitude)}):Play()
 		Debris:AddItem(segment, 0.24)
 	end
@@ -726,7 +778,7 @@ effectsRemote.OnClientEvent:Connect(function(effectName, data)
 	elseif effectName == "EnergyBurst" then
 		renderEnergyBurst(data)
 	elseif effectName == "EnergyBeam" then
-		renderBeam(data, Color3.fromRGB(90, 235, 255), 0.45, tonumber(data.Radius) or 3)
+		renderBeam(data, effectColor(data), 0.45, tonumber(data.Radius) or 3)
 		shakeCamera(data.Origin, 45, 0.65)
 	elseif effectName == "GravityPulse" then
 		renderGravityPulse(data)

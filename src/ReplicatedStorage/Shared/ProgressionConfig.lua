@@ -148,6 +148,7 @@ for element, names in pairs(families) do
 				ProjectileSpeed = 80 + index * 5, Knockback = 18 + index * 4,
 				PullStrength = 45 + index * 5, ChainRange = 22, MaximumChains = 3 + index,
 				Duration = 2.5 + index * 0.25, TickInterval = 0.6,
+				VisualVariant = index, SoundPitch = 0.82 + index * 0.055,
 			}
 			table.insert(config.AbilityOrder, id)
 		end

@@ -542,6 +542,8 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	local importedVisual = definition.ModelProfile and (AssetModelService.Clone(isBoss and "Bosses" or "Enemies", definition.ModelProfile)
 		or AssetModelService.Clone("Enemies", definition.ModelProfile))
 	if importedVisual then
+		model:SetAttribute("UsingImportedModel", true)
+		model:SetAttribute("ModelProfile", definition.ModelProfile)
 		importedVisual.Name = "ImportedVisual"
 		importedVisual.Parent = model
 		local _, visualSize = importedVisual:GetBoundingBox()
@@ -565,6 +567,9 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 			end
 		end
 		for _, limb in ipairs(fallbackLimbs) do limb.Transparency = 1 end
+	else
+		model:SetAttribute("UsingImportedModel", false)
+		model:SetAttribute("MissingModelProfile", definition.ModelProfile or "")
 	end
 
 	local humanoid = Instance.new("Humanoid")

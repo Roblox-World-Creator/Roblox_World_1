@@ -24,6 +24,66 @@ end
 local skillOpen = openButton("SKILLS [K]", UDim2.new(1, -525, 0, 14), Color3.fromRGB(75, 125, 180))
 local formOpen = openButton("FORMS [T]", UDim2.new(1, -255, 0, 14), Color3.fromRGB(145, 80, 170))
 
+-- Forms used to be selectable only after opening the large skill panel. Keep a
+-- compact, touch-friendly switcher on the play screen for tablets and phones.
+local quickForms = Instance.new("Frame")
+quickForms.Name, quickForms.AnchorPoint = "QuickFormSwitcher", Vector2.new(1, 0)
+quickForms.Position, quickForms.Size = UDim2.new(1, -8, 0, 58), UDim2.fromOffset(284, 42)
+quickForms.BackgroundColor3, quickForms.BackgroundTransparency, quickForms.BorderSizePixel = Color3.fromRGB(17, 23, 35), 0.12, 0
+quickForms.Parent = gui
+round(quickForms, 9)
+local quickPadding = Instance.new("UIPadding")
+quickPadding.PaddingLeft, quickPadding.PaddingRight, quickPadding.PaddingTop, quickPadding.PaddingBottom = UDim.new(0, 4), UDim.new(0, 4), UDim.new(0, 4), UDim.new(0, 4)
+quickPadding.Parent = quickForms
+local quickLayout = Instance.new("UIListLayout")
+quickLayout.FillDirection, quickLayout.Padding, quickLayout.HorizontalAlignment = Enum.FillDirection.Horizontal, UDim.new(0, 4), Enum.HorizontalAlignment.Right
+quickLayout.Parent = quickForms
+local quickButtons = {}
+local quickOrder = {"", "Wolf", "Bear", "Eagle"}
+local function formIsUnlocked(id)
+	if id == "" then return true end
+	local folder = player:FindFirstChild("Transformations")
+	local value = folder and folder:FindFirstChild(id)
+	return player:GetAttribute("AdminAllTransformationsUnlocked") == true or (value and value.Value == true) or false
+end
+local function refreshQuickForms()
+	local active = player:GetAttribute("ActiveTransformation") or ""
+	for _, id in ipairs(quickOrder) do
+		local button = quickButtons[id]
+		local unlocked = formIsUnlocked(id)
+		button.Text = id == "" and "HUMAN" or string.upper(id)
+		button.AutoButtonColor = unlocked
+		button.BackgroundColor3 = active == id and Color3.fromRGB(45, 145, 105)
+			or unlocked and (transformationConfig.Forms[id] and transformationConfig.Forms[id].Color:Lerp(Color3.fromRGB(28, 35, 50), 0.62) or Color3.fromRGB(55, 70, 92))
+			or Color3.fromRGB(48, 48, 55)
+		button.TextTransparency = unlocked and 0 or 0.5
+	end
+end
+for index, id in ipairs(quickOrder) do
+	local button = Instance.new("TextButton")
+	button.Name, button.LayoutOrder, button.Size = id == "" and "Human" or id, index, UDim2.fromOffset(65, 34)
+	styleButton(button, Color3.fromRGB(55, 70, 92))
+	button.Parent, quickButtons[id] = quickForms, button
+	button.Activated:Connect(function()
+		if not formIsUnlocked(id) then return end
+		local response = transformationRemote:InvokeServer("Toggle", {FormId = id})
+		if response and response.Message then button:SetAttribute("LastResult", response.Message) end
+		refreshQuickForms()
+	end)
+end
+player:GetAttributeChangedSignal("ActiveTransformation"):Connect(refreshQuickForms)
+task.spawn(function()
+	local folder = player:WaitForChild("Transformations", 15)
+	if folder then
+		local function watch(value)
+			if value:IsA("BoolValue") then value:GetPropertyChangedSignal("Value"):Connect(refreshQuickForms) end
+		end
+		for _, value in ipairs(folder:GetChildren()) do watch(value) end
+		folder.ChildAdded:Connect(function(value) watch(value); refreshQuickForms() end)
+	end
+	refreshQuickForms()
+end)
+
 local function makePanel(name, titleText)
 	local panel = Instance.new("Frame")
 	panel.Name, panel.AnchorPoint, panel.Position, panel.Size = name, Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.53), UDim2.fromOffset(760, 590)

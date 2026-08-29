@@ -43,6 +43,15 @@
       "$className": "ServerScriptService",
       "$path": "src/ServerScriptService"
     },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "ImportedAssetArchive": {
+        "$className": "Folder",
+        "Mobs": {
+          "$path": "assets/mobs.rbxm"
+        }
+      }
+    },
     "StarterPlayer": {
       "$className": "StarterPlayer",
       "StarterPlayerScripts": {

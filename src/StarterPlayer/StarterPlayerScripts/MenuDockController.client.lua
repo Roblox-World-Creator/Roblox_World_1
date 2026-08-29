@@ -30,7 +30,7 @@ local stroke = Instance.new("UIStroke") stroke.Color, stroke.Transparency, strok
 local padding = Instance.new("UIPadding")
 padding.PaddingLeft, padding.PaddingRight, padding.PaddingTop, padding.PaddingBottom, padding.Parent = UDim.new(0, 7), UDim.new(0, 7), UDim.new(0, 5), UDim.new(0, 5), dock
 local layout = Instance.new("UIListLayout")
-layout.FillDirection, layout.VerticalAlignment, layout.Padding, layout.SortOrder, layout.Parent = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, UDim.new(0, 6), Enum.SortOrder.LayoutOrder, dock
+layout.FillDirection, layout.VerticalAlignment, layout.HorizontalAlignment, layout.Padding, layout.SortOrder, layout.Parent = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, Enum.HorizontalAlignment.Right, UDim.new(0, 6), Enum.SortOrder.LayoutOrder, dock
 
 local menuGuiNames = {PowersUI = true, InventoryUI = true, QuestLog = true, EvolutionUI = true, AscensionUI = true, AdminControls = true, CombatSettings = true}
 local menuDefinitions = {
@@ -45,10 +45,15 @@ local menuDefinitions = {
 }
 
 local function updateLayout()
-	local width = camera and camera.ViewportSize.X or 1280
+	local currentCamera = workspace.CurrentCamera
+	local width = currentCamera and currentCamera.ViewportSize.X or 1280
 	if width < 960 or UserInputService.TouchEnabled then
-		dock.AnchorPoint = Vector2.zero
-		dock.Position, dock.Size = UDim2.fromOffset(104, 4), UDim2.new(1, -112, 0, 48)
+		-- Keep the system-menu clearance on the left, but size and anchor the actual
+		-- menu to the right. The old full-width frame left hundreds of blank pixels
+		-- after SETTINGS on iPad because its children were left-aligned.
+		local availableWidth = math.max(240, width - 112)
+		dock.AnchorPoint = Vector2.new(1, 0)
+		dock.Position, dock.Size = UDim2.new(1, -8, 0, 4), UDim2.fromOffset(math.min(620, availableWidth), 48)
 	else
 		dock.AnchorPoint = Vector2.new(1, 0)
 		dock.Position, dock.Size = UDim2.new(1, -8, 0, 4), UDim2.fromOffset(620, 44)
