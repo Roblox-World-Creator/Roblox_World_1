@@ -124,7 +124,7 @@ local function assign(entry)
 		if selectedSlot > 6 then info.Text = "Select one of the six combat slots first"; return end
 		local existing = table.find(attacks, entry.Name)
 		local target = math.min(selectedSlot, #attacks + 1)
-		if existing and existing ~= target then attacks[existing], attacks[target] = attacks[target], attacks[existing]
+		if existing and existing ~= target and target <= #attacks then attacks[existing], attacks[target] = attacks[target], attacks[existing]
 		elseif not existing then attacks[target] = entry.Name end
 	else
 		local target = entry.Kind == "Mobility" and 1 or 2
