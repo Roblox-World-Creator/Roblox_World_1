@@ -153,13 +153,6 @@ local function assign(entry)
 	if not entry.Unlocked then info.Text = string.format("LOCKED: reach level %d and Ascendant evolution %d. Clear waves and earn gold in EVOLVE to meet evolution requirements.", entry.Definition.RequiredLevel or 1, entry.Definition.RequiredEvolution or 0); return end
 	local attacks, motion, ultimate = table.clone(currentState.Attacks), table.clone(currentState.Motion), currentState.Ultimate
 	if entry.Kind == "Attack" then
-<<<<<<< Updated upstream
-		if selectedSlot > 6 then info.Text = "Select one of the six combat slots first"; return end
-		local existing = table.find(attacks, entry.Name)
-		local target = math.min(selectedSlot, #attacks + 1)
-		if existing and existing ~= target and target <= #attacks then attacks[existing], attacks[target] = attacks[target], attacks[existing]
-		elseif not existing then attacks[target] = entry.Name end
-=======
 		if selectedSlot == 9 then
 			ultimate = entry.Name
 		elseif selectedSlot > 6 then
@@ -167,10 +160,9 @@ local function assign(entry)
 		else
 			local existing = table.find(attacks, entry.Name)
 			local target = math.min(selectedSlot, #attacks + 1)
-			if existing and existing ~= target then attacks[existing], attacks[target] = attacks[target], attacks[existing]
+			if existing and existing ~= target and target <= #attacks then attacks[existing], attacks[target] = attacks[target], attacks[existing]
 			elseif not existing then attacks[target] = entry.Name end
 		end
->>>>>>> Stashed changes
 	else
 		local target = entry.Kind == "Mobility" and 1 or 2
 		motion[target] = entry.Name

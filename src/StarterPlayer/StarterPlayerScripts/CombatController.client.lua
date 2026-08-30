@@ -344,7 +344,7 @@ local function requestStandardJump()
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if humanoid and root and humanoid.Health > 0 then
+	if humanoid and root and humanoid.Health > 0 and humanoid.FloorMaterial ~= Enum.Material.Air then
 		root.Anchored = false
 		humanoid.PlatformStand = false
 		humanoid.Sit = false
