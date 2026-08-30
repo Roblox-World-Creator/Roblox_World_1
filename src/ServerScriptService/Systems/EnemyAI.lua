@@ -16,15 +16,19 @@ local function getLivingCharacter(player)
 end
 
 local function choosePlayerTarget(enemyRoot, config)
-	local aggroUserId = enemyRoot.Parent:GetAttribute("AggroUserId")
+	local enemy = enemyRoot.Parent
+	local requiredLevel = enemy:GetAttribute("RequiredLevel") or 1
+	local aggroUserId = enemy:GetAttribute("AggroUserId")
 	if aggroUserId then
 		local player = Players:GetPlayerByUserId(aggroUserId)
 		local _, humanoid, root = getLivingCharacter(player)
-		if humanoid and root and (root.Position - enemyRoot.Position).Magnitude <= config.EnemyLeashDistance then
+		if humanoid and root and not player:GetAttribute("InRealmSafeZone") and (player:GetAttribute("Level") or 1) >= requiredLevel
+			and (root.Position - enemyRoot.Position).Magnitude <= config.EnemyLeashDistance then
 			return player, humanoid, root
 		end
-		enemyRoot.Parent:SetAttribute("AggroUserId", nil)
+		enemy:SetAttribute("AggroUserId", nil)
 	end
+	if enemy:GetAttribute("PassiveUntilAttacked") then return nil, nil, nil end
 
 	local nearestPlayer
 	local nearestHumanoid
@@ -32,7 +36,7 @@ local function choosePlayerTarget(enemyRoot, config)
 	local nearestDistance = config.EnemyAggroRange
 	for _, player in ipairs(Players:GetPlayers()) do
 		local _, humanoid, root = getLivingCharacter(player)
-		if root then
+		if root and not player:GetAttribute("InRealmSafeZone") and (player:GetAttribute("Level") or 1) >= requiredLevel then
 			local distance = (root.Position - enemyRoot.Position).Magnitude
 			if distance <= nearestDistance then
 				nearestDistance = distance
@@ -61,6 +65,7 @@ local function damagePlayer(enemy, enemyRoot, player, targetHumanoid, targetRoot
 
 	local damage = enemy:GetAttribute("AttackDamage") or 5
 	local defense = math.max(0, (player:GetAttribute("Defense") or 0) + (player:GetAttribute("TransformationDefense") or 0))
+	if now < (player:GetAttribute("MeleeGuardUntil") or 0) then defense += player:GetAttribute("MeleeDefenseBonus") or 0 end
 	local element = enemy:GetAttribute("Element") or "Physical"
 	local resistance = math.clamp((tonumber(player:GetAttribute(element .. "Resistance")) or 0) + (tonumber(player:GetAttribute("Skill" .. element .. "Resistance")) or 0) + (tonumber(player:GetAttribute("AllResistance")) or 0), 0, 0.75)
 	damage *= 1 - resistance
@@ -177,6 +182,12 @@ function EnemyAI.Run(enemy, core, config, holdPosition)
 				task.wait(0.1)
 				continue
 			end
+			if workspace:GetServerTimeNow() < (enemy:GetAttribute("BossCastingUntil") or 0) then
+				enemy:SetAttribute("AIState", "Casting")
+				humanoid:MoveTo(root.Position)
+				task.wait(0.1)
+				continue
+			end
 			local targetPlayer, targetHumanoid, targetRoot = choosePlayerTarget(root, config)
 			local goalPosition = targetRoot and targetRoot.Position or (holdPosition and homePosition or core.Position)
 			local distanceToGoal = (goalPosition - root.Position).Magnitude
@@ -207,7 +218,9 @@ function EnemyAI.Run(enemy, core, config, holdPosition)
 						root.AssemblyLinearVelocity = (targetRoot.Position - root.Position).Unit * 34 + Vector3.new(0, 5, 0)
 					end
 					task.wait(config.EnemyAttackWindup)
-					if enemy.Parent and humanoid.Health > 0 and workspace:GetServerTimeNow() >= (enemy:GetAttribute("StunnedUntil") or 0) then
+					if enemy.Parent and humanoid.Health > 0
+						and workspace:GetServerTimeNow() >= (enemy:GetAttribute("StunnedUntil") or 0)
+						and workspace:GetServerTimeNow() >= (enemy:GetAttribute("BossCastingUntil") or 0) then
 						if attackStyle == "Area" then
 							for _, nearbyPlayer in ipairs(Players:GetPlayers()) do
 								local _, nearbyHumanoid, nearbyRoot = getLivingCharacter(nearbyPlayer)

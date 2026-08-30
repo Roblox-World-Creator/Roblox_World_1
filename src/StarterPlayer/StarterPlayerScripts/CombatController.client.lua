@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local ContextActionService = game:GetService("ContextActionService")
+local GuiService = game:GetService("GuiService")
 
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
@@ -23,13 +24,13 @@ screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local status = Instance.new("TextLabel")
 status.Name = "Status"
-status.Size = UDim2.fromOffset(300, 118)
+status.Size = UDim2.fromOffset(300, 150)
 status.Position = UDim2.fromOffset(18, 8)
 status.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
 status.BackgroundTransparency = 0.15
 status.TextColor3 = Color3.fromRGB(235, 245, 255)
 status.Font = Enum.Font.GothamBold
-status.TextSize = 14
+status.TextSize = 13
 status.TextXAlignment = Enum.TextXAlignment.Left
 status.TextYAlignment = Enum.TextYAlignment.Top
 status.Text = "CONNECTING TO EVOLUTION ASCENDANT..."
@@ -66,7 +67,7 @@ local function updateHudPlacement()
 	local camera = workspace.CurrentCamera
 	local compact = camera and camera.ViewportSize.X < 960
 	status.Position = UDim2.fromOffset(18, compact and 64 or 8)
-	bars.Position = UDim2.fromOffset(18, compact and 188 or 132)
+	bars.Position = UDim2.fromOffset(18, compact and 220 or 164)
 end
 updateHudPlacement()
 if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateHudPlacement) end
@@ -146,7 +147,7 @@ for _, powerName in ipairs(progressionConfig.MotionOrder or {}) do
 	local presentation = motionPresentation[powerName] or {"", "✦", elementColors.Arcane}
 	table.insert(abilityList, {powerName, presentation[1], presentation[2], presentation[3]})
 end
-local gamepadHints = setmetatable({PowerDash = "B", SuperJump = "B", Flight = "B", Dodge = "LS", PhaseGuard = "LS"}, {__index = function() return "RT/LT" end})
+local gamepadHints = setmetatable({PowerDash = "Q", SuperJump = "Q", Flight = "Q", Dodge = "B", PhaseGuard = "B"}, {__index = function() return "L3/R3" end})
 
 local cooldownLabels = {}
 local cooldownEnds = {}
@@ -336,6 +337,126 @@ movementRemote = remotes:WaitForChild("MovementRemote")
 local evolutionRemote = remotes:WaitForChild("EvolutionRemote")
 local feedbackRemote = remotes:WaitForChild("CombatFeedback")
 
+local lastStandardJump = 0
+local function requestStandardJump()
+	if os.clock() - lastStandardJump < 0.1 or player:GetAttribute("EagleFlightActive") then return end
+	lastStandardJump = os.clock()
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if humanoid and root and humanoid.Health > 0 then
+		root.Anchored = false
+		humanoid.PlatformStand = false
+		humanoid.Sit = false
+		humanoid.UseJumpPower = true
+		humanoid.JumpPower = math.max(50, player:GetAttribute("JumpPower") or 50)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+		humanoid.Jump = true
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		-- The local player owns character physics. This bounded fallback makes jump
+		-- reliable even when an imported avatar/controller clears Humanoid.Jump.
+		local velocity = root.AssemblyLinearVelocity
+		root.AssemblyLinearVelocity = Vector3.new(velocity.X, math.max(velocity.Y, humanoid.JumpPower), velocity.Z)
+	end
+end
+UserInputService.JumpRequest:Connect(requestStandardJump)
+UserInputService.InputBegan:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.Space and not UserInputService:GetFocusedTextBox() and not GuiService.MenuIsOpen then requestStandardJump() end
+end)
+
+local function normalizeLocalMovement(character)
+	local humanoid = character:WaitForChild("Humanoid", 8)
+	if not humanoid then return end
+	humanoid.UseJumpPower = true
+	humanoid.JumpPower = math.max(50, player:GetAttribute("JumpPower") or 50)
+	humanoid.JumpHeight = 7.2
+	humanoid.AutoJumpEnabled = true
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+end
+player.CharacterAdded:Connect(normalizeLocalMovement)
+if player.Character then task.defer(normalizeLocalMovement, player.Character) end
+
+local lastMeleeRequest = 0
+local localMeleeIndex = 0
+local localMeleeAt = 0
+local localMeleeReadyAt = 0
+local localSwingToken = 0
+
+local function playImmediateMeleeAnimation()
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not character or not humanoid or humanoid.Health <= 0 then return end
+	local now = os.clock()
+	localMeleeIndex = now - localMeleeAt > progressionConfig.MeleeComboReset and 1 or (localMeleeIndex % #progressionConfig.MeleeCombo) + 1
+	localMeleeAt = now
+	player:SetAttribute("LocalMeleeCombo", localMeleeIndex)
+	local grip = character:FindFirstChild("SwordGrip", true)
+	local shoulder = character:FindFirstChild("RightShoulder", true) or character:FindFirstChild("Right Shoulder", true)
+	if (not grip or not grip:IsA("Motor6D")) and (not shoulder or not shoulder:IsA("Motor6D")) then return end
+	local startPoses = {
+		CFrame.Angles(math.rad(-18), math.rad(-24), math.rad(72)),
+		CFrame.Angles(math.rad(-8), math.rad(28), math.rad(-68)),
+		CFrame.Angles(math.rad(-78), math.rad(-10), math.rad(26)),
+		CFrame.new(0, 0, 0.45) * CFrame.Angles(math.rad(-82), 0, 0),
+	}
+	local endPoses = {
+		CFrame.Angles(math.rad(18), math.rad(28), math.rad(-58)),
+		CFrame.Angles(math.rad(12), math.rad(-26), math.rad(58)),
+		CFrame.Angles(math.rad(42), math.rad(12), math.rad(-24)),
+		CFrame.new(0, 0, -1.25) * CFrame.Angles(math.rad(-88), 0, 0),
+	}
+	local style = player:GetAttribute("EquippedWeaponAnimation") or "Sword"
+	if style == "Spear" then
+		startPoses[localMeleeIndex] = CFrame.new(0, 0, 0.8) * CFrame.Angles(math.rad(-86), 0, math.rad(localMeleeIndex % 2 == 0 and 8 or -8))
+		endPoses[localMeleeIndex] = CFrame.new(0, 0, -1.8 - localMeleeIndex * 0.18) * CFrame.Angles(math.rad(-88), 0, 0)
+	elseif style == "Hammer" or style == "Greatsword" then
+		startPoses[localMeleeIndex] = CFrame.Angles(math.rad(-105), math.rad((localMeleeIndex - 2) * 9), math.rad(18))
+		endPoses[localMeleeIndex] = CFrame.new(0, -0.4, -0.7) * CFrame.Angles(math.rad(42), 0, math.rad(-12))
+	elseif style == "Katana" then
+		startPoses[localMeleeIndex] = CFrame.Angles(math.rad(-12), math.rad(localMeleeIndex % 2 == 0 and 42 or -42), math.rad(localMeleeIndex % 2 == 0 and -82 or 82))
+		endPoses[localMeleeIndex] = CFrame.Angles(math.rad(8), math.rad(localMeleeIndex % 2 == 0 and -35 or 35), math.rad(localMeleeIndex % 2 == 0 and 76 or -76))
+	end
+	localSwingToken += 1
+	local token = localSwingToken
+	local combo = localMeleeIndex
+	local duration = combo == 4 and 0.2 or 0.16
+	if grip and grip:IsA("Motor6D") then
+		grip.Transform = startPoses[combo]
+		TweenService:Create(grip, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transform = endPoses[combo]}):Play()
+	end
+	if shoulder and shoulder:IsA("Motor6D") then
+		shoulder.Transform = combo == 4 and CFrame.Angles(math.rad(-55), 0, math.rad(8)) or CFrame.Angles(math.rad(-28), math.rad(combo % 2 == 0 and -22 or 22), math.rad(combo % 2 == 0 and -18 or 18))
+		TweenService:Create(shoulder, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Transform = combo == 4 and CFrame.Angles(math.rad(-86), 0, 0) or CFrame.Angles(math.rad(-12), math.rad(combo % 2 == 0 and 28 or -28), math.rad(combo % 2 == 0 and 24 or -24)),
+		}):Play()
+	end
+	task.delay(duration + 0.02, function()
+		if token ~= localSwingToken then return end
+		if grip and grip.Parent then TweenService:Create(grip, TweenInfo.new(0.14, Enum.EasingStyle.Quad), {Transform = CFrame.identity}):Play() end
+		if shoulder and shoulder.Parent then TweenService:Create(shoulder, TweenInfo.new(0.14, Enum.EasingStyle.Quad), {Transform = CFrame.identity}):Play() end
+	end)
+end
+
+local function requestMelee(ignorePointerCheck)
+	if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then return end
+	if not ignorePointerCheck then
+		for _, object in ipairs(player.PlayerGui:GetGuiObjectsAtPosition(mouse.X, mouse.Y)) do
+			if object:IsA("GuiButton") and object.Visible then return end
+		end
+	end
+	local now = os.clock()
+	if now - lastMeleeRequest < 0.08 or now < localMeleeReadyAt then return end
+	lastMeleeRequest = now
+	playImmediateMeleeAnimation()
+	local comboDefinition = progressionConfig.MeleeCombo[localMeleeIndex]
+	localMeleeReadyAt = now + (comboDefinition and comboDefinition.Cooldown or 0.34) * math.max(0.55, 1 - (player:GetAttribute("MeleeCooldownReduction") or 0))
+	combatRemote:FireServer("Melee")
+end
+
+mouse.Button1Down:Connect(function() requestMelee(false) end)
+
 targetPosition = function(maximumRange)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -343,8 +464,33 @@ targetPosition = function(maximumRange)
 		return nil
 	end
 	local range = math.max(1, tonumber(maximumRange) or 80)
+	local camera = workspace.CurrentCamera
+	local enemies = workspace:FindFirstChild("Enemies")
+	local direct = mouse.Target
+	local directEnemy = direct and direct:FindFirstAncestorOfClass("Model")
+	if directEnemy and enemies and directEnemy.Parent == enemies then
+		local enemyRoot = directEnemy:FindFirstChild("HumanoidRootPart")
+		if enemyRoot and (enemyRoot.Position - root.Position).Magnitude <= range then return enemyRoot.Position end
+	end
+	if camera and enemies then
+		local pointer = isGamepadInput(UserInputService:GetLastInputType()) and camera.ViewportSize * 0.5 or UserInputService:GetMouseLocation()
+		local bestPosition, bestScore
+		for _, enemy in ipairs(enemies:GetChildren()) do
+			local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
+			local humanoid = enemy:FindFirstChildOfClass("Humanoid")
+			if enemyRoot and humanoid and humanoid.Health > 0 then
+				local distance = (enemyRoot.Position - root.Position).Magnitude
+				local screen, visible = camera:WorldToViewportPoint(enemyRoot.Position + Vector3.new(0, 2, 0))
+				local pixelDistance = (Vector2.new(screen.X, screen.Y) - pointer).Magnitude
+				if visible and distance <= range and pixelDistance <= (progressionConfig.AimAssistPixels or 100) then
+					local score = pixelDistance + distance * 0.08
+					if not bestScore or score < bestScore then bestScore, bestPosition = score, enemyRoot.Position end
+				end
+			end
+		end
+		if bestPosition then return bestPosition end
+	end
 	if isGamepadInput(UserInputService:GetLastInputType()) then
-		local camera = workspace.CurrentCamera
 		if camera then
 			local viewport = camera.ViewportSize
 			local ray = camera:ViewportPointToRay(viewport.X / 2, viewport.Y / 2)
@@ -372,10 +518,14 @@ feedbackRemote.OnClientEvent:Connect(function(kind, xp, coins, duration)
 	elseif kind == "CastAccepted" then
 		feedbackMessage = "CAST: " .. tostring(xp)
 		feedbackExpires = os.clock() + 1
-		if xp ~= "Melee" and progressionConfig.Abilities[xp] then
+		if xp == "Melee" then
+			localMeleeIndex = math.clamp(tonumber(coins) or localMeleeIndex, 1, #progressionConfig.MeleeCombo)
+		elseif progressionConfig.Abilities[xp] then
 			cooldownEnds[xp] = os.clock() + (duration or progressionConfig.Abilities[xp].Cooldown)
 		elseif xp == "PowerDash" then
 			cooldownEnds[xp] = os.clock() + (duration or coins or 1.25)
+		elseif xp == "RangedWeapon" then
+			cooldownEnds[xp] = os.clock() + (duration or coins or progressionConfig.RangedCooldown or 0.55)
 		elseif xp == "Dodge" or (progressionConfig.MotionPowers and progressionConfig.MotionPowers[xp]) then
 			cooldownEnds[xp] = os.clock() + (duration or coins or 1)
 		end
@@ -421,6 +571,8 @@ local function refreshStatus()
 	local worldError = workspace:GetAttribute("WorldError") or ""
 	local countdown = workspace:GetAttribute("WaveCountdown") or 0
 	local waveInfo = countdown > 0 and string.format("NEXT WAVE IN %d", countdown) or state
+	local guidanceAge = workspace:GetServerTimeNow() - (player:GetAttribute("GuidanceMessageAt") or 0)
+	local guidance = guidanceAge >= 0 and guidanceAge <= 3 and player:GetAttribute("GuidanceMessage") or nil
 	healthFill.Size = UDim2.fromScale(math.clamp(health / math.max(maxHealth, 1), 0, 1), 1)
 	mpFill.Size = UDim2.fromScale(math.clamp(mp / math.max(maxMP, 1), 0, 1), 1)
 	staminaFill.Size = UDim2.fromScale(math.clamp(stamina / math.max(maxStamina, 1), 0, 1), 1)
@@ -429,7 +581,7 @@ local function refreshStatus()
 	mpValue.Text = string.format("%d / %d", math.floor(mp), math.floor(maxMP))
 	staminaValue.Text = string.format("%d / %d", math.floor(stamina), math.floor(maxStamina))
 	xpValue.Text = string.format("%d / %d", math.floor(xp), math.floor(xpRequired))
-	status.Text = string.format("EVOLUTION ASCENDANT  |  v%s  |  %s\nCOMBAT: %s\nWAVE %d  |  %s\nEnemies: %d\nCore: %d / %d\nLevel %d  |  Gold %d  |  Evo %d\nSELECTED: %s%s%s%s%s", workspace:GetAttribute("WorldVersion") or "DEV", workspace:GetAttribute("WorldStatus") or "Starting", workspace:GetAttribute("CombatStatus") or "Offline", wave, waveInfo, remaining, coreHealth, coreMax, player:GetAttribute("Level") or 1, player:GetAttribute("Coins") or 0, player:GetAttribute("Evolution") or 0, abilityList[selectedAbilityIndex][1], player:GetAttribute("CanEvolve") and "\nEVOLUTION READY  [R]" or "", player:GetAttribute("Blocking") and "\nBLOCKING  [F]" or "", worldError ~= "" and "\nERROR: " .. worldError or "", os.clock() < feedbackExpires and "\n" .. feedbackMessage or "")
+	status.Text = string.format("EVOLUTION ASCENDANT  |  v%s  |  %s\nCOMBAT: %s\nWAVE %d  |  %s\nEnemies: %d\nCore: %d / %d\nLevel %d  |  Gold %d  |  Evo %d\nSELECTED: %s%s%s%s%s%s", workspace:GetAttribute("WorldVersion") or "DEV", workspace:GetAttribute("WorldStatus") or "Starting", workspace:GetAttribute("CombatStatus") or "Offline", wave, waveInfo, remaining, coreHealth, coreMax, player:GetAttribute("Level") or 1, player:GetAttribute("Coins") or 0, player:GetAttribute("Evolution") or 0, abilityList[selectedAbilityIndex][1], player:GetAttribute("CanEvolve") and "\nEVOLUTION READY  [R]" or "", player:GetAttribute("Blocking") and "\nBLOCKING  [F]" or "", worldError ~= "" and "\nERROR: " .. worldError or "", guidance and "\nREQUIREMENT: " .. guidance or "", os.clock() < feedbackExpires and "\n" .. feedbackMessage or "")
 	status.TextColor3 = player:GetAttribute("CanEvolve") and Color3.fromRGB(255, 220, 100) or Color3.fromRGB(235, 245, 255)
 end
 
@@ -437,11 +589,9 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then
 		return
 	end
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		combatRemote:FireServer("Melee")
-	elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
 		local target = targetPosition(120)
-		if target then combatRemote:FireServer("Ranged", target) end
+		if target and (cooldownEnds.RangedWeapon or 0) <= os.clock() then combatRemote:FireServer("Ranged", target) end
 	elseif input.KeyCode == Enum.KeyCode.One or input.KeyCode == Enum.KeyCode.Two or input.KeyCode == Enum.KeyCode.Three
 		or input.KeyCode == Enum.KeyCode.Four or input.KeyCode == Enum.KeyCode.Five or input.KeyCode == Enum.KeyCode.Six then
 		local keySlots = {[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4, [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6}
@@ -534,10 +684,17 @@ local function handleAction(actionName, inputState)
 	elseif actionName == "CastClosePower" then
 		castAbility(abilityList[selectedAbilityIndex][1], "Close")
 	elseif actionName == "MeleeAttack" then
-		combatRemote:FireServer("Melee")
+		requestMelee(true)
+	elseif actionName == "StandardJump" then
+		requestStandardJump()
+	elseif actionName == "ActionPower" then
+		castAbility(abilityList[selectedAbilityIndex][1], "Ranged")
+	elseif actionName == "UltimatePower" then
+		local ultimate = player:GetAttribute("ActiveUltimate")
+		if type(ultimate) == "string" and ultimate ~= "" then castAbility(ultimate, "Ultimate") end
 	elseif actionName == "RangedWeapon" then
 		local target = targetPosition(120)
-		if target then combatRemote:FireServer("Ranged", target) end
+		if target and (cooldownEnds.RangedWeapon or 0) <= os.clock() then combatRemote:FireServer("Ranged", target) end
 	elseif actionName == "PowerDash" then
 		local motion = attributeList("ActiveMotion")
 		if motion[1] then castAbility(motion[1]) end
@@ -581,18 +738,21 @@ ContextActionService:BindActionAtPriority("CyclePowerPrevious", handleAction, fa
 ContextActionService:BindActionAtPriority("CastPower", handleAction, false, combatPriority, Enum.KeyCode.ButtonR2, Enum.KeyCode.Return)
 ContextActionService:BindActionAtPriority("CastClosePower", handleAction, false, combatPriority, Enum.KeyCode.ButtonL2)
 ContextActionService:BindActionAtPriority("MeleeAttack", handleAction, true, combatPriority, Enum.KeyCode.ButtonX)
-ContextActionService:BindActionAtPriority("RangedWeapon", handleAction, true, combatPriority, Enum.KeyCode.ButtonA)
+ContextActionService:BindActionAtPriority("StandardJump", handleAction, false, combatPriority + 10, Enum.KeyCode.ButtonA)
+ContextActionService:BindActionAtPriority("ActionPower", handleAction, false, combatPriority, Enum.KeyCode.ButtonL3)
+ContextActionService:BindActionAtPriority("UltimatePower", handleAction, false, combatPriority, Enum.KeyCode.ButtonR3)
+ContextActionService:BindActionAtPriority("RangedWeapon", handleAction, true, combatPriority, Enum.KeyCode.E)
 ContextActionService:SetTitle("RangedWeapon", "FIRE")
 ContextActionService:SetPosition("RangedWeapon", UDim2.new(1, -70, 1, -170))
 ContextActionService:SetTitle("MeleeAttack", "ATTACK")
 ContextActionService:SetPosition("MeleeAttack", UDim2.new(1, -70, 1, -110))
-ContextActionService:BindAction("PowerDash", handleAction, true, Enum.KeyCode.ButtonB)
+ContextActionService:BindAction("PowerDash", handleAction, true, Enum.KeyCode.Q)
 ContextActionService:SetTitle("PowerDash", "DASH")
 ContextActionService:SetPosition("PowerDash", UDim2.new(1, -150, 1, -170))
 ContextActionService:BindAction("Evolve", handleAction, true, Enum.KeyCode.ButtonY)
 ContextActionService:SetTitle("Evolve", "EVOLVE")
 ContextActionService:SetPosition("Evolve", UDim2.new(1, -230, 1, -170))
-ContextActionService:BindAction("Dodge", handleAction, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
+ContextActionService:BindAction("Dodge", handleAction, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonB)
 ContextActionService:SetTitle("Dodge", "DODGE")
 ContextActionService:SetPosition("Dodge", UDim2.new(1, -150, 1, -100))
 ContextActionService:BindAction("Block", handleBlock, true, Enum.KeyCode.F)

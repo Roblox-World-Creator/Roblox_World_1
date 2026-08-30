@@ -176,7 +176,7 @@ local function apply(player, id)
 	player:SetAttribute("ActiveFormSkillCount", unlockedSkillCount)
 	player:SetAttribute("FormDamageMultiplier", 1 + unlockedSkillCount * 0.045 + (unlockedSkillCount >= 10 and 0.25 or 0))
 	player:SetAttribute("FormTravelUnlocked", unlockedSkillCount >= 3)
-	local baseSpeed = 36 * (player:GetAttribute("SpeedMultiplier") or 1) + (player:GetAttribute("EquipmentSpeed") or 0)
+	local baseSpeed = player:GetAttribute("BaseMoveSpeed") or (36 * (player:GetAttribute("SpeedMultiplier") or 1) + (player:GetAttribute("EquipmentSpeed") or 0))
 	humanoid.WalkSpeed = player:GetAttribute("AdminSpeedOverride") or baseSpeed * (definition and (definition.StatModifiers.MoveSpeed or 1) or 1)
 	local baseHealth = player:GetAttribute("MaxHealth") or humanoid.MaxHealth
 	local healthRatio = humanoid.Health / math.max(1, humanoid.MaxHealth)

@@ -11,7 +11,7 @@ local movementRemote = ReplicatedStorage.Remotes:WaitForChild("MovementRemote")
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.DisplayOrder, gui.Parent = "AscensionUI", false, 128, player:WaitForChild("PlayerGui")
 
-local treeColors = {Universal = Color3.fromRGB(75, 145, 205), Fire = Color3.fromRGB(220, 82, 42), Ice = Color3.fromRGB(85, 185, 230), Lightning = Color3.fromRGB(215, 185, 55), Earth = Color3.fromRGB(105, 155, 78), Gravity = Color3.fromRGB(145, 80, 205), Poison = Color3.fromRGB(95, 190, 75), Prismatic = Color3.fromRGB(230, 90, 205)}
+local treeColors = {Universal = Color3.fromRGB(75, 145, 205), Melee = Color3.fromRGB(220, 120, 70), Fire = Color3.fromRGB(220, 82, 42), Ice = Color3.fromRGB(85, 185, 230), Lightning = Color3.fromRGB(215, 185, 55), Earth = Color3.fromRGB(105, 155, 78), Gravity = Color3.fromRGB(145, 80, 205), Poison = Color3.fromRGB(95, 190, 75), Prismatic = Color3.fromRGB(230, 90, 205)}
 local function round(object, radius) local corner = Instance.new("UICorner") corner.CornerRadius, corner.Parent = UDim.new(0, radius), object end
 local function styleButton(button, color)
 	button.BackgroundColor3, button.BorderSizePixel, button.TextColor3 = color, 0, Color3.new(1, 1, 1)

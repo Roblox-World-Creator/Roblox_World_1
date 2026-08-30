@@ -1,6 +1,34 @@
 local Players = game:GetService("Players")
 
 local PlayerProgression = {}
+local activeResourceConfig
+
+local function applyMovementStats(player, config, resourceConfig)
+	resourceConfig = resourceConfig or activeResourceConfig
+	if not resourceConfig then return end
+	local level = player:GetAttribute("Level") or config.StartingLevel
+	local moveSpeed = resourceConfig.BaseWalkSpeed * (player:GetAttribute("SpeedMultiplier") or 1)
+		+ (player:GetAttribute("EquipmentSpeed") or 0) + (level - 1) * (config.LevelMoveSpeedBonus or 0)
+	local jumpPower = (config.StartingJumpPower or 50) + (level - 1) * (config.LevelJumpPowerBonus or 0)
+	player:SetAttribute("BaseMoveSpeed", moveSpeed)
+	player:SetAttribute("JumpPower", jumpPower)
+	player:SetAttribute("JumpDistance", jumpPower * 0.72 + moveSpeed * 0.45)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		local root = player.Character:FindFirstChild("HumanoidRootPart")
+		if root then root.Anchored = false end
+		humanoid.PlatformStand = false
+		humanoid.Sit = false
+		humanoid.UseJumpPower = true
+		humanoid.JumpPower = jumpPower
+		humanoid.JumpHeight = 7.2 + (level - 1) * 0.04
+		humanoid.AutoJumpEnabled = true
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+		humanoid.WalkSpeed = player:GetAttribute("AdminSpeedOverride") or moveSpeed * (player:GetAttribute("TransformationMoveMultiplier") or 1)
+	end
+end
 
 local function xpRequired(config, level)
 	return math.floor(config.XPBase * (level ^ config.XPExponent))
@@ -27,6 +55,7 @@ local function setStats(player, config)
 		humanoid.MaxHealth = maxHealth
 		humanoid.Health = math.min(maxHealth, humanoid.Health + math.max(0, maxHealth - previousMaxHealth))
 	end
+	applyMovementStats(player, config)
 end
 
 function PlayerProgression.AddXP(player, amount, config)
@@ -62,14 +91,16 @@ function PlayerProgression.RefreshStats(player, config)
 end
 
 function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveService)
+	activeResourceConfig = resourceConfig
 	local function setupPlayer(player)
 		player:SetAttribute("DataLoaded", false)
 		local data = saveService.Load(player, {
-			SchemaVersion = 6,
+			SchemaVersion = 7,
 			Level = config.StartingLevel,
 			XP = config.StartingXP,
 			Coins = config.StartingCoins,
 			Evolution = 0,
+			HighestWave = 0,
 			Inventory = {
 				IronBlade = {Count = 1, Favorite = false, Locked = true},
 				HealthPotion = {Count = 3, Favorite = false, Locked = false},
@@ -87,7 +118,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 			Transformations = {},
 			FormPoints = 0,
 			FormSkills = {},
-			PowerLoadout = {Attacks = {}, Motion = {"PowerDash", "Dodge"}},
+			PowerLoadout = {Attacks = {}, Motion = {"PowerDash", "Dodge"}, Ultimate = ""},
 			UnlockedWorlds = {FireWorld = true},
 			UnlockedElements = {Fire = true, Ice = true, Lightning = true, Earth = true},
 			WeaponMastery = {},
@@ -101,6 +132,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 		player:SetAttribute("XP", math.max(0, data.XP))
 		player:SetAttribute("Coins", math.max(0, data.Coins))
 		player:SetAttribute("Evolution", math.max(0, data.Evolution))
+		player:SetAttribute("HighestWave", math.max(0, math.floor(tonumber(data.HighestWave) or 0)))
 		local evolutionDefinition = evolutionConfig[data.Evolution]
 		local attackMultiplier = evolutionDefinition and evolutionDefinition.AttackMultiplier or 1
 		local healthMultiplier = evolutionDefinition and evolutionDefinition.HealthMultiplier or 1
@@ -142,18 +174,23 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 			player:SetAttribute("Blocking", false)
 			player:SetAttribute("InvulnerableUntil", 0)
 			local humanoid = character:WaitForChild("Humanoid")
+			local root = character:WaitForChild("HumanoidRootPart", 8)
+			if root then root.Anchored = false end
 			humanoid.MaxHealth = player:GetAttribute("MaxHealth") or config.StartingMaxHealth
 			humanoid.Health = humanoid.MaxHealth
-			humanoid.WalkSpeed = player:GetAttribute("AdminSpeedOverride")
-				or resourceConfig.BaseWalkSpeed * (player:GetAttribute("SpeedMultiplier") or 1) + (player:GetAttribute("EquipmentSpeed") or 0)
+			applyMovementStats(player, config, resourceConfig)
+			-- Some avatar packages apply their own humanoid settings one frame after
+			-- CharacterAdded. Reassert normal Roblox movement after those scripts settle.
+			task.delay(0.5, function()
+				if player.Character == character then applyMovementStats(player, config, resourceConfig) end
+			end)
 		end)
 		if player.Character then
 			local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
 			if humanoid then
 				humanoid.MaxHealth = player:GetAttribute("MaxHealth") or config.StartingMaxHealth
 				humanoid.Health = humanoid.MaxHealth
-				humanoid.WalkSpeed = player:GetAttribute("AdminSpeedOverride")
-					or resourceConfig.BaseWalkSpeed * (player:GetAttribute("SpeedMultiplier") or 1) + (player:GetAttribute("EquipmentSpeed") or 0)
+				applyMovementStats(player, config, resourceConfig)
 			end
 		end
 

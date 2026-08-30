@@ -61,7 +61,9 @@ local function render()
 		evolve.Visible = false
 		return
 	end
-	status.Text = string.format("CURRENT ASCENDANT: %d\n\nNEXT ASCENDANT: %d\nRequired level: %d\nRequired wave: %d\nCost: %d coins\n\nRewards:\nAttack x%.2f  |  Health x%.2f\nEnergy x%.2f  |  Speed x%.2f", current, current + 1, nextEvolution.Level, nextEvolution.Wave, nextEvolution.Coins, nextEvolution.AttackMultiplier, nextEvolution.HealthMultiplier, nextEvolution.EnergyMultiplier, nextEvolution.SpeedMultiplier)
+	local level, wave, coins = player:GetAttribute("Level") or 1, player:GetAttribute("HighestWave") or 0, player:GetAttribute("Coins") or 0
+	local function mark(currentValue, requiredValue) return currentValue >= requiredValue and "READY" or "NEEDED" end
+	status.Text = string.format("CURRENT ASCENDANT: %d | NEXT: %d\n\nLEVEL: %d / %d  [%s]\nHIGHEST CLEARED WAVE: %d / %d  [%s]\nGOLD: %d / %d  [%s]\n\nClear waves completely to save wave progress. Gold is spent when evolving.\n\nREWARDS: Attack x%.2f | Health x%.2f\nEnergy x%.2f | Speed x%.2f", current, current + 1, level, nextEvolution.Level, mark(level, nextEvolution.Level), wave, nextEvolution.Wave, mark(wave, nextEvolution.Wave), coins, nextEvolution.Coins, mark(coins, nextEvolution.Coins), nextEvolution.AttackMultiplier, nextEvolution.HealthMultiplier, nextEvolution.EnergyMultiplier, nextEvolution.SpeedMultiplier)
 	evolve.Visible = true
 	evolve.Text = player:GetAttribute("CanEvolve") and "EVOLVE NOW" or "REQUIREMENTS NOT MET"
 	evolve.BackgroundColor3 = player:GetAttribute("CanEvolve") and Color3.fromRGB(65, 160, 115) or Color3.fromRGB(80, 88, 105)
@@ -84,4 +86,4 @@ ContextActionService:BindActionAtPriority("EvolutionClose", function(_, inputSta
 	end
 	return Enum.ContextActionResult.Pass
 end, false, 3100, Enum.KeyCode.ButtonB)
-for _, attribute in ipairs({"Evolution", "Level", "Coins", "CanEvolve"}) do player:GetAttributeChangedSignal(attribute):Connect(render) end
+for _, attribute in ipairs({"Evolution", "Level", "HighestWave", "Coins", "CanEvolve"}) do player:GetAttributeChangedSignal(attribute):Connect(render) end

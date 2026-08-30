@@ -46,6 +46,18 @@ function AssetModelService.Clone(containerName, modelId)
 	return clone
 end
 
+function AssetModelService.List(containerName)
+	if not ALLOWED_CONTAINERS[containerName] then return {} end
+	local assets = ReplicatedStorage:FindFirstChild("GameAssets")
+	local container = assets and assets:FindFirstChild(containerName)
+	local names = {}
+	for _, child in ipairs(container and container:GetChildren() or {}) do
+		if child:IsA("Model") or child:IsA("BasePart") then table.insert(names, child.Name) end
+	end
+	table.sort(names)
+	return names
+end
+
 function AssetModelService.WeldModel(model)
 	local root = model and model.PrimaryPart
 	if not root then return false end

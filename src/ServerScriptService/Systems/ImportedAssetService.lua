@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local Lighting = game:GetService("Lighting")
+local StarterPack = game:GetService("StarterPack")
 
 local ImportedAssetService = {}
 
@@ -115,6 +116,7 @@ end
 
 local function asModel(source, targetName)
 	local clone = source:Clone()
+	local toolGrip = clone:IsA("Tool") and clone.Grip or nil
 	local model
 	if clone:IsA("Model") then
 		model = clone
@@ -128,15 +130,31 @@ local function asModel(source, targetName)
 	model.PrimaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
 	if not model.PrimaryPart then model:Destroy(); return nil end
 	model:SetAttribute("ImportedAndSanitized", true)
+	if toolGrip then model:SetAttribute("ImportedToolGrip", toolGrip) end
 	return model
 end
 
 function ImportedAssetService.Start()
 	local assets = ReplicatedStorage:FindFirstChild("GameAssets")
 	if not assets then return end
+	local canonicalSpawn = workspace:FindFirstChild("SpawnLocation")
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("SpawnLocation") and descendant ~= canonicalSpawn then descendant.Enabled = false end
+	end
 	local archive = ServerStorage:FindFirstChild("ImportedAssetArchive") or Instance.new("Folder")
 	archive.Name = "ImportedAssetArchive"
 	archive.Parent = ServerStorage
+	local starterImports = archive:FindFirstChild("StarterPackItems") or Instance.new("Folder")
+	starterImports.Name, starterImports.Parent = "StarterPackItems", archive
+	local importedNames = ReplicatedStorage:FindFirstChild("ImportedStarterItemNames") or Instance.new("Folder")
+	importedNames.Name, importedNames.Parent = "ImportedStarterItemNames", ReplicatedStorage
+	for index, item in ipairs(StarterPack:GetChildren()) do
+		local marker = Instance.new("StringValue")
+		marker.Name, marker.Value, marker.Parent = "Item" .. index, item.Name, importedNames
+		makeArchivable(item)
+		removeExecutableContent(item)
+		item.Parent = starterImports
+	end
 
 	-- Move every raw Toolbox pile out of the rendered world immediately.
 	for _, rootName in ipairs(SOURCE_ROOTS) do
@@ -168,6 +186,52 @@ for _, sourceRoot in ipairs(archive:GetChildren()) do
 					makeArchivable(source)
 					local model = asModel(source, entry.Target)
 					if model then model.Parent = destination end
+				end
+			end
+		end
+	end
+
+	-- StarterPack models override the equivalent inventory visuals. Only Classic
+	-- Sword is the default; remaining Tools become rare named inventory weapons.
+	local weaponDestination = assets:FindFirstChild("Weapons")
+	local candidates = starterImports:GetChildren()
+	table.sort(candidates, function(left, right) return left.Name < right.Name end)
+	local specialTargets = {
+		"DawnsteelSwordModel01", "SkyglassKatanaModel01", "ThunderKatanaModel01",
+		"InfernoSwordModel01", "FrostSpearModel01", "RiftwindKatanaModel01",
+		"EarthbreakerModel01", "GravityHammerModel01", "CelestialLightbladeModel01",
+	}
+	local specialIndex = 1
+	for _, source in ipairs(candidates) do
+		local lower = string.lower(source.Name)
+		local excluded = string.find(lower, "gun", 1, true) or string.find(lower, "tower", 1, true)
+			or string.find(lower, "ramp", 1, true) or string.find(lower, "device", 1, true)
+		if not excluded and (source:IsA("Tool") or source:IsA("Model") or source:IsA("BasePart")) then
+			local target
+			if string.find(normalizedName(source.Name), "classicsword", 1, true) then target = "BasicSwordModel01"
+			elseif specialIndex <= #specialTargets then target, specialIndex = specialTargets[specialIndex], specialIndex + 1 end
+			if target and weaponDestination then
+				local previous = weaponDestination:FindFirstChild(target)
+				if previous then previous:Destroy() end
+				local model = asModel(source, target)
+				if model then model:SetAttribute("StarterPackWeapon", true); model.Parent = weaponDestination end
+			end
+		end
+	end
+
+	local worldProps = assets:FindFirstChild("WorldProps")
+	local propRoots = {"Nature Artifacts", "Art Items", "Altars", "Ancient Ruins"}
+	local importedCount = 0
+	for _, rootName in ipairs(propRoots) do
+		local sourceRoot = archive:FindFirstChild(rootName)
+		for _, source in ipairs(sourceRoot and sourceRoot:GetChildren() or {}) do
+			if importedCount >= 60 then break end
+			if source:IsA("Model") or source:IsA("BasePart") then
+				local target = "Scenery_" .. string.gsub(source.Name, "[^%w_]", "_")
+				if worldProps and not worldProps:FindFirstChild(target) then
+					makeArchivable(source)
+					local model = asModel(source, target)
+					if model then model:SetAttribute("AutoImportedScenery", true); model.Parent = worldProps; importedCount += 1 end
 				end
 			end
 		end

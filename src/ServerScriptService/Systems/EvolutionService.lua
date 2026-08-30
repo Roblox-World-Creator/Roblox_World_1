@@ -8,7 +8,7 @@ local function updateReady(player, config)
 	local requirement = config[nextEvolution]
 	local ready = requirement
 		and (player:GetAttribute("Level") or 0) >= requirement.Level
-		and (workspace:GetAttribute("HighestWave") or workspace:GetAttribute("Wave") or 0) >= requirement.Wave
+		and (player:GetAttribute("HighestWave") or 0) >= requirement.Wave
 		and (player:GetAttribute("Coins") or 0) >= requirement.Coins
 	player:SetAttribute("CanEvolve", ready == true)
 end
@@ -54,7 +54,7 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 		local current = player:GetAttribute("Evolution") or 0
 		local nextEvolution = current + 1
 		local requirement = config[nextEvolution]
-		if not requirement or (not forced and ((player:GetAttribute("Level") or 0) < requirement.Level or (workspace:GetAttribute("HighestWave") or workspace:GetAttribute("Wave") or 0) < requirement.Wave or (player:GetAttribute("Coins") or 0) < requirement.Coins)) then
+		if not requirement or (not forced and ((player:GetAttribute("Level") or 0) < requirement.Level or (player:GetAttribute("HighestWave") or 0) < requirement.Wave or (player:GetAttribute("Coins") or 0) < requirement.Coins)) then
 			return false, "Evolution requirements are not met"
 		end
 
@@ -109,7 +109,7 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 	end
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		for _, attribute in ipairs({"Level", "Coins", "Evolution"}) do
+		for _, attribute in ipairs({"Level", "Coins", "Evolution", "HighestWave"}) do
 			player:GetAttributeChangedSignal(attribute):Connect(function()
 				refresh(player)
 			end)
@@ -117,21 +117,13 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 		refresh(player)
 	end
 	Players.PlayerAdded:Connect(function(player)
-		for _, attribute in ipairs({"Level", "Coins", "Evolution"}) do
+		for _, attribute in ipairs({"Level", "Coins", "Evolution", "HighestWave"}) do
 			player:GetAttributeChangedSignal(attribute):Connect(function()
 				refresh(player)
 			end)
 		end
 		refresh(player)
 	end)
-	for _, attribute in ipairs({"HighestWave", "Wave"}) do
-		workspace:GetAttributeChangedSignal(attribute):Connect(function()
-			for _, player in ipairs(Players:GetPlayers()) do
-				refresh(player)
-			end
-		end)
-	end
-
 	Players.PlayerRemoving:Connect(function(player)
 		busy[player] = nil
 	end)

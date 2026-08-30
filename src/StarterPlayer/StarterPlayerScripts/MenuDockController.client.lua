@@ -36,7 +36,7 @@ local menuGuiNames = {PowersUI = true, InventoryUI = true, QuestLog = true, Evol
 local menuDefinitions = {
 	POWERS = {Order = 1, Label = "POWERS", Width = 70},
 	SKILLS = {Order = 2, Label = "SKILLS", Width = 68},
-	BAG = {Order = 3, Label = "BAG", Width = 58},
+	BAG = {Order = 3, Label = "GEAR", Width = 66},
 	QUEST = {Order = 4, Label = "QUESTS", Width = 72},
 	FORMS = {Order = 5, Label = "FORMS", Width = 68},
 	EVOLUTION = {Order = 6, Label = "EVOLVE", Width = 76},

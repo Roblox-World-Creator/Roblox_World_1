@@ -46,7 +46,7 @@
     {
       "label": "Local AI: Start coding model",
       "type": "shell",
-      "command": "$lms = \"${env:USERPROFILE}\\.lmstudio\\bin\\lms.exe\"; $loaded = (& $lms ps | Out-String); if ($loaded -notmatch 'qwen2.5-coder-7b-instruct') { & $lms load \"qwen2.5-coder-7b-instruct\" --gpu max --context-length 8192 --ttl 3600 -y }; & $lms server start --bind 127.0.0.1",
+      "command": "$lms = \"${env:USERPROFILE}\\.cache\\lm-studio\\bin\\lms.exe\"; $loaded = (& $lms ps | Out-String); if ($loaded -notmatch 'qwen/qwen3-coder-next') { & $lms load \"qwen/qwen3-coder-next\" --context-length 32768 --parallel 1 --identifier \"qwen/qwen3-coder-next\" --yes }; & $lms server start --bind 127.0.0.1",
       "isBackground": true,
       "problemMatcher": [],
       "presentation": {
@@ -65,9 +65,12 @@
       }
     },
     {
-      "label": "Local AI: Chat with Qwen",
+      "label": "Local AI: Qwen coding chat",
       "type": "shell",
-      "command": "& \"${env:USERPROFILE}\\.lmstudio\\bin\\lms.exe\" chat \"qwen2.5-coder-7b-instruct\"",
+      "command": "qwen-codex.cmd",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",

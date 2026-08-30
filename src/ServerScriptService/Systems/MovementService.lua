@@ -75,8 +75,43 @@ function MovementService.Start(resourceConfig, powerService)
 		specialCooldowns[player][powerName] = os.clock() + (definition.Cooldown or 3)
 		if formTravel then
 			local form = player:GetAttribute("ActiveTransformation")
-			local speed = form == "Wolf" and 105 or form == "Bear" and 72 or 90
-			root.AssemblyLinearVelocity = root.CFrame.LookVector * speed + Vector3.new(0, form == "Bear" and 18 or 32, 0)
+			local level = player:GetAttribute("Level") or 1
+			if form == "Wolf" then
+				local speed, leap = 82 + level * 0.48, 62 + level * 0.28
+				root.AssemblyLinearVelocity = root.CFrame.LookVector * speed + Vector3.new(0, leap, 0)
+				task.spawn(function()
+					local finish = os.clock() + 2.15
+					while os.clock() < finish and root.Parent and humanoid.Health > 0 and player:GetAttribute("ActiveTransformation") == "Wolf" do
+						local move = humanoid.MoveDirection
+						local direction = move.Magnitude > 0.1 and Vector3.new(move.X, 0, move.Z).Unit or root.CFrame.LookVector
+						local currentY = root.AssemblyLinearVelocity.Y
+						root.AssemblyLinearVelocity = direction * speed + Vector3.new(0, currentY, 0)
+						task.wait(0.06)
+					end
+				end)
+			elseif form == "Bear" then
+				local climbSpeed, groundSpeed = 58 + level * 0.32, 48 + level * 0.22
+				root.AssemblyLinearVelocity = root.CFrame.LookVector * groundSpeed + Vector3.new(0, 25 + level * 0.08, 0)
+				task.spawn(function()
+					local parameters = RaycastParams.new()
+					parameters.FilterType = Enum.RaycastFilterType.Exclude
+					parameters.FilterDescendantsInstances = {character}
+					parameters.RespectCanCollide = true
+					local finish = os.clock() + 3
+					while os.clock() < finish and root.Parent and humanoid.Health > 0 and player:GetAttribute("ActiveTransformation") == "Bear" do
+						local move = humanoid.MoveDirection
+						local direction = move.Magnitude > 0.1 and Vector3.new(move.X, 0, move.Z).Unit or root.CFrame.LookVector
+						local wall = workspace:Raycast(root.Position, direction * 4.5, parameters)
+						if wall and math.abs(wall.Normal.Y) < 0.55 then
+							humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+							root.AssemblyLinearVelocity = direction * 16 + Vector3.new(0, climbSpeed, 0)
+						else
+							root.AssemblyLinearVelocity = direction * groundSpeed + Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+						end
+						task.wait(0.05)
+					end
+				end)
+			end
 			effectsRemote:FireAllClients("PowerLocal", {Ability = form .. "Travel", Element = form == "Bear" and "Earth" or form == "Eagle" and "Lightning" or "Ice", Origin = root.Position, Radius = 10, Tier = player:GetAttribute("ActiveFormSkillCount") or 3})
 		elseif powerName == "SuperJump" then
 			root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 82, root.AssemblyLinearVelocity.Z) + root.CFrame.LookVector * 24
@@ -103,7 +138,8 @@ function MovementService.Start(resourceConfig, powerService)
 					local direction = humanoid.MoveDirection
 					local horizontal = direction.Magnitude > 0.1 and Vector3.new(direction.X, 0, direction.Z).Unit or Vector3.zero
 					local lift = elapsed < 1.15 and 38 - elapsed * 18 or (horizontal.Magnitude > 0 and 4 or 1.5)
-					velocity.Velocity = horizontal * 58 + Vector3.new(0, lift, 0)
+					local level = player:GetAttribute("Level") or 1
+					velocity.Velocity = horizontal * (58 + level * 0.32) + Vector3.new(0, lift + level * 0.025, 0)
 					if horizontal.Magnitude > 0.1 then gyro.CFrame = CFrame.lookAt(root.Position, root.Position + horizontal) end
 					local flap = math.sin(elapsed * 11) * math.rad(13)
 					for _, joint in ipairs(wings) do
@@ -155,19 +191,36 @@ function MovementService.Start(resourceConfig, powerService)
 		end
 
 		local direction = root.CFrame.LookVector
+		local startPosition = root.Position
+		local blinkTarget, blinkDistance
+		local enemies = workspace:FindFirstChild("Enemies")
+		for _, enemy in ipairs(enemies and enemies:GetChildren() or {}) do
+			local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
+			local enemyHumanoid = enemy:FindFirstChildOfClass("Humanoid")
+			if enemyRoot and enemyHumanoid and enemyHumanoid.Health > 0 then
+				local offset = enemyRoot.Position - root.Position
+				local distance = offset.Magnitude
+				if distance > 2 and distance <= resourceConfig.DashDistance + 10 and direction:Dot(offset.Unit) > 0.42 and (not blinkDistance or distance < blinkDistance) then
+					blinkTarget, blinkDistance = enemyRoot, distance
+				end
+			end
+		end
 		local parameters = RaycastParams.new()
 		parameters.FilterType = Enum.RaycastFilterType.Exclude
-		parameters.FilterDescendantsInstances = {character}
+		parameters.FilterDescendantsInstances = blinkTarget and {character, blinkTarget.Parent} or {character}
 		parameters.RespectCanCollide = true
-		local result = workspace:Raycast(root.Position, direction * resourceConfig.DashDistance, parameters)
-		local distance = result and math.max(0, result.Distance - 3) or resourceConfig.DashDistance
+		local desiredDistance = blinkTarget and math.min(resourceConfig.DashDistance + 8, blinkDistance + 4.5) or resourceConfig.DashDistance
+		local result = workspace:Raycast(root.Position, direction * desiredDistance, parameters)
+		local distance = result and math.max(0, result.Distance - 3) or desiredDistance
 		local destination = root.Position + direction * distance
 		player:SetAttribute("Stamina", stamina - resourceConfig.DashCost)
 		player:SetAttribute("LastStaminaUse", workspace:GetServerTimeNow())
 		player:SetAttribute("Blocking", false)
 		cooldowns[player] = os.clock() + resourceConfig.DashCooldown
-		character:PivotTo(CFrame.lookAt(destination, destination + direction))
+		local facingPoint = blinkTarget and blinkTarget.Position or destination + direction
+		character:PivotTo(CFrame.lookAt(destination, Vector3.new(facingPoint.X, destination.Y, facingPoint.Z)))
 		addDashTrail(root)
+		effectsRemote:FireAllClients("BlinkStrike", {Origin = startPosition, Target = destination, Enemy = blinkTarget and blinkTarget.Parent})
 		feedbackRemote:FireClient(player, "CastAccepted", "PowerDash", resourceConfig.DashCooldown)
 	end)
 

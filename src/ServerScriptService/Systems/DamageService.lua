@@ -9,6 +9,12 @@ function DamageService.ApplyEnemyDamage(player, enemy, amount)
 	if not humanoid or humanoid.Health <= 0 then
 		return nil
 	end
+	if (player:GetAttribute("Level") or 1) < (enemy:GetAttribute("RequiredLevel") or 1) then
+		local requiredLevel = enemy:GetAttribute("RequiredLevel") or 1
+		player:SetAttribute("GuidanceMessage", string.format("Reach level %d to damage %s", requiredLevel, enemy.Name))
+		player:SetAttribute("GuidanceMessageAt", workspace:GetServerTimeNow())
+		return nil
+	end
 
 	local criticalChance = (player:GetAttribute("CriticalChance") or 0.05)
 		+ (player:GetAttribute("SkillCriticalChance") or 0)
@@ -24,6 +30,7 @@ function DamageService.ApplyEnemyDamage(player, enemy, amount)
 	local appliedDamage = math.min(finalDamage, healthBefore)
 	enemy:SetAttribute("LastDamagerUserId", player.UserId)
 	enemy:SetAttribute("AggroUserId", player.UserId)
+	enemy:SetAttribute("PassiveUntilAttacked", false)
 	enemy:SetAttribute("Damage_" .. player.UserId, (enemy:GetAttribute("Damage_" .. player.UserId) or 0) + appliedDamage)
 	humanoid:TakeDamage(finalDamage)
 

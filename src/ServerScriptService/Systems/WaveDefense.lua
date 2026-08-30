@@ -3,12 +3,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EnemyAI = require(script.Parent.EnemyAI)
 local BossPhaseController = require(script.Parent.BossPhaseController)
 local AssetModelService = require(script.Parent.AssetModelService)
+local MobAnimationService = require(script.Parent.MobAnimationService)
 local RealmConfig = require(ReplicatedStorage.Shared.RealmConfig)
 
 local WaveDefense = {}
 local runtimeState
 local HUB_CENTER = Vector3.new(0, 4, -700)
 local HUB_SPAWN = HUB_CENTER + Vector3.new(0, 0, -48)
+local realmSafeZones = {}
+local safeZoneMonitorStarted = false
 
 local function getOrCreateFolder(parent, name)
 	local folder = parent:FindFirstChild(name)
@@ -133,7 +136,8 @@ local function createWarpPad(parent, name, position, destination, color, realmId
 			if not player or humanoid.Health <= 0 or os.clock() < (player:GetAttribute("WarpReadyAt") or 0) then return end
 			local realm = RealmConfig.Realms[pad:GetAttribute("RealmId") or realmId]
 			if realm and (player:GetAttribute("Level") or 1) < realm.RecommendedLevel and not player:GetAttribute("AdminAuthorized") then
-				player:SetAttribute("RealmGateMessage", string.format("Reach level %d to enter %s", realm.RecommendedLevel, realm.DisplayName))
+				player:SetAttribute("GuidanceMessage", string.format("Reach level %d to enter %s", realm.RecommendedLevel, realm.DisplayName))
+				player:SetAttribute("GuidanceMessageAt", workspace:GetServerTimeNow())
 				player:SetAttribute("WarpReadyAt", os.clock() + 1.5)
 				return
 			end
@@ -168,7 +172,52 @@ local function placeImportedProp(parent, profile, position, targetHeight, yaw)
 	return model
 end
 
-local function createElementalRealms(portalHome)
+local function connectHazard(part, damage, statusName)
+	if part:GetAttribute("HazardConnected") then return end
+	part:SetAttribute("HazardConnected", true)
+	local readyAt = {}
+	part.Touched:Connect(function(hit)
+		local character = hit:FindFirstAncestorOfClass("Model")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local player = humanoid and Players:GetPlayerFromCharacter(character)
+		if not player or humanoid.Health <= 0 or player:GetAttribute("InRealmSafeZone") or os.clock() < (readyAt[player] or 0) then return end
+		readyAt[player] = os.clock() + 1
+		humanoid:TakeDamage(damage)
+		player:SetAttribute("LastHazard", statusName)
+	end)
+end
+
+local function startSafeZoneMonitor()
+	if safeZoneMonitorStarted then return end
+	safeZoneMonitorStarted = true
+	task.spawn(function()
+		while true do
+			for _, player in ipairs(Players:GetPlayers()) do
+				local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+				local safe, currentRealm = false, nil
+				if root then
+					for _, zone in ipairs(realmSafeZones) do
+						local flat = Vector3.new(root.Position.X - zone.Center.X, 0, root.Position.Z - zone.Center.Z)
+						local half = zone.BoardSize * 0.5
+						if math.abs(flat.X) <= half and math.abs(flat.Z) <= half and math.abs(root.Position.Y - zone.Center.Y) < 120 then currentRealm = zone.RealmId end
+						if flat.Magnitude <= zone.Radius and math.abs(root.Position.Y - zone.Center.Y) < 45 then safe, currentRealm = true, zone.RealmId break end
+						if math.abs(flat.X) <= half and math.abs(flat.Z) <= half and root.Position.Y < zone.Center.Y - 35 then
+							player.Character:PivotTo(CFrame.new(zone.Center + Vector3.new(0, 5, 0)))
+							local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+							if humanoid then humanoid:TakeDamage(math.max(1, humanoid.MaxHealth * 0.08)) end
+						end
+					end
+				end
+				player:SetAttribute("InRealmSafeZone", safe)
+				player:SetAttribute("CurrentRealmId", currentRealm or "")
+				if safe then player:SetAttribute("InvulnerableUntil", workspace:GetServerTimeNow() + 0.75) end
+			end
+			task.wait(0.25)
+		end
+	end)
+end
+
+local function createElementalRealms(portalHome, questService)
 	local realms = getOrCreateFolder(workspace, "ElementalRealms")
 	local groundMaterials = {Fire = Enum.Material.Basalt, Ice = Enum.Material.Glacier, Lightning = Enum.Material.Slate, Earth = Enum.Material.Grass}
 	local accentMaterials = {Fire = Enum.Material.CrackedLava, Ice = Enum.Material.Ice, Lightning = Enum.Material.Metal, Earth = Enum.Material.Ground}
@@ -177,8 +226,27 @@ local function createElementalRealms(portalHome)
 		local realm = getOrCreateFolder(realms, realmId)
 		local center = definition.Destination
 		local realmScale = definition.SizeScale or 1
-		local floor = createPart(realm, "RealmFloor", Vector3.new(220 * realmScale, 3, 220 * realmScale), center - Vector3.new(0, 2.5, 0), definition.Color:Lerp(Color3.fromRGB(28, 30, 38), 0.68), groundMaterials[definition.Element] or Enum.Material.Slate)
+		local boardSize = 220 * realmScale
+		local floor = createPart(realm, "RealmFloor", Vector3.new(boardSize, 3, boardSize), center - Vector3.new(0, 2.5, 0), definition.Color:Lerp(Color3.fromRGB(28, 30, 38), 0.68), groundMaterials[definition.Element] or Enum.Material.Slate)
 		floor:SetAttribute("Element", definition.Element)
+		local edge, wallHeight = boardSize * 0.5 - 3, 28
+		local boundaryColor = definition.Color:Lerp(Color3.fromRGB(24, 26, 35), 0.62)
+		createPart(realm, "BoundaryNorth", Vector3.new(boardSize, wallHeight, 6), center + Vector3.new(0, wallHeight * 0.5 - 1, -edge), boundaryColor, Enum.Material.ForceField)
+		createPart(realm, "BoundarySouth", Vector3.new(boardSize, wallHeight, 6), center + Vector3.new(0, wallHeight * 0.5 - 1, edge), boundaryColor, Enum.Material.ForceField)
+		createPart(realm, "BoundaryEast", Vector3.new(6, wallHeight, boardSize), center + Vector3.new(edge, wallHeight * 0.5 - 1, 0), boundaryColor, Enum.Material.ForceField)
+		createPart(realm, "BoundaryWest", Vector3.new(6, wallHeight, boardSize), center + Vector3.new(-edge, wallHeight * 0.5 - 1, 0), boundaryColor, Enum.Material.ForceField)
+		local safeRadius = definition.SafeRadius or 65
+		table.insert(realmSafeZones, {RealmId = realmId, Center = center, Radius = safeRadius, BoardSize = boardSize})
+		local sanctuary = createPart(realm, "BeginnerSanctuary", Vector3.new(safeRadius * 1.8, 1, safeRadius * 1.8), center - Vector3.new(0, 0.8, 0), definition.Color:Lerp(Color3.new(1, 1, 1), 0.38), Enum.Material.ForceField)
+		sanctuary.Shape, sanctuary.Size, sanctuary.CFrame = Enum.PartType.Cylinder, Vector3.new(1, safeRadius * 1.8, safeRadius * 1.8), CFrame.new(center - Vector3.new(0, 0.8, 0)) * CFrame.Angles(0, 0, math.rad(90))
+		local dome = createPart(realm, "SanctuaryForceField", Vector3.one * safeRadius * 1.7, center + Vector3.new(0, safeRadius * 0.34, 0), definition.Color, Enum.Material.ForceField)
+		dome.Shape, dome.Transparency, dome.CanCollide = Enum.PartType.Ball, 0.82, false
+		local questBoard = createPart(realm, "RealmQuestGiver", Vector3.new(7, 7, 2), center + Vector3.new(20, 3, -10), Color3.fromRGB(78, 54, 112), Enum.Material.WoodPlanks)
+		addLabel(questBoard, "RANDOM " .. definition.DisplayName .. " QUESTS\n10 JOBS • XP • GOLD • SPECIAL ITEMS", Vector3.new(0, 5.4, 0))
+		local prompt = questBoard:FindFirstChildOfClass("ProximityPrompt") or Instance.new("ProximityPrompt")
+		prompt.ActionText, prompt.ObjectText, prompt.MaxActivationDistance, prompt.HoldDuration, prompt.Parent = "Browse Quests", definition.DisplayName .. " Quest Keeper", 16, 0, questBoard
+		local promptRealmId = realmId
+		if not prompt:GetAttribute("Connected") then prompt:SetAttribute("Connected", true); prompt.Triggered:Connect(function(player) if questService then questService.OpenRealm(player, promptRealmId) end end) end
 		local shrineBase = createPart(realm, "ShrinePlaza", Vector3.new(34, 2, 34), center - Vector3.new(0, 0.5, 0), definition.Color:Lerp(Color3.fromRGB(40, 44, 55), 0.52), Enum.Material.Slate)
 		shrineBase.Shape = Enum.PartType.Cylinder
 		shrineBase.Size = Vector3.new(2, 34, 34)
@@ -224,7 +292,9 @@ local function createElementalRealms(portalHome)
 				local angle = index / 8 * math.pi * 2 + 0.35
 				local vent = createPart(realm, "LavaVent" .. index, Vector3.new(5, 0.5, 12), center + Vector3.new(math.cos(angle) * 66, -0.7, math.sin(angle) * 66), Color3.fromRGB(255, 70, 20), Enum.Material.Neon)
 				vent.CanCollide = false
+				vent.CanTouch = true
 				vent.CFrame = CFrame.new(vent.Position) * CFrame.Angles(0, -angle, 0)
+				connectHazard(vent, 18 + definition.RecommendedLevel * 0.35, "Lava Burn")
 			end
 		elseif definition.Element == "Ice" then
 			for index = 1, 8 do
@@ -234,12 +304,24 @@ local function createElementalRealms(portalHome)
 		elseif definition.Element == "Lightning" then
 			for index = 1, 6 do
 				local angle = index / 6 * math.pi * 2
-				createPart(realm, "StormRod" .. index, Vector3.new(1, 18, 1), center + Vector3.new(math.cos(angle) * 78, 8, math.sin(angle) * 78), Color3.fromRGB(255, 230, 90), Enum.Material.Neon)
+				local rod = createPart(realm, "StormRod" .. index, Vector3.new(3, 18, 3), center + Vector3.new(math.cos(angle) * 78, 8, math.sin(angle) * 78), Color3.fromRGB(255, 230, 90), Enum.Material.Neon)
+				connectHazard(rod, 22 + definition.RecommendedLevel * 0.3, "Storm Shock")
 			end
 		end
 		for index, profile in ipairs(definition.Props or {}) do
 			local angle = (index - 1) / math.max(#definition.Props, 1) * math.pi * 2 + math.rad(30)
 			placeImportedProp(realm, profile, center + Vector3.new(math.cos(angle) * 48, -1, math.sin(angle) * 48), index == 1 and 16 or 10, -angle)
+		end
+		local allProps = AssetModelService.List("WorldProps")
+		local realmNumber = table.find(RealmConfig.Order, realmId) or 1
+		for index, profile in ipairs(allProps) do
+			local lowerProfile = string.lower(profile)
+			local usableScenery = not string.find(lowerProfile, "tower", 1, true) and not string.find(lowerProfile, "obby", 1, true) and not string.find(lowerProfile, "ramp", 1, true)
+			if usableScenery and (index - 1) % #RealmConfig.Order + 1 == realmNumber then
+				local angle = index * 2.399
+				local radius = safeRadius + 85 + (index * 37) % math.max(90, boardSize * 0.32)
+				placeImportedProp(realm, profile, center + Vector3.new(math.cos(angle) * radius, -1, math.sin(angle) * radius), 9 + index % 13, -angle)
+			end
 		end
 		for index = 1, 14 * realmScale do
 			local angle = index * 2.399
@@ -250,8 +332,68 @@ local function createElementalRealms(portalHome)
 			local crown = createPart(realm, "SceneryCrown" .. index, Vector3.new(4 + index % 3, 3 + index % 4, 4 + (index + 1) % 3), position + Vector3.new(0, 4.2 + index % 3, 0), definition.Color:Lerp(Color3.fromRGB(65, 170, 85), definition.Element == "Earth" and 0.25 or 0.58), definition.Element == "Fire" and Enum.Material.Neon or Enum.Material.Grass)
 			crown.Shape, crown.CanCollide = Enum.PartType.Ball, false
 		end
-		createWarpPad(realm, "ReturnToHub", center + Vector3.new(0, 0, 105 * realmScale), HUB_SPAWN, Color3.fromRGB(80, 220, 255), "Hub", "RETURN TO SAFE HUB")
+
+		-- Populate the full board rather than only the original 100-stud center.
+		-- A stable seed gives each realm a repeatable authored-looking biome layout.
+		local biome = getOrCreateFolder(realm, "ProceduralBiome")
+		local random = Random.new(3100 + (table.find(RealmConfig.Order, realmId) or 1) * 997)
+		for index = 1, 72 do
+			local angle = random:NextNumber(0, math.pi * 2)
+			local radius = random:NextNumber(safeRadius + 85, boardSize * 0.5 - 55)
+			local position = center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+			local footprint = random:NextNumber(5, 15)
+			if definition.Element == "Fire" then
+				local height = random:NextNumber(7, 24)
+				local spire = createPart(biome, "BasaltSpire" .. index, Vector3.new(footprint, height, footprint * 0.72), position + Vector3.new(0, height * 0.5 - 1, 0), index % 5 == 0 and Color3.fromRGB(255, 70, 18) or Color3.fromRGB(48, 36, 38), index % 5 == 0 and Enum.Material.CrackedLava or Enum.Material.Basalt)
+				spire.Orientation = Vector3.new(random:NextNumber(-12, 12), random:NextNumber(0, 180), random:NextNumber(-12, 12))
+				if index % 9 == 0 then spire.CanTouch = true; connectHazard(spire, 12 + definition.RecommendedLevel * 0.2, "Volcanic Ground") end
+			elseif definition.Element == "Ice" then
+				local height = random:NextNumber(8, 25)
+				local crystal = createPart(biome, "GlacierCrystal" .. index, Vector3.new(footprint * 0.45, height, footprint * 0.65), position + Vector3.new(0, height * 0.5 - 1, 0), index % 3 == 0 and Color3.fromRGB(225, 250, 255) or Color3.fromRGB(105, 190, 235), index % 4 == 0 and Enum.Material.Glass or Enum.Material.Ice)
+				crystal.Orientation = Vector3.new(random:NextNumber(-18, 18), random:NextNumber(0, 180), random:NextNumber(-18, 18))
+			elseif definition.Element == "Lightning" then
+				local height = random:NextNumber(8, 22)
+				createPart(biome, "StormRuin" .. index, Vector3.new(footprint * 0.55, height, footprint * 0.55), position + Vector3.new(0, height * 0.5 - 1, 0), index % 4 == 0 and Color3.fromRGB(255, 225, 75) or Color3.fromRGB(64, 62, 88), index % 4 == 0 and Enum.Material.Neon or Enum.Material.Slate)
+				if index % 6 == 0 then
+					local platform = createPart(biome, "StormPlatform" .. index, Vector3.new(1.2, footprint * 2.2, footprint * 2.2), position, Color3.fromRGB(48, 50, 74), Enum.Material.Metal)
+					platform.Shape = Enum.PartType.Cylinder; platform.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
+				end
+			else
+				local trunkHeight = random:NextNumber(7, 17)
+				createPart(biome, "AncientTrunk" .. index, Vector3.new(footprint * 0.3, trunkHeight, footprint * 0.3), position + Vector3.new(0, trunkHeight * 0.5 - 1, 0), Color3.fromRGB(79, 55, 35), Enum.Material.Wood)
+				local canopy = createPart(biome, "AncientCanopy" .. index, Vector3.new(footprint * 1.3, footprint, footprint * 1.3), position + Vector3.new(0, trunkHeight + footprint * 0.25, 0), index % 4 == 0 and Color3.fromRGB(185, 155, 75) or Color3.fromRGB(65, 132, 62), Enum.Material.LeafyGrass)
+				canopy.Shape, canopy.CanCollide = Enum.PartType.Ball, false
+			end
+		end
+		for district = 1, 6 do
+			local angle = district / 6 * math.pi * 2 + 0.35
+			local districtCenter = center + Vector3.new(math.cos(angle) * boardSize * 0.31, 0, math.sin(angle) * boardSize * 0.31)
+			local plaza = createPart(biome, "DistrictPlaza" .. district, Vector3.new(48, 1.4, 48), districtCenter - Vector3.new(0, 0.8, 0), definition.Color:Lerp(Color3.fromRGB(42, 44, 52), 0.7), Enum.Material.Cobblestone)
+			plaza.Shape, plaza.Size, plaza.CFrame = Enum.PartType.Cylinder, Vector3.new(1.4, 48, 48), CFrame.new(districtCenter - Vector3.new(0, 0.8, 0)) * CFrame.Angles(0, 0, math.rad(90))
+			local marker = createPart(biome, "DistrictMarker" .. district, Vector3.new(5, 16 + district % 3 * 4, 5), districtCenter + Vector3.new(0, 7, 0), definition.Color, district % 2 == 0 and Enum.Material.Neon or Enum.Material.Rock)
+			addLabel(marker, definition.DisplayName .. " OUTPOST " .. district, Vector3.new(0, 11, 0))
+		end
+
+		local transit = getOrCreateFolder(realm, "RealmTransit")
+		local destinations = {
+			{Id = "Hub", Name = "SAFE HUB", Target = HUB_SPAWN, Color = Color3.fromRGB(80, 220, 255)},
+			{Id = "Arena", Name = "CASTLE DEFENSE", Target = Vector3.new(0, 18, -48), Color = Color3.fromRGB(255, 90, 115)},
+		}
+		for _, targetRealmId in ipairs(RealmConfig.Order) do
+			local targetRealm = RealmConfig.Realms[targetRealmId]
+			table.insert(destinations, {
+				Id = targetRealmId,
+				Name = string.format("%s\nLEVEL %d+ | BOSS: %s", targetRealm.DisplayName, targetRealm.RecommendedLevel, targetRealm.Boss),
+				Target = targetRealm.Destination,
+				Color = targetRealm.Color,
+			})
+		end
+		for index, destination in ipairs(destinations) do
+			local angle = (index - 1) / #destinations * math.pi * 2
+			createWarpPad(transit, "To" .. destination.Id, center + Vector3.new(math.cos(angle) * 57, 0, math.sin(angle) * 57), destination.Target, destination.Color, destination.Id, destination.Name)
+		end
 	end
+	startSafeZoneMonitor()
 
 	local warps = getOrCreateFolder(portalHome, "Warps")
 	for _, realmId in ipairs(RealmConfig.Order) do
@@ -308,6 +450,36 @@ local function createWorldDecor(config, arena, core, inventoryService)
 		light.Range = 18
 		light.Brightness = 2
 		light.Parent = beacon
+	end
+	-- Realm banners, braziers, and approach markers turn the defense arena into a
+	-- recognizable castle instead of an empty combat square.
+	local bannerColors = {
+		Color3.fromRGB(255, 82, 38),
+		Color3.fromRGB(105, 215, 255),
+		Color3.fromRGB(195, 115, 255),
+		Color3.fromRGB(105, 220, 115),
+	}
+	for index, bannerPosition in ipairs({
+		Vector3.new(-22, 10, -53), Vector3.new(22, 10, -53),
+		Vector3.new(-22, 10, 53), Vector3.new(22, 10, 53),
+		Vector3.new(-53, 10, -22), Vector3.new(-53, 10, 22),
+		Vector3.new(53, 10, -22), Vector3.new(53, 10, 22),
+	}) do
+		local banner = createPart(fort, "RealmBanner" .. index, Vector3.new(index > 4 and 0.35 or 5, 8, index > 4 and 5 or 0.35), bannerPosition, bannerColors[(index - 1) % #bannerColors + 1], Enum.Material.Fabric)
+		banner.CanCollide = false
+	end
+	for index, torchPosition in ipairs({
+		Vector3.new(-10, 3.5, -58), Vector3.new(10, 3.5, -58),
+		Vector3.new(-10, 3.5, 58), Vector3.new(10, 3.5, 58),
+		Vector3.new(-58, 3.5, -10), Vector3.new(-58, 3.5, 10),
+		Vector3.new(58, 3.5, -10), Vector3.new(58, 3.5, 10),
+	}) do
+		local brazier = createPart(fort, "Brazier" .. index, Vector3.new(2.4, 1, 2.4), torchPosition, Color3.fromRGB(72, 55, 45), Enum.Material.Metal)
+		local flame = createPart(fort, "BrazierFlame" .. index, Vector3.new(1.2, 2.6, 1.2), torchPosition + Vector3.new(0, 1.7, 0), index % 2 == 0 and trim or Color3.fromRGB(255, 125, 35), Enum.Material.Neon)
+		flame.Shape, flame.CanCollide = Enum.PartType.Ball, false
+		local light = flame:FindFirstChildOfClass("PointLight") or Instance.new("PointLight")
+		light.Color, light.Range, light.Brightness, light.Parent = flame.Color, 20, 2.2, flame
+		brazier.CanCollide = true
 	end
 	createPart(structures, "NorthWall", Vector3.new(70, 5, 2), Vector3.new(0, 2.5, -70), stone, Enum.Material.Brick)
 	createPart(structures, "SouthWall", Vector3.new(70, 5, 2), Vector3.new(0, 2.5, 70), stone, Enum.Material.Brick)
@@ -382,7 +554,7 @@ local function createWorldDecor(config, arena, core, inventoryService)
 	addLabel(core, "DEFENSE CORE", Vector3.new(0, 7, 0))
 end
 
-local function createArena(config, inventoryService)
+local function createArena(config, inventoryService, questService)
 	local arena = getOrCreateFolder(workspace, "Arena")
 	local spawns = getOrCreateFolder(workspace, "EnemySpawns")
 	local waypoints = getOrCreateFolder(workspace, "EnemyWaypoints")
@@ -413,7 +585,7 @@ local function createArena(config, inventoryService)
 	createWarpPad(warps, "EAST", HUB_CENTER + Vector3.new(-48, -3, 24), Vector3.zero, Color3.fromRGB(255, 190, 80))
 	createWarpPad(warps, "SOUTH", HUB_CENTER + Vector3.new(48, -3, 24), Vector3.zero, Color3.fromRGB(100, 255, 180))
 	createWarpPad(warps, "WaveDefense", HUB_CENTER + Vector3.new(0, -3, 42), Vector3.new(0, 18, -48), Color3.fromRGB(255, 90, 115), "Arena", "ENTER WAVE DEFENSE")
-	createElementalRealms(hub)
+	createElementalRealms(hub, questService)
 	createWarpPad(arena, "ReturnToSafeHub", Vector3.new(0, 1, -92), HUB_SPAWN, Color3.fromRGB(80, 220, 255), "Hub", "RETURN TO SAFE HUB")
 	local spawnLocation = workspace:FindFirstChild("SpawnLocation")
 	if spawnLocation and spawnLocation:IsA("SpawnLocation") then
@@ -468,6 +640,10 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	local model = Instance.new("Model")
 	local isBoss = enemyType == "Boss" or definition.LootTier == "Boss"
 	local displayName = eliteName and string.format("%s %s", string.upper(eliteName), definition.DisplayName) or definition.DisplayName
+	local requiredLevel = math.max(1, math.floor(tonumber(definition.RequiredLevel) or 1))
+	if requiredLevel > 1 then
+		displayName = string.format("%s [LV %d+]", displayName, requiredLevel)
+	end
 	model.Name = displayName
 	model:SetAttribute("EnemyType", enemyType)
 	local rewardMultiplier = eliteDefinition and eliteDefinition.RewardMultiplier or 1
@@ -486,11 +662,18 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	model:SetAttribute("StatusEffect", definition.StatusEffect)
 	local statusElements = {Burn = "Fire", Slow = "Ice", Shock = "Lightning", Crush = "Earth", Void = "Gravity", Poison = "Poison"}
 	model:SetAttribute("Element", definition.Element or statusElements[definition.StatusEffect] or "Physical")
-	model:SetAttribute("RequiredLevel", definition.RequiredLevel or 1)
+	model:SetAttribute("RequiredLevel", requiredLevel)
+	model:SetAttribute("PassiveUntilAttacked", definition.PassiveUntilAttacked == true)
 	model:SetAttribute("LootTier", definition.LootTier or enemyType)
 	model:SetAttribute("AbilityColor", definition.Color)
 	model:SetAttribute("FlyingEnemy", definition.Flying == true)
+	model:SetAttribute("AnimatedWings", definition.AnimatedWings == true)
 	model:SetAttribute("HoverHeight", definition.HoverHeight or 0)
+	model:SetAttribute("HumanoidGroup", definition.HumanoidGroup or "")
+	model:SetAttribute("CombatRole", definition.CombatRole or definition.AttackStyle or "Melee")
+	local sizeRange = definition.SizeRange
+	local variantScale = type(sizeRange) == "table" and math.random(math.floor(sizeRange[1] * 100), math.floor(sizeRange[2] * 100)) / 100 or 1
+	model:SetAttribute("MobVariantScale", variantScale)
 
 	local body = Instance.new("Part")
 	body.Name = "HumanoidRootPart"
@@ -504,7 +687,7 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	body.RootPriority = 127
 	body.Parent = model
 
-	local scale = isBoss and 1.7 or 1
+	local scale = (isBoss and 1.7 or 1) * variantScale
 	local fallbackLimbs = {}
 	local function addLimb(name, size, offset, color, shape)
 		local limb = Instance.new("Part")
@@ -516,10 +699,11 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 		limb.Shape = shape or Enum.PartType.Block
 		limb.CanCollide = false
 		limb.Parent = model
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = body
-		weld.Part1 = limb
-		weld.Parent = limb
+		local weld = Instance.new("Motor6D")
+		weld.Name = "EnemyLimbMotor" .. name
+		weld.Part0, weld.Part1 = body, limb
+		weld.C0, weld.C1 = body.CFrame:ToObjectSpace(limb.CFrame), CFrame.identity
+		weld.Parent = body
 		table.insert(fallbackLimbs, limb)
 		return limb
 	end
@@ -547,14 +731,14 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 		importedVisual.Name = "ImportedVisual"
 		importedVisual.Parent = model
 		local _, visualSize = importedVisual:GetBoundingBox()
-		local targetHeight = definition.VisualHeight or (isBoss and 12 or (definition.Health >= 500 and 8 or 5.5))
+		local targetHeight = (definition.VisualHeight or (isBoss and 12 or (definition.Health >= 500 and 8 or 5.5))) * variantScale
 		if visualSize.Y > 0.01 then pcall(function() importedVisual:ScaleTo(math.clamp(targetHeight / visualSize.Y, 0.04, 4)) end) end
 		AssetModelService.WeldModel(importedVisual)
 		local pivot = importedVisual:GetPivot()
 		local boxCFrame, boxSize = importedVisual:GetBoundingBox()
 		local pivotToBox = pivot:ToObjectSpace(boxCFrame)
 		local hoverHeight = definition.HoverHeight or 0
-		local targetBox = CFrame.new(position + Vector3.new(0, -body.Size.Y * 0.5 + hoverHeight + boxSize.Y * 0.5, 0))
+		local targetBox = CFrame.new(position + Vector3.new(0, hoverHeight + boxSize.Y * 0.5, 0)) * (definition.VisualRotation or CFrame.identity)
 		importedVisual:PivotTo(targetBox * pivotToBox:Inverse())
 		local visualRoot = importedVisual.PrimaryPart
 		if visualRoot then
@@ -572,6 +756,34 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 		model:SetAttribute("MissingModelProfile", definition.ModelProfile or "")
 	end
 
+	if definition.HumanoidGroup then
+		local uniform = Instance.new("Model")
+		uniform.Name, uniform.Parent = "FactionUniform", model
+		local primary = definition.UniformPrimary or definition.Color
+		local secondary = definition.UniformSecondary or primary:Lerp(Color3.new(1, 1, 1), 0.35)
+		local function garment(name, size, offset, color, material)
+			local part = Instance.new("Part")
+			part.Name, part.Size, part.Color, part.Material = name, size * variantScale, color, material or Enum.Material.Fabric
+			part.CanCollide, part.CanTouch, part.CanQuery, part.Massless = false, false, false, true
+			part.CFrame, part.Parent = body.CFrame * CFrame.new(offset * variantScale), uniform
+			local motor = Instance.new("Motor6D")
+			motor.Name, motor.Part0, motor.Part1, motor.C0, motor.Parent = "UniformMotor" .. name, body, part, body.CFrame:ToObjectSpace(part.CFrame), part
+			return part
+		end
+		garment("FactionTunic", Vector3.new(2.35, 2.6, 0.22), Vector3.new(0, 2.7, -0.72), primary)
+		garment("FactionCape", Vector3.new(2.1, 2.9, 0.16), Vector3.new(0, 2.55, 0.72), primary:Lerp(Color3.new(0, 0, 0), 0.28))
+		garment("FactionBelt", Vector3.new(2.5, 0.3, 1.42), Vector3.new(0, 1.65, 0), secondary, Enum.Material.Fabric)
+		garment("LeftShoulderMark", Vector3.new(0.85, 0.42, 1.25), Vector3.new(-1.38, 3.35, 0), secondary, Enum.Material.Metal)
+		garment("RightShoulderMark", Vector3.new(0.85, 0.42, 1.25), Vector3.new(1.38, 3.35, 0), secondary, Enum.Material.Metal)
+		if definition.CombatRole == "Archer" then
+			garment("StormHood", Vector3.new(1.72, 0.45, 1.72), Vector3.new(0, 5.05, 0), primary, Enum.Material.Fabric)
+		elseif definition.CombatRole == "Champion" then
+			garment("RunicCrest", Vector3.new(0.3, 1.25, 0.65), Vector3.new(0, 5.72, 0), secondary, Enum.Material.Neon)
+		elseif definition.CombatRole == "Bruiser" then
+			garment("MossguardChest", Vector3.new(2.65, 1.1, 1.48), Vector3.new(0, 3, 0), secondary:Lerp(primary, 0.45), Enum.Material.Wood)
+		end
+	end
+
 	local humanoid = Instance.new("Humanoid")
 	humanoid.MaxHealth = definition.Health * healthScale * (eliteDefinition and eliteDefinition.HealthMultiplier or 1)
 	humanoid.Health = humanoid.MaxHealth
@@ -585,12 +797,12 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	local healthGui = Instance.new("BillboardGui")
 	healthGui.Name = "HealthBar"
 	healthGui.Adornee = body
-	healthGui.Size = UDim2.fromOffset(isBoss and 220 or 110, isBoss and 32 or 22)
-	healthGui.StudsOffset = Vector3.new(0, isBoss and 8 or 4.5, 0)
+	healthGui.Size = UDim2.fromOffset(isBoss and 250 or 150, isBoss and 50 or 38)
+	healthGui.StudsOffset = Vector3.new(0, math.max(isBoss and 8 or 4.5, (definition.HoverHeight or 0) + (definition.VisualHeight or 4) + 2), 0)
 	healthGui.AlwaysOnTop = true
 	healthGui.Parent = model
 	local background = Instance.new("Frame")
-	background.Size = UDim2.fromScale(1, 0.38)
+	background.Size = UDim2.fromScale(1, 0.32)
 	background.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 	background.BorderSizePixel = 0
 	background.Parent = healthGui
@@ -601,20 +813,27 @@ local function createEnemy(enemyType, definition, healthScale, damageScale, spee
 	fill.BorderSizePixel = 0
 	fill.Parent = background
 	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.fromScale(1, 0.62)
-	nameLabel.Position = UDim2.fromScale(0, 0.4)
+	nameLabel.Size = UDim2.fromScale(1, 0.38)
+	nameLabel.Position = UDim2.fromScale(0, 0.34)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.TextColor3 = Color3.new(1, 1, 1)
 	nameLabel.TextScaled = true
 	nameLabel.Font = Enum.Font.GothamBold
 	nameLabel.Text = displayName
 	nameLabel.Parent = healthGui
+	local healthText = Instance.new("TextLabel")
+	healthText.Name, healthText.Size, healthText.Position = "HealthText", UDim2.fromScale(1, 0.28), UDim2.fromScale(0, 0.72)
+	healthText.BackgroundTransparency, healthText.TextColor3, healthText.TextScaled = 1, Color3.fromRGB(255, 225, 225), true
+	healthText.Font, healthText.Text = Enum.Font.GothamBlack, string.format("%d / %d HP", math.ceil(humanoid.Health), math.ceil(humanoid.MaxHealth))
+	healthText.Parent = healthGui
 	humanoid.HealthChanged:Connect(function(health)
 		fill.Size = UDim2.fromScale(math.clamp(health / humanoid.MaxHealth, 0, 1), 1)
+		healthText.Text = string.format("%d / %d HP", math.max(0, math.ceil(health)), math.ceil(humanoid.MaxHealth))
 	end)
 
 	model.PrimaryPart = body
 	model.Parent = parent
+	MobAnimationService.Start(model)
 	if eliteDefinition then
 		if eliteDefinition.Scale then
 			model:ScaleTo(eliteDefinition.Scale)
@@ -681,7 +900,26 @@ local function chooseEnemyType(wave, index)
 end
 
 function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfig, progression, inventoryService, questService)
-	local _, spawns, waypoints, core = createArena(gameConfig, inventoryService)
+	local _, spawns, waypoints, core = createArena(gameConfig, inventoryService, questService)
+	local canonicalSpawn = workspace:FindFirstChild("SpawnLocation")
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("SpawnLocation") then descendant.Enabled = descendant == canonicalSpawn end
+	end
+	local function sendToStarterHub(player, character)
+		if canonicalSpawn and canonicalSpawn:IsA("SpawnLocation") then player.RespawnLocation = canonicalSpawn end
+		task.delay(0.15, function()
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if player.Parent and character == player.Character and humanoid and humanoid.Health > 0 then
+				character:PivotTo(CFrame.new(HUB_SPAWN + Vector3.new(0, 4, 0)))
+			end
+		end)
+	end
+	local function securePlayerSpawn(player)
+		player.CharacterAdded:Connect(function(character) sendToStarterHub(player, character) end)
+		if player.Character then sendToStarterHub(player, player.Character) end
+	end
+	Players.PlayerAdded:Connect(securePlayerSpawn)
+	for _, player in ipairs(Players:GetPlayers()) do securePlayerSpawn(player) end
 	local enemyFolder = getOrCreateFolder(workspace, "Enemies")
 	runtimeState = {
 		GameConfig = gameConfig,
@@ -707,7 +945,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 	local function activeWaveEnemyCount()
 		local count = 0
 		for _, enemy in ipairs(enemyFolder:GetChildren()) do
-			if not enemy:GetAttribute("IsPractice") then
+			if enemy:GetAttribute("IsWaveEnemy") then
 				count += 1
 			end
 		end
@@ -716,7 +954,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 
 	local function clearEnemies()
 		for _, enemy in ipairs(enemyFolder:GetChildren()) do
-			if not enemy:GetAttribute("IsPractice") then
+			if enemy:GetAttribute("IsWaveEnemy") then
 				enemy:Destroy()
 			end
 		end
@@ -728,9 +966,11 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 		for _, player in ipairs(Players:GetPlayers()) do
 			progression.AddXP(player, xp, progressionConfig)
 			progression.AddCoins(player, gold)
+			player:SetAttribute("HighestWave", math.max(player:GetAttribute("HighestWave") or 0, wave))
 			feedbackRemote:FireClient(player, "Reward", xp, gold)
 			questService.Record(player, "Wave", 1)
 		end
+		workspace:SetAttribute("HighestWave", math.max(workspace:GetAttribute("HighestWave") or 0, wave))
 		effectsRemote:FireAllClients("WaveAnnouncement", {
 			Title = "WAVE CLEARED",
 			Subtitle = string.format("Wave %d  •  +%d XP  •  +%d Gold", wave, xp, gold),
@@ -750,7 +990,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 				progression.AddCoins(player, gold)
 				feedbackRemote:FireClient(player, "Reward", xp, gold)
 				inventoryService.GrantBossLoot(player, boss)
-				questService.Record(player, "Boss", 1)
+				questService.Record(player, "Boss", 1, {RealmId = boss:GetAttribute("RealmId")})
 			end
 		end
 	end
@@ -766,6 +1006,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 		boss:SetAttribute("BossWave", definition.RequiredLevel or 100)
 		boss:SetAttribute("BossArchetype", bossType)
 		boss:SetAttribute("TriggeredBoss", true)
+		if RealmConfig.Realms[triggerId] then boss:SetAttribute("RealmId", triggerId) end
 		EnemyAI.Run(boss, core, gameConfig, true)
 		BossPhaseController.Start(boss, waveConfig, gameConfig)
 		humanoid.Died:Connect(function()
@@ -777,36 +1018,52 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 
 	-- Each realm scales to its entry level and has a shiny herald whose death starts its boss battle.
 	for _, realmId in ipairs(RealmConfig.Order) do
-		local realm = RealmConfig.Realms[realmId]
-		for index, enemyType in ipairs(realm.Mobs or {}) do
+		local activeRealmId = realmId
+		local realm = RealmConfig.Realms[activeRealmId]
+		local population = math.max(#(realm.Mobs or {}), realm.Population or 16)
+		local function spawnRealmMob(index, enemyType)
 			local definition = enemyConfig[enemyType]
 			if definition then
-				local angle = (index - 1) / math.max(#realm.Mobs, 1) * math.pi * 2 + math.rad(45)
-				local radius = (index % 2 == 0 and 72 or 48) * math.min(realm.SizeScale or 1, 3)
+				local angle = index * 2.399963 + math.rad(45)
+				local boardRadius = 110 * (realm.SizeScale or 1)
+				local minimumRadius = (realm.SafeRadius or 72) + 38
+				local radius = minimumRadius + ((index - 1) * 79) % math.max(1, boardRadius - minimumRadius - 70)
 				local position = realm.Destination + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
 				local levelScale = 1 + (realm.RecommendedLevel or 1) * 0.035
 				local realmEnemy, realmHumanoid = createEnemy(enemyType, definition, levelScale, 1 + (realm.RecommendedLevel or 1) * 0.018, 0, position, enemyFolder)
 				realmEnemy:SetAttribute("IsRealmMob", true)
-				realmEnemy:SetAttribute("RealmId", realmId)
+				realmEnemy:SetAttribute("RealmId", activeRealmId)
 				realmEnemy:SetAttribute("RequiredLevel", realm.RecommendedLevel)
+				realmEnemy.Name = string.format("%s [LV %d+]", realmEnemy.Name, realm.RecommendedLevel)
+				realmHumanoid.DisplayName = realmEnemy.Name
 				if index == 1 then
 					realmEnemy.Name = "SHINY " .. realmEnemy.Name
+					realmHumanoid.DisplayName = realmEnemy.Name
 					realmEnemy:SetAttribute("IsShiny", true)
 					local shine = Instance.new("Highlight")
 					shine.Name, shine.FillColor, shine.OutlineColor, shine.FillTransparency, shine.Parent = "ShinyHerald", Color3.fromRGB(255, 245, 145), realm.Color, 0.38, realmEnemy
 				end
 				EnemyAI.Run(realmEnemy, core, gameConfig, true)
 				realmHumanoid.Died:Connect(function()
-					if realmEnemy:GetAttribute("IsShiny") then spawnTriggeredBoss(realmBossTypes[realmId], realm.Destination + Vector3.new(0, 3, 0), realmId) end
+					if realmEnemy:GetAttribute("IsShiny") then spawnTriggeredBoss(realmBossTypes[activeRealmId], realm.Destination + Vector3.new((realm.SafeRadius or 72) + 55, 3, 0), activeRealmId) end
 					task.delay(0.25, function() if realmEnemy.Parent then realmEnemy:Destroy() end end)
+					task.delay(12, function()
+						if enemyFolder.Parent then spawnRealmMob(index, enemyType) end
+					end)
 				end)
 			end
+		end
+		for index = 1, population do
+			local mobTypes = realm.Mobs or {}
+			local enemyType = mobTypes[(index - 1) % math.max(#mobTypes, 1) + 1]
+			if enemyType then spawnRealmMob(index, enemyType) end
 		end
 	end
 	local chickenDefinition = enemyConfig.ShinyChicken
 	if chickenDefinition then
 		local chicken, chickenHumanoid = createEnemy("ShinyChicken", chickenDefinition, 1, 1, 0, HUB_CENTER + Vector3.new(22, 0, 0), enemyFolder)
-		chicken.Name = "SHINY FINAL BOSS CHICKEN"
+		chicken.Name = "SHINY FINAL BOSS CHICKEN [LV 100+ - PASSIVE UNTIL HIT]"
+		chickenHumanoid.DisplayName = chicken.Name
 		chicken:SetAttribute("IsShiny", true)
 		local shine = Instance.new("Highlight")
 		shine.Name, shine.FillColor, shine.OutlineColor, shine.FillTransparency, shine.Parent = "PrismaticShine", Color3.fromRGB(255, 245, 150), Color3.fromRGB(255, 90, 220), 0.25, chicken
@@ -830,7 +1087,6 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 				currentWave = 1
 			end
 			setWaveAttributes(currentWave, activeWaveEnemyCount(), "Intermission")
-			workspace:SetAttribute("HighestWave", math.max(workspace:GetAttribute("HighestWave") or 0, currentWave))
 			for seconds = gameConfig.IntermissionSeconds, 1, -1 do
 				workspace:SetAttribute("WaveCountdown", seconds)
 				task.wait(1)
@@ -856,6 +1112,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 				local spawn = spawnList[((index - 1) % #spawnList) + 1]
 				local eliteName, eliteDefinition = chooseEliteModifier(currentWave, waveConfig)
 				local enemy, humanoid, damage = createEnemy(enemyType, definition, healthScale, damageScale, speedBonus, spawn.Position, enemyFolder, eliteName, eliteDefinition)
+				enemy:SetAttribute("IsWaveEnemy", true)
 				humanoid.Died:Connect(function()
 					task.delay(0.2, function()
 						if enemy.Parent then
@@ -870,6 +1127,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 			if currentWave % 10 == 0 then
 				local definition = enemyConfig.Boss
 				local boss, humanoid, damage = createEnemy("Boss", definition, healthScale * (1 + currentWave * 0.3), damageScale, speedBonus, spawnList[1].Position, enemyFolder)
+				boss:SetAttribute("IsWaveEnemy", true)
 				local archetype = waveConfig.BossArchetypes[((math.floor(currentWave / 10) - 1) % #waveConfig.BossArchetypes) + 1]
 				boss.Name = archetype.DisplayName
 				humanoid.DisplayName = archetype.DisplayName

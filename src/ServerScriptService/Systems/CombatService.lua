@@ -139,6 +139,28 @@ local function applyStun(enemy, duration, config, force)
 	CrowdControlService.Stun(enemy, duration, config.StunImmunitySeconds, force)
 end
 
+local function grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName)
+	if enemy:GetAttribute("BossWave") or enemy:GetAttribute("RewardGranted") then return end
+	enemy:SetAttribute("RewardGranted", true)
+	local xp = enemy:GetAttribute("RewardXP") or 0
+	local gold = enemy:GetAttribute("RewardCoins") or 0
+	progression.AddXP(player, xp, config)
+	progression.AddCoins(player, gold)
+	feedbackRemote:FireClient(player, "Reward", xp, gold)
+	inventoryService.RollLoot(player, enemy)
+	if math.random() <= math.clamp(0.35 + (player:GetAttribute("FormPointFind") or 0), 0, 0.9) then
+		player:SetAttribute("FormPoints", (player:GetAttribute("FormPoints") or 0) + (enemy:GetAttribute("IsElite") and 2 or 1))
+	end
+	if activeQuestService then
+		local context = {RealmId = enemy:GetAttribute("RealmId"), EnemyType = enemy:GetAttribute("EnemyType")}
+		activeQuestService.Record(player, "Kill", 1, context)
+		activeQuestService.Record(player, "RealmKill", 1, context)
+		activeQuestService.Record(player, "EnemyKill", 1, context)
+		activeQuestService.Record(player, abilityName and "PowerKill" or "MeleeKill", 1, context)
+		if enemy:GetAttribute("IsElite") then activeQuestService.Record(player, "EliteKill", 1, context) end
+	end
+end
+
 local function damageEnemy(player, enemy, amount, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, heavy, abilityName)
 	local ability = abilityName and config.Abilities[abilityName]
 	local element = ability and ability.Element or player:GetAttribute("EquippedWeaponElement")
@@ -158,7 +180,20 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 	end
 	local statusBonus = element and (tonumber(player:GetAttribute(element .. "StatusBonus")) or 0) or 0
 	if element == "Fire" then
+		local token = (enemy:GetAttribute("BurnToken") or 0) + 1
+		enemy:SetAttribute("BurnToken", token)
 		enemy:SetAttribute("BurningUntil", workspace:GetServerTimeNow() + 3 * (1 + statusBonus))
+		task.spawn(function()
+			for _ = 1, math.min(6, 3 + math.floor(statusBonus * 2)) do
+				task.wait(0.75)
+				if not enemy.Parent or enemy:GetAttribute("BurnToken") ~= token then break end
+				local dotResult = damageService.ApplyEnemyDamage(player, enemy, math.max(1, amount * 0.07))
+				if dotResult and dotResult.Killed then
+					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName)
+					break
+				end
+			end
+		end)
 	elseif element == "Ice" then
 		CrowdControlService.Slow(enemy, math.max(0.3, 0.55 - statusBonus * 0.15), 2.5 * (1 + statusBonus))
 	elseif element == "Lightning" and math.random() < 0.22 + statusBonus * 0.2 then
@@ -175,7 +210,11 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 				task.wait(0.75)
 				if not enemy.Parent or enemy:GetAttribute("PoisonToken") ~= token then break end
 				local dot = math.max(1, amount * (0.08 + (tonumber(player:GetAttribute("PoisonDotBonus")) or 0)))
-				damageService.ApplyEnemyDamage(player, enemy, dot)
+				local dotResult = damageService.ApplyEnemyDamage(player, enemy, dot)
+				if dotResult and dotResult.Killed then
+					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName)
+					break
+				end
 			end
 		end)
 	elseif element == "Prismatic" then
@@ -191,23 +230,11 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 		Target = enemy,
 		Heavy = heavy == true,
 	})
-	if abilityName and activeMasteryService then activeMasteryService.Add(player, abilityName, result.Amount * config.Mastery.XPPerDamage) end
-	if result.Killed and not enemy:GetAttribute("BossWave") and not enemy:GetAttribute("RewardGranted") then
-		enemy:SetAttribute("RewardGranted", true)
-		local xp = enemy:GetAttribute("RewardXP") or 0
-		local gold = enemy:GetAttribute("RewardCoins") or 0
-		progression.AddXP(player, xp, config)
-		progression.AddCoins(player, gold)
-		feedbackRemote:FireClient(player, "Reward", xp, gold)
-		inventoryService.RollLoot(player, enemy)
-		if math.random() <= math.clamp(0.35 + (player:GetAttribute("FormPointFind") or 0), 0, 0.9) then
-			player:SetAttribute("FormPoints", (player:GetAttribute("FormPoints") or 0) + (enemy:GetAttribute("IsElite") and 2 or 1))
-		end
-		if activeQuestService then
-			activeQuestService.Record(player, "Kill", 1)
-			if enemy:GetAttribute("IsElite") then activeQuestService.Record(player, "EliteKill", 1) end
-		end
+	if result.Critical and activeQuestService then
+		activeQuestService.Record(player, "CriticalHit", 1, {RealmId = enemy:GetAttribute("RealmId"), EnemyType = enemy:GetAttribute("EnemyType")})
 	end
+	if abilityName and activeMasteryService then activeMasteryService.Add(player, abilityName, result.Amount * config.Mastery.XPPerDamage) end
+	if result.Killed then grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName) end
 	return result
 end
 
@@ -224,6 +251,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 	local abilityCooldowns = {}
 	activeAbilityCooldowns = abilityCooldowns
 	local meleeStates = {}
+	local rangedReadyAt = {}
 
 	local function validCharacter(player)
 		local character = player.Character
@@ -237,17 +265,26 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local valid, root = validCharacter(player)
 			local kind = player:GetAttribute("EquippedWeaponKind")
 			if not valid or (kind ~= "Bow" and kind ~= "Gun" and kind ~= "Rifle") or not isFiniteVector3(value) then return end
+			local now = os.clock()
+			if now < (rangedReadyAt[player] or 0) then return end
+			local rangedCooldown = math.max(0.12, tonumber(config.RangedCooldown) or 0.55)
+			rangedReadyAt[player] = now + rangedCooldown
 			local target = value
 			if (target - root.Position).Magnitude > 120 then target = root.Position + (target - root.Position).Unit * 120 end
 			local startPosition = root.Position + Vector3.new(0, 2, 0)
-			local impact = findProjectileIntercept(startPosition, target, 3)
+			local impact = findProjectileIntercept(startPosition, target, 5)
 			local multiplier = kind == "Rifle" and 1.35 or kind == "Bow" and 1.1 or 0.9
 			local damage = (player:GetAttribute("AttackPower") or config.MeleeDamage) * multiplier * getDamageMultiplier(player)
-			effectsRemote:FireAllClients("EnergyBolt", {Origin = startPosition, Target = impact, Duration = 0.2, ImpactTime = workspace:GetServerTimeNow() + 0.2, Radius = 3})
-			for _, enemy in ipairs(getEnemiesInRadius(impact, 3)) do
-				local weaponAbility = player:GetAttribute("EquippedRangedAbility")
-				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, config.Abilities[weaponAbility] and weaponAbility or nil)
-			end
+			local travelTime = math.clamp((impact - startPosition).Magnitude / (tonumber(config.RangedProjectileSpeed) or 180), 0.05, 0.8)
+			feedbackRemote:FireClient(player, "CastAccepted", "RangedWeapon", rangedCooldown)
+			effectsRemote:FireAllClients("EnergyBolt", {Origin = startPosition, Target = impact, Duration = travelTime, ImpactTime = workspace:GetServerTimeNow() + travelTime, Radius = 5, Element = player:GetAttribute("EquippedWeaponElement")})
+			task.delay(travelTime, function()
+				if not player.Parent then return end
+				for _, enemy in ipairs(getEnemiesInRadius(impact, 5)) do
+					local weaponAbility = player:GetAttribute("EquippedRangedAbility")
+					damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, config.Abilities[weaponAbility] and weaponAbility or nil)
+				end
+			end)
 			return
 		end
 		if action == "Block" then
@@ -274,33 +311,62 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		if now < state.ReadyAt then
 			return
 		end
-		if now - state.LastAttack > config.MeleeComboReset then
+		local comboWindow = config.MeleeComboReset + (player:GetAttribute("MeleeComboWindowBonus") or 0)
+		if now - state.LastAttack > comboWindow then
 			state.Index = 1
 		else
 			state.Index = (state.Index % #config.MeleeCombo) + 1
 		end
 		local comboDefinition = config.MeleeCombo[state.Index]
 		state.LastAttack = now
-		state.ReadyAt = now + comboDefinition.Cooldown
+		state.ReadyAt = now + comboDefinition.Cooldown * math.max(0.55, 1 - (player:GetAttribute("MeleeCooldownReduction") or 0))
 		meleeStates[player] = state
 		player:SetAttribute("Blocking", false)
+		player:SetAttribute("MeleeGuardUntil", workspace:GetServerTimeNow() + 0.42)
+		local finisherAttack = state.Index == #config.MeleeCombo
+		if state.Index == 1 and (player:GetAttribute("MeleeDashUnlocked") or 0) > 0 then
+			root.AssemblyLinearVelocity += root.CFrame.LookVector * 32
+		end
 		feedbackRemote:FireClient(player, "CastAccepted", "Melee", state.Index)
 		effectsRemote:FireAllClients("Melee", {
 			Origin = root.Position,
 			Direction = root.CFrame.LookVector,
 			Character = player.Character,
 			Combo = state.Index,
+			Finisher = finisherAttack,
+			Style = player:GetAttribute("EquippedWeaponAnimation") or "Unarmed",
+			Element = player:GetAttribute("EquippedWeaponElement") or "Physical",
+			Legendary = (player:GetAttribute("MeleeLegendUnlocked") or 0) > 0,
 		})
-		for _, enemy in ipairs(getEnemiesInMeleeCone(root, config.MeleeRange)) do
+		if finisherAttack then
+			effectsRemote:FireAllClients("PowerLocal", {
+				Ability = "MeleeFinisherCharge",
+				Element = player:GetAttribute("EquippedWeaponElement") or "Physical",
+				Origin = root.Position,
+				Radius = 9,
+				Tier = (player:GetAttribute("MeleeShockwaveUnlocked") or 0) > 0 and 8 or 4,
+			})
+		end
+		local comboIndex = state.Index
+		task.delay(comboDefinition.HitDelay or 0.1, function()
+			local currentCharacter = player.Character
+			local currentHumanoid = currentCharacter and currentCharacter:FindFirstChildOfClass("Humanoid")
+			local currentRoot = currentCharacter and currentCharacter:FindFirstChild("HumanoidRootPart")
+			if not currentHumanoid or not currentRoot or currentHumanoid.Health <= 0 then return end
+			local meleeRange = config.MeleeRange + (player:GetAttribute("MeleeRangeBonus") or 0)
+			for _, enemy in ipairs(getEnemiesInMeleeCone(currentRoot, meleeRange)) do
 			local damage = (player:GetAttribute("AttackPower") or config.MeleeDamage)
 				* comboDefinition.DamageMultiplier
 				* getDamageMultiplier(player)
-			local isFinisher = state.Index == #config.MeleeCombo
+				* (player:GetAttribute("MeleeDamageMultiplier") or 1)
+				* (player:GetAttribute("EquippedWeaponDamageMultiplier") or 1)
+			local isFinisher = comboIndex == #config.MeleeCombo
+			if isFinisher then damage *= player:GetAttribute("MeleeFinisherMultiplier") or 1 end
 			local weaponAbility = player:GetAttribute("EquippedWeaponAbility")
 			local result = damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, isFinisher, config.Abilities[weaponAbility] and weaponAbility or nil)
 			if result then
-				applyStun(enemy, comboDefinition.Stun, config, isFinisher)
-				applyKnockback(enemy, root.Position, comboDefinition.Knockback)
+				applyStun(enemy, (comboDefinition.Stun or 0) + (player:GetAttribute("MeleeStunBonus") or 0), config, isFinisher)
+				applyKnockback(enemy, currentRoot.Position, comboDefinition.Knockback)
 				local form = player:GetAttribute("ActiveTransformation")
 				local formSkills = player:GetAttribute("ActiveFormSkillCount") or 0
 				if formSkills >= 2 and form == "Wolf" then
@@ -315,21 +381,34 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 						end
 					end)
 				elseif formSkills >= 2 and form == "Bear" and isFinisher then
-					effectsRemote:FireAllClients("GroundSlam", {Ability = "TitanClaw", Element = "Earth", Origin = root.Position, Radius = 14 + formSkills})
-					for _, nearby in ipairs(getEnemiesInRadius(root.Position, 14 + formSkills)) do applyStun(nearby, 0.5 + formSkills * 0.06, config, true); applyKnockback(nearby, root.Position, 55 + formSkills * 4) end
+					effectsRemote:FireAllClients("GroundSlam", {Ability = "TitanClaw", Element = "Earth", Origin = currentRoot.Position, Radius = 14 + formSkills})
+					for _, nearby in ipairs(getEnemiesInRadius(currentRoot.Position, 14 + formSkills)) do applyStun(nearby, 0.5 + formSkills * 0.06, config, true); applyKnockback(nearby, currentRoot.Position, 55 + formSkills * 4) end
 				elseif formSkills >= 2 and form == "Eagle" and isFinisher then
-					effectsRemote:FireAllClients("PowerLocal", {Ability = "GaleTalon", Element = "Lightning", Origin = root.Position, Radius = 16 + formSkills, Tier = formSkills})
-					for _, nearby in ipairs(getEnemiesInRadius(root.Position, 16 + formSkills)) do if nearby ~= enemy then damageEnemy(player, nearby, damage * 0.45, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, true, "LightningBolt") end end
+					effectsRemote:FireAllClients("PowerLocal", {Ability = "GaleTalon", Element = "Lightning", Origin = currentRoot.Position, Radius = 16 + formSkills, Tier = formSkills})
+					for _, nearby in ipairs(getEnemiesInRadius(currentRoot.Position, 16 + formSkills)) do if nearby ~= enemy then damageEnemy(player, nearby, damage * 0.45, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, true, "LightningBolt") end end
 				end
 				if isFinisher then
 					effectsRemote:FireAllClients("FinisherImpact", {Origin = enemy:GetPivot().Position})
 				end
 			end
-		end
+			end
+			if comboIndex == #config.MeleeCombo then
+				local origin = currentRoot.Position + currentRoot.CFrame.LookVector * 5
+				local upgraded = (player:GetAttribute("MeleeShockwaveUnlocked") or 0) > 0
+				local legendary = (player:GetAttribute("MeleeLegendUnlocked") or 0) > 0
+				local radius = upgraded and 12 or 8
+				effectsRemote:FireAllClients("GroundSlam", {Origin = origin, Radius = radius, Element = legendary and "Prismatic" or (player:GetAttribute("EquippedWeaponElement") or "Physical"), Tier = legendary and 10 or upgraded and 8 or 4})
+				local shockDamage = (player:GetAttribute("AttackPower") or config.MeleeDamage) * (upgraded and 0.55 or 0.3) * getDamageMultiplier(player) * (player:GetAttribute("MeleeDamageMultiplier") or 1) * (player:GetAttribute("EquippedWeaponDamageMultiplier") or 1)
+				for _, nearby in ipairs(getEnemiesInRadius(origin, radius)) do
+					damageEnemy(player, nearby, shockDamage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, true, nil)
+				end
+			end
+		end)
 	end)
 
 	abilityRemote.OnServerEvent:Connect(function(player, abilityName, requestedTarget, requestedMode)
 		local ability = config.Abilities[abilityName]
+		local ultimateCast = requestedMode == "Ultimate" and player:GetAttribute("ActiveUltimate") == abilityName
 		local mode = requestedMode == "Close" and "Close" or "Ranged"
 		if not ability or not isFiniteVector3(requestedTarget) then
 			feedbackRemote:FireClient(player, "CastRejected", "Invalid ability request")
@@ -368,6 +447,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		ability = table.clone(ability)
 		local elementArea = tonumber(player:GetAttribute((ability.Element or "") .. "AreaBonus")) or 0
 		local areaScale = (player:GetAttribute("SkillAreaMultiplier") or 1) * (1 + masteryLevel * 0.03) * (1 + elementArea)
+		if ultimateCast then areaScale *= 1.25 end
 		ability.Radius = (ability.Radius or 0) * areaScale
 		ability.LocalRadius = (ability.LocalRadius or ability.Radius) * areaScale
 		if ability.CastType == "Chain" then
@@ -379,7 +459,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			ability.PullStrength = (ability.PullStrength or 45) * (1 + (tonumber(player:GetAttribute((ability.Element or "") .. "StatusBonus")) or 0))
 		end
 		local energyCost = math.max(1, math.floor(ability.EnergyCost * (1 - masteryLevel * config.Mastery.CostReductionPerLevel)))
-		local masteryDamageMultiplier = 1 + masteryLevel * config.Mastery.DamagePerLevel
+		local masteryDamageMultiplier = (1 + masteryLevel * config.Mastery.DamagePerLevel) * (ultimateCast and 1.35 or 1)
 		local mp = player:GetAttribute("MP") or 0
 		if mp < energyCost then
 			feedbackRemote:FireClient(player, "CastRejected", "Need more MP")
@@ -396,6 +476,13 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		abilityCooldowns[player][abilityName] = os.clock() + cooldown
 		feedbackRemote:FireClient(player, "CastAccepted", abilityName, nil, cooldown)
 		masteryService.Add(player, abilityName, config.Mastery.XPPerCast)
+		local castOrigin = root.Position + Vector3.new(0, 2, 0)
+		local visualTravelSpeed = (ability.CastType == "Projectile" or ability.CastType == "Tornado")
+			and (ability.ProjectileSpeed or 80) or 160
+		local castTravelTime = mode == "Ranged"
+			and (ability.CastType == "Beam" and 0.08 or math.clamp((targetPosition - castOrigin).Magnitude / visualTravelSpeed, 0.08, 1.5))
+			or 0.12
+		local impactDelay = mode == "Ranged" and castTravelTime or 0
 		effectsRemote:FireAllClients("PowerCast", {
 			Ability = abilityName,
 			Element = ability.Element,
@@ -403,11 +490,13 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			EffectProfile = ability.EffectProfile,
 			VisualVariant = ability.VisualVariant,
 			SoundPitch = ability.SoundPitch,
-			Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
+			Tier = ultimateCast and 11 or math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
 			Mode = mode,
-			Origin = root.Position + Vector3.new(0, 2, 0),
+			Ultimate = ultimateCast,
+			Origin = castOrigin,
 			Target = targetPosition,
-			Duration = mode == "Ranged" and 0.24 or 0.12,
+			Duration = castTravelTime,
+			ImpactTime = workspace:GetServerTimeNow() + castTravelTime,
 		})
 
 		if mode == "Close" then
@@ -431,6 +520,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				end
 			end
 		elseif ability.CastType == "Projectile" then
+			local splashRadius = math.max(ability.Radius or 0, config.MinimumProjectileSplashRadius or 7)
 			local startPosition = root.Position + Vector3.new(0, 2, 0)
 			local raycastParameters = RaycastParams.new()
 			raycastParameters.FilterType = Enum.RaycastFilterType.Exclude
@@ -440,8 +530,10 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			if obstruction then
 				targetPosition = obstruction.Position
 			end
-			local impactPosition = findProjectileIntercept(startPosition, targetPosition, ability.Radius)
+			local impactPosition = findProjectileIntercept(startPosition, targetPosition, splashRadius)
 			local travelTime = math.clamp((impactPosition - startPosition).Magnitude / ability.ProjectileSpeed, 0.08, 1.5)
+			targetPosition = impactPosition
+			impactDelay = travelTime
 			effectsRemote:FireAllClients("EnergyBolt", {
 				Ability = abilityName,
 				Element = ability.Element,
@@ -451,34 +543,35 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				Target = impactPosition,
 				Duration = travelTime,
 				ImpactTime = workspace:GetServerTimeNow() + travelTime,
-				Radius = ability.Radius,
+				Radius = splashRadius,
 			})
 			task.delay(travelTime, function()
 				if not player.Parent then
 					return
 				end
-				for _, enemy in ipairs(getEnemiesInRadius(impactPosition, ability.Radius)) do
+				for _, enemy in ipairs(getEnemiesInRadius(impactPosition, splashRadius)) do
 					local damage = (ability.Damage + ((player:GetAttribute("AttackPower") or 0) * 0.5) + (player:GetAttribute("Power") or 0))
 						* getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
 					damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
 				end
 			end)
 		elseif ability.CastType == "Radial" then
-			effectsRemote:FireAllClients(abilityName == "GroundSlam" and "GroundSlam" or "EnergyBurst", {
-				Ability = abilityName,
-				Element = ability.Element,
-				Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1),
-				VisualVariant = ability.VisualVariant,
-				Origin = ability.Targeting == "Self" and targetPosition or targetPosition,
-				Radius = ability.Radius,
-			})
-			for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
-				local damage = (ability.Damage + ((player:GetAttribute("AttackPower") or 0) * 0.35) + (player:GetAttribute("Power") or 0))
-					* getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
-				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
-				applyKnockback(enemy, root.Position, ability.Knockback)
-			end
+			task.delay(mode == "Ranged" and castTravelTime or 0, function()
+				if not player.Parent then return end
+				effectsRemote:FireAllClients(abilityName == "GroundSlam" and "GroundSlam" or "EnergyBurst", {
+					Ability = abilityName, Element = ability.Element,
+					Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1), VisualVariant = ability.VisualVariant,
+					Origin = targetPosition, Radius = ability.Radius,
+				})
+				for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
+					local damage = (ability.Damage + ((player:GetAttribute("AttackPower") or 0) * 0.35) + (player:GetAttribute("Power") or 0))
+						* getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
+					damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
+					applyKnockback(enemy, targetPosition, ability.Knockback)
+				end
+			end)
 		elseif ability.CastType == "Beam" then
+			impactDelay = 0
 			local startPosition = root.Position + Vector3.new(0, 2, 0)
 			local direction = targetPosition - startPosition
 			if direction.Magnitude < 1 then direction = root.CFrame.LookVector * ability.Range end
@@ -499,18 +592,23 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				end
 			end
 		elseif ability.CastType == "Gravity" then
-			effectsRemote:FireAllClients("GravityPulse", {Ability = abilityName, Element = ability.Element, Origin = targetPosition, Radius = ability.Radius, Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1), VisualVariant = ability.VisualVariant})
-			for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
-				local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 1.15) * getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
-				damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
-				applyPull(enemy, targetPosition, ability.PullStrength)
-			end
+			task.delay(mode == "Ranged" and castTravelTime or 0, function()
+				if not player.Parent then return end
+				effectsRemote:FireAllClients("GravityPulse", {Ability = abilityName, Element = ability.Element, Origin = targetPosition, Radius = ability.Radius, Tier = math.max(1, math.floor((ability.RequiredLevel or 1) / 10) + 1), VisualVariant = ability.VisualVariant})
+				for _, enemy in ipairs(getEnemiesInRadius(targetPosition, ability.Radius)) do
+					local damage = (ability.Damage + (player:GetAttribute("Power") or 0) * 1.15) * getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
+					damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, abilityName)
+					applyPull(enemy, targetPosition, ability.PullStrength)
+				end
+			end)
 		elseif ability.CastType == "Chain" then
-			local candidates = getEnemiesInRadius(targetPosition, math.max(ability.Radius, 8))
-			local current = candidates[1]
-			local previousPosition = root.Position + Vector3.new(0, 2, 0)
-			local struck = {}
-			for chainIndex = 1, ability.MaximumChains do
+			task.delay(mode == "Ranged" and castTravelTime or 0, function()
+				if not player.Parent then return end
+				local candidates = getEnemiesInRadius(targetPosition, math.max(ability.Radius, 8))
+				local current = candidates[1]
+				local previousPosition = castOrigin
+				local struck = {}
+				for chainIndex = 1, ability.MaximumChains do
 				if not current then break end
 				struck[current] = true
 				local currentRoot = current:FindFirstChild("HumanoidRootPart")
@@ -526,11 +624,13 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 					if not struck[candidate] and distance and distance <= ability.ChainRange and (not nearestDistance or distance < nearestDistance) then nearest, nearestDistance = candidate, distance end
 				end
 				current = nearest
-			end
+				end
+			end)
 		elseif ability.CastType == "Tornado" then
 			local startPosition = root.Position + Vector3.new(0, 2, 0)
 			local distance = (targetPosition - startPosition).Magnitude
 			local travelTime = math.clamp(distance / (ability.ProjectileSpeed or 42), 0.15, 1.5)
+			impactDelay = travelTime
 			effectsRemote:FireAllClients("TornadoTravel", {
 				Ability = abilityName,
 				Element = ability.Element,
@@ -568,11 +668,32 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				end
 			end)
 		end
+
+		local ascendantPulses = math.clamp(math.floor(tonumber(ability.AscendantPulses) or 0), 0, 3)
+		for pulseIndex = 1, ascendantPulses do
+			task.delay(impactDelay + pulseIndex * (tonumber(ability.AscendantPulseDelay) or 0.28), function()
+				if not player.Parent then return end
+				local pulseRadius = math.max(8, (ability.Radius or ability.LocalRadius or 8) * (1 + pulseIndex * 0.12))
+				effectsRemote:FireAllClients("EnergyBurst", {
+					Ability = abilityName, Element = ability.Element, Origin = targetPosition,
+					Radius = pulseRadius, Tier = math.max(7, math.floor((ability.RequiredLevel or 1) / 10) + 1),
+					VisualVariant = ability.VisualVariant, AscendantPulse = pulseIndex,
+				})
+				for _, enemy in ipairs(getEnemiesInRadius(targetPosition, pulseRadius)) do
+					local pulseDamage = (ability.Damage * 0.16 + (player:GetAttribute("Power") or 0) * 0.3)
+						* getDamageMultiplier(player) * elementMultiplier * masteryDamageMultiplier
+					damageEnemy(player, enemy, pulseDamage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, pulseIndex == ascendantPulses, abilityName)
+					if ability.Element == "Gravity" then applyPull(enemy, targetPosition, (ability.PullStrength or 45) * 0.45)
+					else applyKnockback(enemy, targetPosition, math.min(38, (ability.Knockback or 24) * 0.6)) end
+				end
+			end)
+		end
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
 		abilityCooldowns[player] = nil
 		meleeStates[player] = nil
+		rangedReadyAt[player] = nil
 	end)
 	workspace:SetAttribute("CombatStatus", "Ready")
 end

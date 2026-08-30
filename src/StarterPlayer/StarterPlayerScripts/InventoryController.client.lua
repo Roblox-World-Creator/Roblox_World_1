@@ -17,6 +17,7 @@ local state = {Items = {}, Equipment = {}, Capacity = config.Capacity, Used = 0}
 local selectedItem
 local currentTab = "Inventory"
 local filter = "All"
+local slotFilter
 local busy = false
 local symbols = {Weapon = "⚔", Armor = "◆", Artifact = "✦", Consumable = "+", Material = "◇"}
 local categoryColors = {Weapon = Color3.fromRGB(90, 170, 255), Armor = Color3.fromRGB(150, 175, 205), Artifact = Color3.fromRGB(190, 100, 255), Consumable = Color3.fromRGB(80, 220, 145), Material = Color3.fromRGB(255, 185, 70)}
@@ -36,6 +37,21 @@ local function styleButton(button, color)
 	round(button, 7)
 end
 
+local function itemGlyph(definition)
+	if definition.IconGlyph then return definition.IconGlyph end
+	if definition.Consumable then return definition.Consumable.Kind == "Health" and "HP" or definition.Consumable.Kind == "MP" and "MP" or "BUF" end
+	if definition.WeaponKind then return definition.WeaponKind == "Rifle" and "RFL" or definition.WeaponKind == "Bow" and "BOW" or "GUN" end
+	if definition.WeaponType then
+		return ({Sword = "SWD", Katana = "KTN", Greatsword = "GS", Spear = "SPR", Hammer = "HMR", Staff = "STF"})[definition.WeaponType] or "WPN"
+	end
+	if definition.EquipSlot then return string.upper(string.sub(definition.EquipSlot, 1, 3)) end
+	if string.find(definition.DisplayName, "Core", 1, true) then return "CORE" end
+	if string.find(definition.DisplayName, "Scale", 1, true) then return "SCL" end
+	if string.find(definition.DisplayName, "Fang", 1, true) then return "FNG" end
+	if string.find(definition.DisplayName, "Claw", 1, true) then return "CLW" end
+	return ({Weapon = "WPN", Armor = "ARM", Artifact = "ART", Consumable = "USE", Material = "MAT"})[definition.Category] or "ITM"
+end
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "InventoryUI"
 gui.ResetOnSpawn = false
@@ -45,8 +61,8 @@ gui.Parent = player:WaitForChild("PlayerGui")
 local openButton = Instance.new("TextButton")
 openButton.AnchorPoint = Vector2.new(1, 0)
 openButton.Position = UDim2.new(1, -210, 0, 14)
-openButton.Size = UDim2.fromOffset(82, 36)
-openButton.Text = "BAG [B]"
+openButton.Size = UDim2.fromOffset(112, 36)
+openButton.Text = "GEAR [B]"
 styleButton(openButton, Color3.fromRGB(70, 125, 190))
 openButton.Parent = gui
 
@@ -54,21 +70,31 @@ local panel = Instance.new("Frame")
 panel.Name = "InventoryPanel"
 panel.AnchorPoint = Vector2.new(1, 0.5)
 panel.Position = UDim2.new(1, -18, 0.55, 0)
-panel.Size = UDim2.new(0.62, 0, 0.72, 0)
+panel.Size = UDim2.new(0.68, 0, 0.84, 0)
 panel.BackgroundColor3 = Color3.fromRGB(17, 22, 34)
 panel.BorderSizePixel = 0
 panel.Visible = false
 panel.Parent = gui
 round(panel, 13)
 local constraint = Instance.new("UISizeConstraint")
-constraint.MinSize, constraint.MaxSize = Vector2.new(330, 500), Vector2.new(700, 660)
+constraint.MinSize, constraint.MaxSize = Vector2.new(560, 560), Vector2.new(760, 700)
 constraint.Parent = panel
+local responsiveScale = Instance.new("UIScale")
+responsiveScale.Parent = panel
+local function updateResponsiveScale()
+	local camera = workspace.CurrentCamera
+	local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
+	responsiveScale.Scale = math.clamp(math.min(viewport.X / 620, viewport.Y / 620), 0.55, 1)
+end
+updateResponsiveScale()
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveScale) end
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(updateResponsiveScale)
 
 local header = Instance.new("TextLabel")
 header.Position = UDim2.fromOffset(18, 10)
 header.Size = UDim2.new(1, -70, 0, 34)
 header.BackgroundTransparency = 1
-header.Text = "ASCENDANT INVENTORY"
+header.Text = "GEAR, STATS & INVENTORY"
 header.TextColor3 = Color3.fromRGB(110, 205, 255)
 header.TextXAlignment = Enum.TextXAlignment.Left
 header.Font = Enum.Font.GothamBlack
@@ -126,6 +152,36 @@ filterButton.Text = "FILTER: ALL"
 styleButton(filterButton)
 filterButton.Parent = panel
 
+local storeCategoryBar = Instance.new("Frame")
+storeCategoryBar.Position = UDim2.fromOffset(16, 138)
+storeCategoryBar.Size = UDim2.new(1, -32, 0, 32)
+storeCategoryBar.BackgroundTransparency = 1
+storeCategoryBar.Visible = false
+storeCategoryBar.Parent = panel
+local storeCategoryLayout = Instance.new("UIListLayout")
+storeCategoryLayout.FillDirection = Enum.FillDirection.Horizontal
+storeCategoryLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+storeCategoryLayout.Padding = UDim.new(0, 5)
+storeCategoryLayout.Parent = storeCategoryBar
+local storeCategoryButtons = {}
+local storeCategories = {
+	{Label = "ALL", Filter = "All"},
+	{Label = "SWORDS", Filter = "Weapon"},
+	{Label = "RANGED", Filter = "Ranged"},
+	{Label = "ARMOR", Filter = "Armor"},
+	{Label = "POTIONS", Filter = "Consumable"},
+	{Label = "MATERIALS", Filter = "Material"},
+}
+for _, category in ipairs(storeCategories) do
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1 / #storeCategories, -5, 0, 30)
+	button.Text = category.Label
+	styleButton(button)
+	button.TextSize = 11
+	button.Parent = storeCategoryBar
+	storeCategoryButtons[category.Filter] = button
+end
+
 local list = Instance.new("ScrollingFrame")
 list.Position = UDim2.fromOffset(16, 140)
 list.Size = UDim2.new(0.58, -22, 1, -158)
@@ -169,10 +225,21 @@ itemImage.BackgroundTransparency = 1
 itemImage.Visible = false
 itemImage.Parent = itemIcon
 
+local equippedSummaryScroll = Instance.new("ScrollingFrame")
+equippedSummaryScroll.Position = UDim2.fromOffset(12, 214)
+equippedSummaryScroll.Size = UDim2.new(1, -24, 1, -310)
+equippedSummaryScroll.BackgroundColor3 = Color3.fromRGB(21, 28, 42)
+equippedSummaryScroll.BorderSizePixel = 0
+equippedSummaryScroll.ScrollBarThickness = 4
+equippedSummaryScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+equippedSummaryScroll.CanvasSize = UDim2.new()
+round(equippedSummaryScroll, 7)
+equippedSummaryScroll.Parent = detail
 local equippedSummary = Instance.new("TextLabel")
-equippedSummary.Position = UDim2.fromOffset(12, 214)
-equippedSummary.Size = UDim2.new(1, -24, 0, 42)
-equippedSummary.BackgroundColor3 = Color3.fromRGB(21, 28, 42)
+equippedSummary.Position = UDim2.fromOffset(6, 5)
+equippedSummary.Size = UDim2.new(1, -14, 0, 0)
+equippedSummary.AutomaticSize = Enum.AutomaticSize.Y
+equippedSummary.BackgroundTransparency = 1
 equippedSummary.TextColor3 = Color3.fromRGB(205, 220, 240)
 equippedSummary.TextWrapped = true
 equippedSummary.TextXAlignment = Enum.TextXAlignment.Left
@@ -180,8 +247,7 @@ equippedSummary.TextYAlignment = Enum.TextYAlignment.Top
 equippedSummary.Font = Enum.Font.Gotham
 equippedSummary.TextSize = 12
 equippedSummary.Text = "EQUIPPED LOADOUT\nLoading..."
-round(equippedSummary, 7)
-equippedSummary.Parent = detail
+equippedSummary.Parent = equippedSummaryScroll
 
 local itemName = Instance.new("TextLabel")
 itemName.Position = UDim2.fromOffset(10, 92)
@@ -193,9 +259,19 @@ itemName.Font = Enum.Font.GothamBold
 itemName.TextScaled = true
 itemName.Parent = detail
 
+local descriptionScroll = Instance.new("ScrollingFrame")
+descriptionScroll.Position = UDim2.fromOffset(12, 126)
+descriptionScroll.Size = UDim2.new(1, -24, 0, 78)
+descriptionScroll.BackgroundTransparency = 1
+descriptionScroll.BorderSizePixel = 0
+descriptionScroll.ScrollBarThickness = 3
+descriptionScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+descriptionScroll.CanvasSize = UDim2.new()
+descriptionScroll.Parent = detail
 local description = Instance.new("TextLabel")
-description.Position = UDim2.fromOffset(12, 126)
-description.Size = UDim2.new(1, -24, 0, 78)
+description.Position = UDim2.fromOffset(0, 0)
+description.Size = UDim2.new(1, -6, 0, 0)
+description.AutomaticSize = Enum.AutomaticSize.Y
 description.BackgroundTransparency = 1
 description.Text = "Items, recipes, and store supplies appear here."
 description.TextColor3 = Color3.fromRGB(180, 195, 220)
@@ -204,12 +280,12 @@ description.TextXAlignment = Enum.TextXAlignment.Left
 description.TextYAlignment = Enum.TextYAlignment.Top
 description.Font = Enum.Font.Gotham
 description.TextSize = 13
-description.Parent = detail
+description.Parent = descriptionScroll
 
 local actionArea = Instance.new("Frame")
 actionArea.AnchorPoint = Vector2.new(0, 1)
 actionArea.Position = UDim2.new(0, 10, 1, -10)
-actionArea.Size = UDim2.new(1, -20, 0, 76)
+actionArea.Size = UDim2.new(1, -20, 0, 104)
 actionArea.BackgroundTransparency = 1
 actionArea.Parent = detail
 local actionGrid = Instance.new("UIGridLayout")
@@ -217,12 +293,76 @@ actionGrid.CellPadding = UDim2.fromOffset(6, 6)
 actionGrid.CellSize = UDim2.new(0.5, -3, 0, 22)
 actionGrid.Parent = actionArea
 local actions = {}
-for _, name in ipairs({"PRIMARY", "FAVORITE", "LOCK", "SELL", "CRAFT", "UNEQUIP"}) do
+for _, name in ipairs({"PRIMARY", "FAVORITE", "LOCK", "SELL", "SELL JUNK", "CRAFT", "UNEQUIP"}) do
 	local button = Instance.new("TextButton")
 	button.Name, button.Text = name, name
-	styleButton(button, name == "SELL" and Color3.fromRGB(135, 65, 70) or nil)
+	styleButton(button, string.find(name, "SELL", 1, true) and Color3.fromRGB(135, 65, 70) or nil)
 	button.Parent = actionArea
 	actions[name] = button
+end
+
+local characterLoadout = Instance.new("Frame")
+characterLoadout.Position = UDim2.fromOffset(16, 96)
+characterLoadout.Size = UDim2.new(1, -32, 1, -114)
+characterLoadout.BackgroundColor3 = Color3.fromRGB(21, 28, 42)
+characterLoadout.BorderSizePixel = 0
+characterLoadout.Visible = false
+characterLoadout.Parent = panel
+round(characterLoadout, 10)
+local characterViewport = Instance.new("ViewportFrame")
+characterViewport.Position, characterViewport.Size = UDim2.new(0.27, 0, 0, 12), UDim2.new(0.46, 0, 1, -78)
+characterViewport.BackgroundColor3, characterViewport.Ambient = Color3.fromRGB(29, 39, 58), Color3.fromRGB(175, 185, 210)
+characterViewport.LightColor, characterViewport.LightDirection = Color3.fromRGB(255, 245, 220), Vector3.new(-1, -1, -1)
+characterViewport.Parent = characterLoadout
+round(characterViewport, 12)
+local viewportWorld = Instance.new("WorldModel")
+viewportWorld.Parent = characterViewport
+local viewportCamera = Instance.new("Camera")
+viewportCamera.FieldOfView, viewportCamera.Parent = 34, characterViewport
+characterViewport.CurrentCamera = viewportCamera
+local characterStats = Instance.new("TextLabel")
+characterStats.Position, characterStats.Size = UDim2.new(0.2, 0, 1, -61), UDim2.new(0.6, 0, 0, 52)
+characterStats.BackgroundTransparency, characterStats.TextColor3, characterStats.TextWrapped = 1, Color3.fromRGB(210, 230, 250), true
+characterStats.Font, characterStats.TextSize, characterStats.Parent = Enum.Font.GothamBold, 12, characterLoadout
+
+local loadoutSlots = {"Weapon", "SecondaryWeapon", "Head", "Chest", "Legs", "Boots", "Gloves", "Cape", "Core", "Artifact1", "Artifact2", "Artifact3"}
+local loadoutSlotButtons = {}
+for index, slot in ipairs(loadoutSlots) do
+	local button = Instance.new("TextButton")
+	local onLeft, row = index <= 6, index <= 6 and index or index - 6
+	button.Position = UDim2.new(onLeft and 0 or 0.75, onLeft and 8 or -2, 0, 10 + (row - 1) * 58)
+	button.Size, button.TextWrapped, button.Text = UDim2.new(0.25, -8, 0, 52), true, slot .. "\nEMPTY"
+	styleButton(button, Color3.fromRGB(37, 49, 70))
+	button.TextSize, button.Parent = 10, characterLoadout
+	loadoutSlotButtons[slot] = button
+end
+
+local function refreshCharacterPreview()
+	viewportWorld:ClearAllChildren()
+	local character = player.Character
+	if character then
+		local wasArchivable = character.Archivable
+		character.Archivable = true
+		local clone = character:Clone()
+		character.Archivable = wasArchivable
+		for _, object in ipairs(clone:GetDescendants()) do
+			if object:IsA("Script") or object:IsA("LocalScript") or object:IsA("Tool") then object:Destroy()
+			elseif object:IsA("BasePart") then object.Anchored, object.CanCollide, object.CanTouch = true, false, false end
+		end
+		clone:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(18), 0))
+		clone.Parent = viewportWorld
+		local _, size = clone:GetBoundingBox()
+		local focusY = math.max(1.5, size.Y * 0.46)
+		viewportCamera.CFrame = CFrame.lookAt(Vector3.new(0, focusY, math.max(7, size.Y * 1.15)), Vector3.new(0, focusY, 0))
+	end
+	for slot, button in pairs(loadoutSlotButtons) do
+		local itemId = state.Equipment and state.Equipment[slot]
+		local definition = itemId and config.Items[itemId]
+		button.Text = definition and string.format("%s [%s]\n%s", slot, itemGlyph(definition), definition.DisplayName) or (slot .. "\nEMPTY - CLICK")
+		button.BackgroundColor3 = definition and (config.RarityColors[definition.Rarity] or Color3.fromRGB(52, 67, 90)):Lerp(Color3.fromRGB(28, 35, 50), 0.68) or Color3.fromRGB(37, 49, 70)
+	end
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	characterStats.Text = string.format("LEVEL %d   HP %d/%d   MP %d/%d\nATTACK %d   DEFENSE %d   POWER %d   SPEED %.1f", player:GetAttribute("Level") or 1, humanoid and humanoid.Health or 0, player:GetAttribute("MaxHealth") or 0, player:GetAttribute("MP") or 0, player:GetAttribute("MaxMP") or 0, player:GetAttribute("AttackPower") or 0, player:GetAttribute("Defense") or 0, player:GetAttribute("Power") or 0, humanoid and humanoid.WalkSpeed or 0)
 end
 
 local notification = Instance.new("TextLabel")
@@ -277,6 +417,25 @@ local function statText(stats)
 	return #parts > 0 and table.concat(parts, "  |  ") or "No equipment stats"
 end
 
+local function resistanceText(resistances)
+	local parts = {}
+	for _, element in ipairs({"Fire", "Ice", "Water", "Lightning", "Earth", "Gravity", "Poison", "Prismatic"}) do
+		local value = resistances and resistances[element]
+		if value and value ~= 0 then table.insert(parts, string.format("%s Resist +%d%%", element, math.floor(value * 100))) end
+	end
+	return table.concat(parts, " | ")
+end
+
+local function benefitText(definition)
+	local parts = {statText(definition.Stats)}
+	local resistances = resistanceText(definition.Resistances)
+	if resistances ~= "" then table.insert(parts, resistances) end
+	if definition.Passive then table.insert(parts, "Effect: " .. definition.Passive) end
+	if definition.Purpose then table.insert(parts, "Purpose: " .. definition.Purpose) end
+	if definition.SellValue then table.insert(parts, "Sell value: " .. definition.SellValue .. " gold") end
+	return table.concat(parts, " | ")
+end
+
 local function statDeltaText(stats, equippedStats)
 	local parts = {}
 	for _, name in ipairs({"Attack", "Health", "Defense", "Power", "Speed", "MP", "CriticalChance", "CriticalDamage"}) do
@@ -304,7 +463,8 @@ local function setIcon(icon, definition)
 		icon.Image = definition.Icon
 		icon.BackgroundTransparency = 0.08
 	elseif icon:IsA("TextLabel") or icon:IsA("TextButton") then
-		icon.Text = symbols[definition.Category] or "◇"
+		icon.Text = itemGlyph(definition)
+		icon.TextScaled = true
 		icon.BackgroundTransparency = 0
 	elseif icon:IsA("ImageLabel") or icon:IsA("ImageButton") then
 		icon.Image = ""
@@ -313,16 +473,24 @@ local function setIcon(icon, definition)
 end
 
 local function refreshEquippedSummary()
-	local lines = {"EQUIPPED LOADOUT"}
+	local totals = {}
+	local totalResistances = {}
+	local lines = {"EQUIPPED GEAR & BENEFITS"}
+	local empty = {}
 	for _, slot in ipairs({"Weapon", "SecondaryWeapon", "Head", "Chest", "Legs", "Boots", "Gloves", "Artifact1", "Artifact2", "Artifact3", "Core", "Cape"}) do
 		local itemId = state.Equipment and state.Equipment[slot]
 		local definition = itemId and config.Items[itemId]
 		if definition then
-			table.insert(lines, string.format("%s: %s  [%s]", slot, definition.DisplayName, statText(definition.Stats)))
+			for name, value in pairs(definition.Stats or {}) do totals[name] = (totals[name] or 0) + value end
+			for element, value in pairs(definition.Resistances or {}) do totalResistances[element] = (totalResistances[element] or 0) + value end
+			table.insert(lines, string.format("%s: %s | %s", slot, definition.DisplayName, benefitText(definition)))
 		else
-			table.insert(lines, slot .. ": Empty")
+			table.insert(empty, slot)
 		end
 	end
+	local totalResistanceText = resistanceText(totalResistances)
+	table.insert(lines, 2, "TOTAL BONUSES: " .. statText(totals) .. (totalResistanceText ~= "" and " | " .. totalResistanceText or ""))
+	if #empty > 0 then table.insert(lines, "EMPTY SLOTS: " .. table.concat(empty, ", ")) end
 	equippedSummary.Text = table.concat(lines, "\n")
 end
 
@@ -355,9 +523,9 @@ local function selectItem(itemId)
 	description.Text = string.format("%s • %s%s\n%s\n\n%s%s%s", definition.Rarity, definition.Category, equippedSlot and (" • Equipped: " .. equippedSlot) or "", definition.Description, statText(definition.Stats), compareText, recipeText)
 	local combatDetails = ""
 	if definition.Category == "Weapon" then
-		combatDetails = string.format("\nLevel %d | %s %s\nUnique effect: %s\nAssigned ability: %s", definition.RequiredLevel or 1, definition.Element or "Physical", definition.WeaponType or definition.WeaponKind or "Weapon", definition.Passive or "Standard impact", definition.AbilityId or "Basic weapon attack")
+		combatDetails = string.format("\n%sLevel %d | %s %s\nUnique effect: %s\nAssigned ability: %s", definition.Unique and "UNIQUE ITEM | " or "", definition.RequiredLevel or 1, definition.Element or "Physical", definition.WeaponType or definition.WeaponKind or "Weapon", definition.Passive or "Standard impact", definition.AbilityId or "Basic weapon attack")
 	end
-	description.Text = string.format("%s | %s%s\n%s%s\n\n%s%s%s", definition.Rarity, definition.Category, equippedSlot and (" | Equipped: " .. equippedSlot) or "", definition.Description, combatDetails, statText(definition.Stats), compareText, recipeText)
+	description.Text = string.format("%s | %s%s\n%s%s\n\n%s%s%s", definition.Rarity, definition.Category, equippedSlot and (" | Equipped: " .. equippedSlot) or "", definition.Description, combatDetails, benefitText(definition), compareText, recipeText)
 	if currentTab == "Store" then
 		actions.PRIMARY.Text, actions.PRIMARY.Visible = "BUY " .. tostring(definition.BuyPrice or 0), definition.BuyPrice ~= nil
 	else
@@ -372,7 +540,8 @@ local function selectItem(itemId)
 	actions.FAVORITE.Visible = currentTab == "Inventory"
 	actions.LOCK.Visible = currentTab == "Inventory"
 	actions.CRAFT.Visible = currentTab ~= "Store" and recipe ~= nil
-	actions.SELL.Visible = currentTab == "Inventory" and definition.BuyPrice ~= nil
+	actions.SELL.Visible = currentTab == "Inventory"
+	actions["SELL JUNK"].Visible = currentTab == "Inventory"
 	actions.UNEQUIP.Visible = currentTab == "Inventory" and equippedSlot ~= nil
 	refreshEquippedSummary()
 end
@@ -425,19 +594,34 @@ local function addCard(itemId, subtitle, clickAction)
 end
 
 refresh = function()
-	capacity.Text = string.format("%d / %d SLOTS  •  %d GOLD", state.Used or 0, state.Capacity or config.Capacity, player:GetAttribute("Coins") or 0)
+	local showCharacter = currentTab == "Character"
+	characterLoadout.Visible = showCharacter
+	list.Visible, detail.Visible = not showCharacter, not showCharacter
+	search.Visible, capacity.Visible, filterButton.Visible = not showCharacter, not showCharacter
+	local showStoreCategories = currentTab == "Store"
+	storeCategoryBar.Visible = showStoreCategories
+	local contentTop = showStoreCategories and 176 or 140
+	list.Position = UDim2.fromOffset(16, contentTop)
+	list.Size = UDim2.new(0.58, -22, 1, -(contentTop + 18))
+	detail.Position = UDim2.new(0.58, 4, 0, contentTop)
+	detail.Size = UDim2.new(0.42, -20, 1, -(contentTop + 18))
+	refreshEquippedSummary()
+	capacity.Text = string.format("%d / %d SLOTS  •  %d GOLD%s", state.Used or 0, state.Capacity or config.Capacity, player:GetAttribute("Coins") or 0, slotFilter and ("  |  " .. slotFilter .. " ITEMS") or "")
 	clearList()
 	local query = string.lower(search.Text)
 	if currentTab == "Inventory" then
 		for _, item in ipairs(state.Items or {}) do
 			local definition = config.Items[item.Id]
 			local filterMatch = definition and (filter == "All" or definition.Category == filter or ((filter == "Gun" or filter == "Rifle") and definition.WeaponKind == filter))
-			if definition and filterMatch and (query == "" or string.find(string.lower(definition.DisplayName), query, 1, true)) then
+			local normalizedSlot = slotFilter and string.match(slotFilter, "^Artifact") and "Artifact" or slotFilter
+			local slotMatch = not normalizedSlot or definition and definition.EquipSlot == normalizedSlot
+			if definition and filterMatch and slotMatch and (query == "" or string.find(string.lower(definition.DisplayName), query, 1, true)) then
 				local flags = (item.Favorite and "★ " or "") .. (item.Locked and "🔒 " or "")
 				addCard(item.Id, flags .. "x" .. item.Count .. "  •  " .. definition.Rarity)
 			end
 		end
 	elseif currentTab == "Character" then
+		refreshCharacterPreview()
 		itemName.Text = player.DisplayName
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 		local buffs = {}
@@ -445,10 +629,8 @@ refresh = function()
 		if (player:GetAttribute("ConsumableDefense") or 0) > 0 then table.insert(buffs, "Defense tonic") end
 		if (player:GetAttribute("BonusMPRegen") or 0) > 0 then table.insert(buffs, "Energy surge") end
 		if player:GetAttribute("ActiveTransformation") and player:GetAttribute("ActiveTransformation") ~= "" then table.insert(buffs, player:GetAttribute("ActiveTransformation") .. " form") end
-		description.Text = string.format("LEVEL %d\nHP %d / %d   MP %d / %d\nATTACK %d   DEFENSE %d\nMAGIC POWER %d   SPEED %.1f\nCRIT %.0f%%   CRIT DAMAGE %.0f%%\nELEMENT %s\nACTIVE BUFFS: %s", player:GetAttribute("Level") or 1, humanoid and humanoid.Health or 0, player:GetAttribute("MaxHealth") or 0, player:GetAttribute("MP") or 0, player:GetAttribute("MaxMP") or 0, player:GetAttribute("AttackPower") or 0, player:GetAttribute("Defense") or 0, player:GetAttribute("Power") or 0, humanoid and humanoid.WalkSpeed or 0, (player:GetAttribute("CriticalChance") or 0) * 100, (player:GetAttribute("CriticalDamage") or 1.5) * 100, player:GetAttribute("CurrentElement") or player:GetAttribute("EquippedWeaponElement") or "Physical", #buffs > 0 and table.concat(buffs, ", ") or "None")
-		for slot, itemId in pairs(state.Equipment or {}) do
-			if itemId ~= "" and config.Items[itemId] then addCard(itemId, "EQUIPPED: " .. slot) end
-		end
+		description.Text = string.format("LEVEL %d | HIGHEST CLEARED WAVE %d | ASCENDANT %d\nHP %d/%d  MP %d/%d  ATTACK %d  DEFENSE %d\nPOWER %d  SPEED %.1f  CRIT %.0f%%  CRIT DMG %.0f%%\nELEMENT %s | BUFFS: %s", player:GetAttribute("Level") or 1, player:GetAttribute("HighestWave") or 0, player:GetAttribute("Evolution") or 0, humanoid and humanoid.Health or 0, player:GetAttribute("MaxHealth") or 0, player:GetAttribute("MP") or 0, player:GetAttribute("MaxMP") or 0, player:GetAttribute("AttackPower") or 0, player:GetAttribute("Defense") or 0, player:GetAttribute("Power") or 0, humanoid and humanoid.WalkSpeed or 0, (player:GetAttribute("CriticalChance") or 0) * 100, (player:GetAttribute("CriticalDamage") or 1.5) * 100, player:GetAttribute("CurrentElement") or player:GetAttribute("EquippedWeaponElement") or "Physical", #buffs > 0 and table.concat(buffs, ", ") or "None")
+		refreshEquippedSummary()
 	elseif currentTab == "Crafting" then
 		for itemId, recipe in pairs(config.Recipes) do
 			local definition = config.Items[itemId]
@@ -456,31 +638,54 @@ refresh = function()
 		end
 	else
 		local storeIds = {}
-		for itemId, definition in pairs(config.Items) do if definition.BuyPrice then table.insert(storeIds, itemId) end end
+		local playerLevel = player:GetAttribute("Level") or 1
+		for itemId, definition in pairs(config.Items) do
+			if definition.BuyPrice and (definition.RequiredLevel or 1) <= playerLevel then table.insert(storeIds, itemId) end
+		end
 		table.sort(storeIds, function(left, right)
 			local a, b = config.Items[left], config.Items[right]
 			return a.BuyPrice == b.BuyPrice and a.DisplayName < b.DisplayName or a.BuyPrice < b.BuyPrice
 		end)
 		for _, itemId in ipairs(storeIds) do
 			local definition = config.Items[itemId]
-			local filterMatch = filter == "All" or definition.Category == filter or ((filter == "Gun" or filter == "Rifle") and definition.WeaponKind == filter)
+			local filterMatch = filter == "All" or definition.Category == filter
+				or (filter == "Ranged" and (definition.WeaponKind == "Gun" or definition.WeaponKind == "Rifle"))
+				or ((filter == "Gun" or filter == "Rifle") and definition.WeaponKind == filter)
 			if filterMatch and (query == "" or string.find(string.lower(definition.DisplayName), query, 1, true)) then addCard(itemId, definition.BuyPrice .. " GOLD | LV " .. (definition.RequiredLevel or 1)) end
 		end
 	end
 	for name, button in pairs(tabButtons) do button.BackgroundColor3 = name == currentTab and Color3.fromRGB(65, 125, 185) or Color3.fromRGB(42, 52, 73) end
+	for categoryFilter, button in pairs(storeCategoryButtons) do
+		button.BackgroundColor3 = categoryFilter == filter and Color3.fromRGB(65, 125, 185) or Color3.fromRGB(42, 52, 73)
+	end
 end
 
 for _, tabName in ipairs({"Inventory", "Character", "Crafting", "Store"}) do
 	local button = Instance.new("TextButton")
-	button.Size = UDim2.fromOffset(118, 36)
-	button.Text = string.upper(tabName)
+	button.Size = UDim2.new(0.25, -6, 0, 36)
+	button.Text = tabName == "Inventory" and "BAG" or tabName == "Character" and "EQUIPMENT & STATS" or string.upper(tabName)
 	styleButton(button)
 	button.Parent = tabs
 	tabButtons[tabName] = button
-	button.Activated:Connect(function() currentTab = tabName; filter = "All"; filterButton.Text = "FILTER: ALL"; refresh() end)
+	button.Activated:Connect(function() currentTab = tabName; filter = "All"; slotFilter = nil; filterButton.Text = "FILTER: ALL"; refresh() end)
+end
+
+for slot, button in pairs(loadoutSlotButtons) do
+	button.Activated:Connect(function()
+		currentTab, slotFilter, filter = "Inventory", slot, "All"
+		filterButton.Text = "FILTER: ALL"
+		refresh()
+	end)
 end
 
 local filters = {"All", "Weapon", "Gun", "Rifle", "Armor", "Artifact", "Consumable", "Material"}
+for _, category in ipairs(storeCategories) do
+	storeCategoryButtons[category.Filter].Activated:Connect(function()
+		filter = category.Filter
+		filterButton.Text = "FILTER: " .. string.upper(filter)
+		refresh()
+	end)
+end
 filterButton.Activated:Connect(function()
 	local index = table.find(filters, filter) or 1
 	filter = filters[index % #filters + 1]
@@ -488,6 +693,11 @@ filterButton.Activated:Connect(function()
 	refresh()
 end)
 search:GetPropertyChangedSignal("Text"):Connect(refresh)
+for _, attribute in ipairs({"Level", "HighestWave", "Evolution", "Coins", "MaxHealth", "MaxMP", "AttackPower", "Defense", "Power", "CriticalChance", "CriticalDamage", "CurrentElement"}) do
+	player:GetAttributeChangedSignal(attribute):Connect(function()
+		if panel.Visible then refresh() end
+	end)
+end
 
 actions.PRIMARY.Activated:Connect(function()
 	if not selectedItem then return end
@@ -504,6 +714,7 @@ end)
 actions.FAVORITE.Activated:Connect(function() if selectedItem then local result = invoke(inventoryRemote, "Favorite", {ItemId = selectedItem}); if result then refresh() end end end)
 actions.LOCK.Activated:Connect(function() if selectedItem then local result = invoke(inventoryRemote, "Lock", {ItemId = selectedItem}); if result then refresh() end end end)
 actions.SELL.Activated:Connect(function() if selectedItem then invoke(storeRemote, "Sell", {ItemId = selectedItem}); local result = invoke(inventoryRemote, "GetState"); if result then refresh() end end end)
+actions["SELL JUNK"].Activated:Connect(function() local result = invoke(inventoryRemote, "SellJunk"); if result then refresh() end end)
 actions.CRAFT.Activated:Connect(function() if selectedItem then local result = invoke(inventoryRemote, "Craft", {ItemId = selectedItem}); if result then refresh() end end end)
 actions.UNEQUIP.Activated:Connect(function()
 	if not selectedItem then return end
@@ -526,6 +737,7 @@ local function connectStorePrompt(descendant)
 		connectedStorePrompts[descendant] = true
 		descendant.Triggered:Connect(function()
 			currentTab = "Store"
+			slotFilter = nil
 			if not panel.Visible then toggle() else refresh() end
 		end)
 	end
@@ -588,14 +800,8 @@ inventoryEvent.OnClientEvent:Connect(function(kind, data)
 		beam.Material, beam.Color, beam.Transparency = Enum.Material.Neon, color, 0.18
 		beam.Size, beam.CFrame = Vector3.new(0.45, 20, 0.45), CFrame.new(data.Origin + Vector3.new(0, 10, 0))
 		beam.Parent = workspace
-		local orb = Instance.new("Part")
-		orb.Shape, orb.Size, orb.Anchored, orb.CanCollide, orb.CanQuery, orb.CanTouch = Enum.PartType.Ball, Vector3.new(2.2, 2.2, 2.2), true, false, false, false
-		orb.Material, orb.Color, orb.CFrame = Enum.Material.Neon, color, CFrame.new(data.Origin + Vector3.new(0, 1.2, 0))
-		orb.Parent = workspace
 		TweenService:Create(beam, TweenInfo.new(1.2), {Transparency = 1, Size = Vector3.new(1.4, 26, 1.4)}):Play()
-		TweenService:Create(orb, TweenInfo.new(1.2), {Transparency = 1, Size = Vector3.new(5, 5, 5)}):Play()
 		Debris:AddItem(beam, 1.3)
-		Debris:AddItem(orb, 1.3)
 	end
 	if data.Message then showNotification(data.Message) end
 	if kind ~= "LootWorld" and panel.Visible then local result = invoke(inventoryRemote, "GetState"); if result then refresh() end end

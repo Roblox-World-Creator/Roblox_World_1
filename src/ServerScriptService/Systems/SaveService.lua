@@ -15,6 +15,7 @@ local SAVED_ATTRIBUTES = {
 	"XP",
 	"Coins",
 	"Evolution",
+	"HighestWave",
 	"SkillPoints",
 	"ElementPoints",
 	"FormPoints",
@@ -137,7 +138,7 @@ function SaveService.Save(player)
 		for _, value in ipairs(string.split(player:GetAttribute(name) or "", ",")) do if value ~= "" then table.insert(result, value) end end
 		return result
 	end
-	payload.PowerLoadout = {Attacks = attributeList("ActiveAttacks"), Motion = attributeList("ActiveMotion")}
+	payload.PowerLoadout = {Attacks = attributeList("ActiveAttacks"), Motion = attributeList("ActiveMotion"), Ultimate = player:GetAttribute("ActiveUltimate") or ""}
 	for _, key in ipairs({"UnlockedWorlds", "UnlockedElements", "WeaponMastery", "BossKills"}) do
 		payload[key] = type(sessions[player][key]) == "table" and sessions[player][key] or {}
 	end

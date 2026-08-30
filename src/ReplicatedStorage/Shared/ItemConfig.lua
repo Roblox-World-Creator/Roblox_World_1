@@ -1,12 +1,12 @@
-return {
+local config = {
 	RarityOrder = {Common = 1, Uncommon = 2, Rare = 3, Epic = 4, Legendary = 5, Mythic = 6},
 	RarityColors = {
 		Common = Color3.fromRGB(190, 200, 215), Uncommon = Color3.fromRGB(95, 225, 135),
 		Rare = Color3.fromRGB(75, 155, 255), Epic = Color3.fromRGB(185, 95, 255), Legendary = Color3.fromRGB(255, 180, 55), Mythic = Color3.fromRGB(255, 75, 180),
 	},
-	Capacity = 120,
+	Capacity = 180,
 	Items = {
-		IronBlade = {DisplayName = "Founder's Ironblade", Category = "Weapon", WeaponType = "Sword", Element = "Earth", Rarity = "Common", MaximumStack = 1, BuyPrice = 250, EquipSlot = "Weapon", ModelProfile = "BasicSwordModel01", Passive = "Steady Guard", AbilityId = "RockShot", Description = "A dependable ascendant-forged starter sword.", Stats = {Attack = 5, Defense = 2}, WeaponColor = Color3.fromRGB(185, 205, 225), WeaponSize = Vector3.new(0.3, 4.2, 0.65)},
+		IronBlade = {DisplayName = "Classic Sword", Category = "Weapon", WeaponType = "Sword", AnimationStyle = "ClassicSword", BasicAttackMultiplier = 1, Element = "Physical", Rarity = "Common", MaximumStack = 1, BuyPrice = 250, EquipSlot = "Weapon", ModelProfile = "BasicSwordModel01", Passive = "Reliable Slash", Description = "The default Classic Sword. Its basic attack starts the four-hit melee combo.", Stats = {Attack = 8, Defense = 2}, WeaponColor = Color3.fromRGB(185, 205, 225), WeaponSize = Vector3.new(0.3, 4.2, 0.65)},
 		DawnsteelSword = {DisplayName = "Dawnsteel Oath", Category = "Weapon", WeaponType = "Sword", Element = "Fire", Rarity = "Uncommon", MaximumStack = 1, BuyPrice = 850, RequiredLevel = 3, EquipSlot = "Weapon", ModelProfile = "DawnsteelSwordModel01", Passive = "Dawn Burn", AbilityId = "FireBolt", Description = "A classic blade awakened by morning flame.", Stats = {Attack = 12, Power = 4}, WeaponColor = Color3.fromRGB(255, 155, 75), WeaponSize = Vector3.new(0.3, 4.5, 0.7)},
 		SkyglassKatana = {DisplayName = "Skyglass Edge", Category = "Weapon", WeaponType = "Katana", Element = "Ice", Rarity = "Rare", MaximumStack = 1, BuyPrice = 2300, RequiredLevel = 8, EquipSlot = "Weapon", ModelProfile = "SkyglassKatanaModel01", Passive = "Glassfrost", AbilityId = "FrostNova", Description = "A translucent katana that fractures cold air.", Stats = {Attack = 22, CriticalChance = 0.06, Speed = 2}, WeaponColor = Color3.fromRGB(135, 225, 255), WeaponSize = Vector3.new(0.22, 5, 0.5)},
 		RiftwindKatana = {DisplayName = "Riftwind Reaver", Category = "Weapon", WeaponType = "Katana", Element = "Lightning", Rarity = "Epic", MaximumStack = 1, BuyPrice = 6100, RequiredLevel = 16, EquipSlot = "Weapon", ModelProfile = "RiftwindKatanaModel01", Passive = "Gale Crit", AbilityId = "ChainLightning", Description = "An ornate blade that leaves charged wind cuts.", Stats = {Attack = 36, CriticalChance = 0.11, Speed = 4, Power = 9}, WeaponColor = Color3.fromRGB(190, 140, 255), WeaponSize = Vector3.new(0.24, 5.2, 0.55)},
@@ -21,17 +21,17 @@ return {
 		FrostSpear = {DisplayName = "Frost Spear", Category = "Weapon", WeaponType = "Spear", Element = "Ice", Rarity = "Epic", MaximumStack = 1, BuyPrice = 5000, RequiredLevel = 12, EquipSlot = "Weapon", ModelProfile = "FrostSpearModel01", Passive = "Slow", AbilityId = "IceShard", Evolution = "GlacialPike", Description = "A long frozen lance designed for control and precision.", Stats = {Attack = 34, CriticalChance = 0.06, Power = 18}, WeaponColor = Color3.fromRGB(110, 225, 255), WeaponSize = Vector3.new(0.28, 6.8, 0.45)},
 		Earthbreaker = {DisplayName = "Earthbreaker", Category = "Weapon", WeaponType = "Hammer", Element = "Earth", Rarity = "Legendary", MaximumStack = 1, BuyPrice = 8200, RequiredLevel = 20, EquipSlot = "Weapon", ModelProfile = "EarthbreakerModel01", Passive = "Heavy Knockback", AbilityId = "GroundSlam", Evolution = "MountainBreaker", Description = "A massive hammer that converts every strike into seismic force.", Stats = {Attack = 52, Defense = 14, Power = 10}, WeaponColor = Color3.fromRGB(120, 185, 85), WeaponSize = Vector3.new(1.1, 5.8, 1.25)},
 		VoidStaff = {DisplayName = "Void Staff", Category = "Weapon", WeaponType = "Staff", Element = "Gravity", Rarity = "Mythic", MaximumStack = 1, BuyPrice = 20000, RequiredLevel = 35, EquipSlot = "Weapon", ModelProfile = "VoidStaffModel01", Passive = "Gravity Projectile", AbilityId = "BlackHole", Evolution = "SingularityStaff", Description = "An endgame focus built around a stable miniature singularity.", Stats = {Attack = 28, Power = 58, MP = 35, CriticalDamage = 0.3}, WeaponColor = Color3.fromRGB(145, 55, 230), WeaponSize = Vector3.new(0.34, 6.4, 0.7)},
-		StormFang = {DisplayName = "Storm Fang", Category = "Weapon", Rarity = "Rare", MaximumStack = 1, BuyPrice = 2500, EquipSlot = "Weapon", Description = "A charged blade recovered from elite Rift creatures.", Stats = {Attack = 18, CriticalChance = 0.05, Power = 8}, WeaponColor = Color3.fromRGB(80, 205, 255), WeaponSize = Vector3.new(0.35, 4.8, 0.75)},
+		StormFang = {DisplayName = "Storm Fang", Category = "Weapon", Rarity = "Rare", MaximumStack = 1, BuyPrice = 2500, RequiredLevel = 7, EquipSlot = "Weapon", Element = "Lightning", AbilityId = "LightningBolt", Passive = "Fang Spark", Description = "A charged blade recovered from elite Rift creatures.", Stats = {Attack = 18, CriticalChance = 0.05, Power = 8}, WeaponColor = Color3.fromRGB(80, 205, 255), WeaponSize = Vector3.new(0.35, 4.8, 0.75)},
 		Starbreaker = {DisplayName = "Starbreaker", Category = "Weapon", Rarity = "Legendary", MaximumStack = 1, EquipSlot = "Weapon", Description = "A boss-forged greatblade humming with collapsed starlight.", Stats = {Attack = 42, CriticalChance = 0.1, CriticalDamage = 0.35, Power = 20}, WeaponColor = Color3.fromRGB(255, 185, 70), WeaponSize = Vector3.new(0.55, 6.2, 1)},
 		GravityHammer = {DisplayName = "Gravity Hammer", Category = "Weapon", WeaponType = "Hammer", Element = "Gravity", Rarity = "Epic", MaximumStack = 1, BuyPrice = 6400, RequiredLevel = 16, EquipSlot = "Weapon", ModelProfile = "GravityHammerModel01", Passive = "Crushing Pull", AbilityId = "GravityPull", Description = "A crushing weapon wrapped in violet gravity fields.", Stats = {Attack = 30, Defense = 8, Power = 12}, WeaponColor = Color3.fromRGB(145, 80, 235), WeaponSize = Vector3.new(0.8, 5.2, 1.2)},
 		EmberGreatsword = {DisplayName = "Ember Greatsword", Category = "Weapon", Rarity = "Epic", MaximumStack = 1, EquipSlot = "Weapon", Description = "A broad blade forged around an eternal ember.", Stats = {Attack = 34, CriticalDamage = 0.25}, WeaponColor = Color3.fromRGB(255, 90, 45), WeaponSize = Vector3.new(0.6, 5.8, 1.1)},
 		CelestialSpear = {DisplayName = "Celestial Spear", Category = "Weapon", Rarity = "Legendary", MaximumStack = 1, EquipSlot = "Weapon", Description = "A luminous polearm made for evolved warriors.", Stats = {Attack = 38, Power = 30, CriticalChance = 0.08}, WeaponColor = Color3.fromRGB(255, 225, 110), WeaponSize = Vector3.new(0.28, 6.5, 0.55)},
-		Riftbow = {DisplayName = "Riftbow", Category = "Weapon", Rarity = "Rare", MaximumStack = 1, BuyPrice = 1800, EquipSlot = "SecondaryWeapon", WeaponKind = "Bow", Description = "A compact bow that fires condensed Rift arrows.", Stats = {Attack = 16, Power = 6}, WeaponColor = Color3.fromRGB(105, 220, 255), WeaponSize = Vector3.new(0.25, 4.4, 0.25)},
-		RiftPistol = {DisplayName = "Rift Pistol", Category = "Weapon", Rarity = "Epic", MaximumStack = 1, BuyPrice = 2600, EquipSlot = "SecondaryWeapon", WeaponKind = "Gun", Description = "A sidearm that launches stable energy rounds.", Stats = {Attack = 22, CriticalChance = 0.05}, WeaponColor = Color3.fromRGB(150, 170, 205), WeaponSize = Vector3.new(0.5, 1.8, 1)},
-		RiftRifle = {DisplayName = "Rift Rifle", Category = "Weapon", Rarity = "Legendary", MaximumStack = 1, BuyPrice = 4200, EquipSlot = "SecondaryWeapon", WeaponKind = "Rifle", Description = "A long-range rifle tuned for elite targets.", Stats = {Attack = 34, Power = 10, CriticalChance = 0.08}, WeaponColor = Color3.fromRGB(255, 190, 80), WeaponSize = Vector3.new(0.35, 4.8, 0.65)},
-		IronGuard = {DisplayName = "Iron Guard", Category = "Armor", Rarity = "Uncommon", MaximumStack = 1, BuyPrice = 800, EquipSlot = "Chest", Description = "Layered fort armor that softens incoming attacks.", Stats = {Health = 35, Defense = 8}},
-		GaleBoots = {DisplayName = "Gale Boots", Category = "Armor", Rarity = "Rare", MaximumStack = 1, BuyPrice = 1200, EquipSlot = "Boots", Description = "Light boots that convert motion into momentum.", Stats = {Health = 10, Speed = 5}},
-		RiftHelm = {DisplayName = "Rift Helm", Category = "Armor", Rarity = "Rare", MaximumStack = 1, BuyPrice = 1400, EquipSlot = "Head", Description = "A sealed helm that protects the mind from Rift pressure.", Stats = {Health = 25, Defense = 10, MP = 10}},
+		Riftbow = {DisplayName = "Riftbow", Category = "Weapon", Rarity = "Rare", MaximumStack = 1, BuyPrice = 1800, RequiredLevel = 5, EquipSlot = "SecondaryWeapon", WeaponKind = "Bow", AbilityId = "EnergyBolt", Description = "A compact bow that fires condensed Rift arrows.", Stats = {Attack = 16, Power = 6}, WeaponColor = Color3.fromRGB(105, 220, 255), WeaponSize = Vector3.new(0.25, 4.4, 0.25)},
+		RiftPistol = {DisplayName = "Rift Pistol", Category = "Weapon", Rarity = "Epic", MaximumStack = 1, BuyPrice = 2600, RequiredLevel = 10, EquipSlot = "SecondaryWeapon", WeaponKind = "Gun", AbilityId = "FireBolt", Description = "A sidearm that launches stable energy rounds.", Stats = {Attack = 22, CriticalChance = 0.05}, WeaponColor = Color3.fromRGB(150, 170, 205), WeaponSize = Vector3.new(0.5, 1.8, 1)},
+		RiftRifle = {DisplayName = "Rift Rifle", Category = "Weapon", Rarity = "Legendary", MaximumStack = 1, BuyPrice = 4200, RequiredLevel = 18, EquipSlot = "SecondaryWeapon", WeaponKind = "Rifle", AbilityId = "LightningBolt", Unique = true, Passive = "Riftpiercer: shots splash through clustered enemies", Description = "A long-range rifle tuned for elite targets.", Stats = {Attack = 34, Power = 10, CriticalChance = 0.08}, WeaponColor = Color3.fromRGB(255, 190, 80), WeaponSize = Vector3.new(0.35, 4.8, 0.65)},
+		IronGuard = {DisplayName = "Iron Guard", Category = "Armor", Rarity = "Uncommon", MaximumStack = 1, BuyPrice = 800, RequiredLevel = 3, EquipSlot = "Chest", Description = "Layered fort armor that softens incoming attacks.", Stats = {Health = 35, Defense = 8}},
+		GaleBoots = {DisplayName = "Gale Boots", Category = "Armor", Rarity = "Rare", MaximumStack = 1, BuyPrice = 1200, RequiredLevel = 5, EquipSlot = "Boots", Description = "Light boots that convert motion into momentum.", Stats = {Health = 10, Speed = 5}},
+		RiftHelm = {DisplayName = "Rift Helm", Category = "Armor", Rarity = "Rare", MaximumStack = 1, BuyPrice = 1400, RequiredLevel = 7, EquipSlot = "Head", Description = "A sealed helm that protects the mind from Rift pressure.", Stats = {Health = 25, Defense = 10, MP = 10}},
 		TitanGloves = {DisplayName = "Titan Gloves", Category = "Armor", Rarity = "Epic", MaximumStack = 1, EquipSlot = "Gloves", Description = "Heavy gauntlets that turn defense into striking power.", Stats = {Attack = 12, Defense = 12}},
 		StormCore = {DisplayName = "Storm Core", Category = "Artifact", Rarity = "Epic", MaximumStack = 1, EquipSlot = "Artifact", Description = "An unstable core that amplifies power and critical strikes.", Stats = {Power = 18, CriticalChance = 0.08, MP = 20}},
 		TitanHeart = {DisplayName = "Titan Heart", Category = "Artifact", Rarity = "Legendary", MaximumStack = 1, EquipSlot = "Artifact", Description = "A dense living crystal that greatly reinforces its bearer.", Stats = {Health = 90, Defense = 15}},
@@ -42,15 +42,42 @@ return {
 		EnergySurge = {DisplayName = "Energy Surge", Category = "Consumable", Rarity = "Uncommon", MaximumStack = 20, BuyPrice = 180, Description = "Adds 8 MP regeneration per second for 45 seconds.", Consumable = {Kind = "RegenBuff", Amount = 8, Duration = 45, Cooldown = 25}},
 		LavaKatana = {DisplayName = "Katana Style: Lava Sword", Category = "Weapon", WeaponType = "Katana", Element = "Fire", Rarity = "Legendary", MaximumStack = 1, BuyPrice = 18000, RequiredLevel = 55, EquipSlot = "Weapon", ModelProfile = "InfernoSwordModel01", Passive = "Lava Edge: bonus fire damage and 25% Water/Ice resistance", AbilityId = "VolcanoCrown", Description = "A flowing volcanic katana that burns targets while tempering its wielder against cold.", Stats = {Attack = 72, Power = 38, Defense = 12, Speed = 5}, Resistances = {Ice = 0.25, Water = 0.25}, WeaponColor = Color3.fromRGB(255, 70, 25), WeaponSize = Vector3.new(0.24, 5.4, 0.55)},
 		PrismaticRelic = {DisplayName = "Prismatic Endblade", Category = "Weapon", WeaponType = "Greatsword", Element = "Prismatic", Rarity = "Mythic", MaximumStack = 1, BuyPrice = 100000, RequiredLevel = 100, EquipSlot = "Weapon", ModelProfile = "CelestialLightbladeModel01", Passive = "Legendary Spectrum: 100% elemental damage increase", AbilityId = "PrismaticEnd", Description = "The final ascendant weapon, refracting every element at double base damage.", Stats = {Attack = 160, Power = 120, Defense = 30, Speed = 8, CriticalChance = 0.12}, Resistances = {Fire = 0.15, Ice = 0.15, Lightning = 0.15, Earth = 0.15, Gravity = 0.15, Poison = 0.15}, WeaponColor = Color3.fromRGB(255, 105, 220), WeaponSize = Vector3.new(0.35, 6.2, 0.8)},
-		EvolutionShard = {DisplayName = "Evolution Shard", Category = "Material", Rarity = "Uncommon", MaximumStack = 99, Description = "Condensed evolution matter used in advanced crafting."},
-		RiftCrystal = {DisplayName = "Rift Crystal", Category = "Material", Rarity = "Rare", MaximumStack = 99, Description = "A crystalline fragment left by elite enemies."},
-		BossCore = {DisplayName = "Boss Core", Category = "Material", Rarity = "Epic", MaximumStack = 99, Description = "A guaranteed trophy from a defeated wave boss."},
+		RiftClaw = {DisplayName = "Rift Runner Claw", Category = "Material", Rarity = "Common", MaximumStack = 99, SellValue = 18, QuickSell = true, Purpose = "Sell for gold or craft starter combat supplies.", Description = "A sharp claw taken from a Rift Runner."},
+		WolfFang = {DisplayName = "Elemental Wolf Fang", Category = "Material", Rarity = "Uncommon", MaximumStack = 99, SellValue = 38, QuickSell = true, Purpose = "Used for speed equipment and sold by hunters.", Description = "A fang still humming with elemental movement energy."},
+		OrcTusk = {DisplayName = "Warrior Tusk", Category = "Material", Rarity = "Uncommon", MaximumStack = 99, SellValue = 46, QuickSell = true, Purpose = "Craft battle serums or sell for gold.", Description = "A trophy from a humanoid raider or champion."},
+		EmberClaw = {DisplayName = "Emberfang Claw", Category = "Material", Rarity = "Uncommon", MaximumStack = 99, SellValue = 55, QuickSell = true, Purpose = "Fire crafting component with strong resale value.", Description = "A heat-proof claw from an Emberfang."},
+		GolemCore = {DisplayName = "Golem Core Fragment", Category = "Material", Rarity = "Rare", MaximumStack = 99, SellValue = 120, QuickSell = true, Purpose = "Craft defensive equipment or sell for substantial gold.", Description = "A dense piece of a construct's animated core."},
+		FrozenCore = {DisplayName = "Frozen Heart Shard", Category = "Material", Rarity = "Rare", MaximumStack = 99, SellValue = 135, QuickSell = true, Purpose = "Ice weapon crafting and high-value resale.", Description = "A permanently frozen fragment from a glacial creature."},
+		DragonScale = {DisplayName = "Ascendant Dragon Scale", Category = "Material", Rarity = "Epic", MaximumStack = 99, SellValue = 360, QuickSell = true, Purpose = "Required for legendary weapons and valuable to merchants.", Description = "An armored scale shed by a flying realm predator."},
+		ChampionCrest = {DisplayName = "Runebound Champion Crest", Category = "Material", Rarity = "Epic", MaximumStack = 99, SellValue = 420, QuickSell = true, Purpose = "Endgame crafting trophy and premium sale item.", Description = "The rune-inscribed crest of an elite champion."},
+		EvolutionShard = {DisplayName = "Evolution Shard", Category = "Material", Rarity = "Uncommon", MaximumStack = 99, SellValue = 25, Purpose = "Craft potions, equipment, and evolution gear.", Description = "Condensed evolution matter used in advanced crafting."},
+		RiftCrystal = {DisplayName = "Rift Crystal", Category = "Material", Rarity = "Rare", MaximumStack = 99, SellValue = 90, Purpose = "Craft high-level elemental weapons or sell for gold.", Description = "A crystalline fragment left by elite enemies."},
+		BossCore = {DisplayName = "Boss Core", Category = "Material", Rarity = "Epic", MaximumStack = 99, SellValue = 300, Purpose = "A valuable boss trophy reserved for endgame recipes and trading.", Description = "A guaranteed trophy from a defeated wave boss."},
 	},
 	Recipes = {
 		HealthPotion = {Quantity = 2, Ingredients = {EvolutionShard = 2}},
-		BattleSerum = {Quantity = 1, Ingredients = {EvolutionShard = 4, RiftCrystal = 1}},
-		StormFang = {Quantity = 1, Ingredients = {EvolutionShard = 12, RiftCrystal = 5}},
-		IronGuard = {Quantity = 1, Ingredients = {EvolutionShard = 8}},
+		BattleSerum = {Quantity = 1, Ingredients = {EvolutionShard = 2, OrcTusk = 2}},
+		StormFang = {Quantity = 1, Ingredients = {EvolutionShard = 8, RiftCrystal = 3, WolfFang = 5}},
+		IronGuard = {Quantity = 1, Ingredients = {EvolutionShard = 5, GolemCore = 2}},
+		FrostSpear = {Quantity = 1, Ingredients = {FrozenCore = 5, DragonScale = 1, RiftCrystal = 4}},
+	},
+	MobDrops = {
+		Basic = {Part = "RiftClaw", Rare = {{ItemId = "DawnsteelSword", Weight = 1.2}}},
+		Fast = {Part = "WolfFang", Rare = {{ItemId = "SkyglassKatana", Weight = 1}}},
+		Tank = {Part = "GolemCore", Rare = {{ItemId = "IronGuard", Weight = 1.4}}},
+		NullHunter = {Part = "RiftClaw", Rare = {{ItemId = "VoidStaff", Weight = 0.3}}},
+		LabyrinthHorror = {Part = "ChampionCrest", Rare = {{ItemId = "GravityHammer", Weight = 0.75}}},
+		FireImp = {Part = "EmberClaw", Rare = {{ItemId = "DawnsteelSword", Weight = 2.2}, {ItemId = "InfernoSword", Weight = 0.45}}},
+		LavaGolem = {Part = "GolemCore", Rare = {{ItemId = "InfernoSword", Weight = 1.5}}},
+		FrostWolf = {Part = "WolfFang", Rare = {{ItemId = "SkyglassKatana", Weight = 1.8}}},
+		IceGolem = {Part = "FrozenCore", Rare = {{ItemId = "FrostSpear", Weight = 1.5}}},
+		StormWolf = {Part = "WolfFang", Rare = {{ItemId = "ThunderKatana", Weight = 1.6}}},
+		StormOrc = {Part = "OrcTusk", Rare = {{ItemId = "RiftwindKatana", Weight = 1.3}}},
+		StoneWarrior = {Part = "OrcTusk", Rare = {{ItemId = "Earthbreaker", Weight = 0.8}}},
+		EarthGolem = {Part = "GolemCore", Rare = {{ItemId = "Earthbreaker", Weight = 1.4}}},
+		OrcChampion = {Part = "ChampionCrest", Rare = {{ItemId = "Earthbreaker", Weight = 1.8}, {ItemId = "CelestialSpear", Weight = 0.35}}},
+		AshwingDrake = {Part = "DragonScale", Rare = {{ItemId = "CelestialLightblade", Weight = 0.65}}},
+		RiftDragon = {Part = "DragonScale", Rare = {{ItemId = "CelestialLightblade", Weight = 1.1}, {ItemId = "VoidStaff", Weight = 0.45}}},
 	},
 	LootTables = {
 		Basic = {
@@ -64,16 +91,87 @@ return {
 		Tank = {
 			{ItemId = "IronGuard", Weight = 3}, {ItemId = "EvolutionShard", Weight = 25}, {ItemId = "RiftCrystal", Weight = 8},
 			{ItemId = "GravityHammer", Weight = 1}, {ItemId = "StonehandCannon", Weight = 1}, {ItemId = "Earthbreaker", Weight = 1},
+			{ItemId = "TitanGloves", Weight = 2},
 		},
 		Elite = {
 			{ItemId = "StormFang", Weight = 3}, {ItemId = "RiftCrystal", Weight = 35}, {ItemId = "BattleSerum", Weight = 12},
 			{ItemId = "ThunderKatana", Weight = 2}, {ItemId = "InfernoSword", Weight = 2}, {ItemId = "FrostSpear", Weight = 2},
 			{ItemId = "RiftwindKatana", Weight = 1}, {ItemId = "EmberRepeater", Weight = 1}, {ItemId = "TempestLaser", Weight = 1},
+			{ItemId = "EmberGreatsword", Weight = 1},
 		},
 		Boss = {
 			{ItemId = "Starbreaker", Weight = 2}, {ItemId = "StormCore", Weight = 8}, {ItemId = "TitanHeart", Weight = 4},
 			{ItemId = "CelestialLightblade", Weight = 2}, {ItemId = "SolarChaingun", Weight = 1}, {ItemId = "VoidStaff", Weight = 2},
-			{ItemId = "LavaKatana", Weight = 3}, {ItemId = "PrismaticRelic", Weight = 1},
+			{ItemId = "LavaKatana", Weight = 3}, {ItemId = "PrismaticRelic", Weight = 1}, {ItemId = "CelestialSpear", Weight = 2},
 		},
 	},
 }
+
+for _, itemId in ipairs({"DawnsteelSword", "SkyglassKatana", "ThunderKatana", "InfernoSword", "FrostSpear", "RiftwindKatana", "Earthbreaker", "GravityHammer", "CelestialLightblade"}) do
+	if config.Items[itemId] then config.Items[itemId].Unique = true end
+end
+
+-- One useful piece of equipment is available at every character level. This keeps
+-- the market relevant between major authored drops without replacing unique loot.
+local progressionSlots = {"Head", "Chest", "Legs", "Boots", "Gloves", "Cape", "Core", "Artifact", "Weapon", "SecondaryWeapon"}
+local tierNames = {"Wayfarer", "Vanguard", "Runebound", "Ascendant", "Sovereign", "Mythic"}
+local legendaryNames = {"Aegis of Dawn", "Storm-King's Promise", "Crown of the Last Giant", "Mantle of Falling Stars", "Greaves of the Worldroot", "Hands of Eternity", "Solbrand, Oath of Noon", "Vesper, Voice of Thunder"}
+local elementalAbilities = {"FireBolt", "IceShard", "LightningBolt", "RockShot", "GravityPull", "FlameWave", "FrostNova", "Thunderstorm"}
+local function rarityForLevel(level)
+	if level >= 90 then return "Mythic", 6 end
+	if level >= 65 then return "Legendary", 5 end
+	if level >= 45 then return "Epic", 4 end
+	if level >= 25 then return "Rare", 3 end
+	if level >= 10 then return "Uncommon", 2 end
+	return "Common", 1
+end
+for level = 1, 100 do
+	local rarity, rarityTier = rarityForLevel(level)
+	local slot = progressionSlots[(level - 1) % #progressionSlots + 1]
+	local itemId = string.format("LevelGear%03d", level)
+	local isWeapon = slot == "Weapon" or slot == "SecondaryWeapon"
+	local legendary = rarity == "Legendary" or rarity == "Mythic"
+	local displayName = legendary and string.format("%s %s", legendaryNames[(level - 1) % #legendaryNames + 1], level)
+		or string.format("%s %s %d", tierNames[rarityTier], slot, level)
+	local health = math.floor(level * (2.2 + rarityTier * 0.65))
+	local definition = {
+		DisplayName = displayName,
+		Category = isWeapon and "Weapon" or (slot == "Artifact" or slot == "Core") and "Artifact" or "Armor",
+		Rarity = rarity,
+		MaximumStack = 1,
+		BuyPrice = math.floor(45 + level ^ 1.55 * (13 + rarityTier * 2)),
+		RequiredLevel = level,
+		EquipSlot = slot,
+		IconGlyph = slot == "SecondaryWeapon" and "RNG" or string.upper(string.sub(slot, 1, 3)),
+		Unique = legendary,
+		Passive = legendary and string.format("%s: level %d signature equipment bonus", displayName, level) or string.format("Level %d %s training bonus", level, slot),
+		Description = string.format("Level %d %s equipment balanced for this progression tier.", level, rarity),
+		Stats = isWeapon and {Attack = math.floor(5 + level * (1.1 + rarityTier * 0.12)), Power = math.floor(level * rarityTier * 0.12), CriticalChance = legendary and 0.04 + rarityTier * 0.01 or 0}
+			or {Health = health, Defense = math.floor(2 + level * (0.22 + rarityTier * 0.055)), Speed = (slot == "Boots" or slot == "Cape") and math.max(1, math.floor(level / 18)) or 0},
+	}
+	if legendary then
+		local resistanceElement = ({"Fire", "Ice", "Lightning", "Earth", "Gravity"})[(level - 1) % 5 + 1]
+		definition.Resistances = {[resistanceElement] = rarity == "Mythic" and 0.16 or 0.1}
+	end
+	if slot == "Weapon" then
+		definition.WeaponType = level % 3 == 0 and "Katana" or level % 3 == 1 and "Sword" or "Hammer"
+		definition.Element = ({"Fire", "Ice", "Lightning", "Earth", "Gravity"})[(level - 1) % 5 + 1]
+		definition.AbilityId = elementalAbilities[(level - 1) % #elementalAbilities + 1]
+		definition.ModelProfile = level % 3 == 0 and "RiftwindKatanaModel01" or level % 3 == 1 and "DawnsteelSwordModel01" or "GravityHammerModel01"
+		definition.WeaponColor = config.RarityColors[rarity]
+		definition.WeaponSize = Vector3.new(0.35, 4.4 + math.min(1.6, level / 80), 0.7)
+	elseif slot == "SecondaryWeapon" then
+		definition.WeaponKind = level % 2 == 0 and "Gun" or "Rifle"
+		definition.AbilityId = elementalAbilities[(level - 1) % #elementalAbilities + 1]
+		definition.Element = ({"Lightning", "Fire", "Ice", "Earth"})[(level - 1) % 4 + 1]
+	end
+	config.Items[itemId] = definition
+end
+
+for index, level in ipairs({20, 40, 60, 80, 100}) do
+	local amount = 55 + level * 3
+	config.Items["HealthCore" .. level] = {DisplayName = "Health Core " .. level, IconGlyph = "HP", Category = "Consumable", Rarity = index >= 4 and "Epic" or index >= 2 and "Rare" or "Uncommon", MaximumStack = 99, BuyPrice = 40 + level * 8, RequiredLevel = level, Description = string.format("Restores %d health, scaled for level %d adventurers.", amount, level), Consumable = {Kind = "Health", Amount = amount, Cooldown = 8}}
+	config.Items["ManaCore" .. level] = {DisplayName = "Mana Core " .. level, IconGlyph = "MP", Category = "Consumable", Rarity = index >= 4 and "Epic" or index >= 2 and "Rare" or "Uncommon", MaximumStack = 99, BuyPrice = 45 + level * 8, RequiredLevel = level, Description = string.format("Restores %d MP, scaled for level %d spellcasters.", amount, level), Consumable = {Kind = "MP", Amount = amount, Cooldown = 8}}
+end
+
+return config

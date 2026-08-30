@@ -11,6 +11,7 @@ local remote = remotes:WaitForChild("QuestRemote")
 local event = remotes:WaitForChild("QuestEvent")
 local quests = {}
 local busy = false
+local realmFilter
 
 local function round(parent, radius)
 	local corner = Instance.new("UICorner")
@@ -75,7 +76,7 @@ local function render()
 	local firstButton
 	for order, quest in ipairs(quests) do
 		local definition = config[quest.Id]
-		if definition then
+		if definition and (not realmFilter or definition.RealmId == realmFilter) then
 			local card = Instance.new("Frame")
 			card.LayoutOrder, card.Size, card.BackgroundColor3, card.BorderSizePixel = order, UDim2.new(1, -6, 0, 94), Color3.fromRGB(31, 38, 57), 0
 			round(card, 8)
@@ -112,7 +113,7 @@ end
 
 local function toggle()
 	panel.Visible = not panel.Visible
-	if panel.Visible then local result = request("GetState"); if result then render() end else GuiService.SelectedObject = nil end
+	if panel.Visible then realmFilter = nil; title.Text = "ASCENDANT QUESTS"; local result = request("GetState"); if result then render() end else GuiService.SelectedObject = nil end
 end
 open.Activated:Connect(toggle)
 close.Activated:Connect(function() panel.Visible = false; GuiService.SelectedObject = nil end)
@@ -127,7 +128,16 @@ end
 ContextActionService:BindActionAtPriority("QuestToggle", gamepad, false, 3100, Enum.KeyCode.DPadUp)
 ContextActionService:BindActionAtPriority("QuestClose", gamepad, false, 3100, Enum.KeyCode.ButtonB)
 ContextActionService:BindActionAtPriority("QuestBlockCombat", gamepad, false, 3100, Enum.KeyCode.ButtonX, Enum.KeyCode.ButtonY, Enum.KeyCode.ButtonR2, Enum.KeyCode.ButtonL2, Enum.KeyCode.ButtonL3, Enum.KeyCode.ButtonL1, Enum.KeyCode.ButtonR1)
-event.OnClientEvent:Connect(function(_, data)
+event.OnClientEvent:Connect(function(kind, data)
+	if kind == "OpenRealm" then
+		realmFilter = data and data.RealmId
+		local realm = realmFilter and require(ReplicatedStorage.Shared.RealmConfig).Realms[realmFilter]
+		title.Text = realm and (realm.DisplayName .. " QUESTS") or "REALM QUESTS"
+		panel.Visible = true
+		local result = request("GetState")
+		if result then render() end
+		return
+	end
 	local definition = config[data.QuestId]
 	if definition then status.Text = data.Complete and (definition.DisplayName .. " complete — claim your reward") or string.format("%s: %d/%d", definition.DisplayName, data.Progress, data.Goal) end
 	if panel.Visible then local result = request("GetState"); if result then render() end end

@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AssetModelService = require(script.Parent.AssetModelService)
 
 local WeaponService = {}
@@ -26,6 +27,24 @@ local function attach(part, bodyPart, offset, name)
 	local motor = Instance.new("Motor6D")
 	-- Keep the joint inside the visual model so a rebuild removes both the part and its joint.
 	motor.Name, motor.Part0, motor.Part1, motor.C0, motor.Parent = name or "EquipmentGrip", bodyPart, part, offset, part
+	return motor
+end
+
+local function attachAtGrip(part, bodyPart, offset, name, importedToolGrip)
+	local handAttachment = bodyPart:FindFirstChild("RightGripAttachment") or bodyPart:FindFirstChild("LeftGripAttachment")
+	local weaponAttachment = part:FindFirstChild("RightGripAttachment") or part:FindFirstChild("LeftGripAttachment")
+	if handAttachment and not weaponAttachment and typeof(importedToolGrip) == "CFrame" then
+		part.CFrame = bodyPart.CFrame * handAttachment.CFrame * importedToolGrip:Inverse()
+		local motor = Instance.new("Motor6D")
+		motor.Name, motor.Part0, motor.Part1 = name or "EquipmentGrip", bodyPart, part
+		motor.C0, motor.C1, motor.Parent = handAttachment.CFrame, importedToolGrip, part
+		return motor
+	end
+	if not handAttachment or not weaponAttachment then return attach(part, bodyPart, offset, name) end
+	part.CFrame = bodyPart.CFrame * handAttachment.CFrame * weaponAttachment.CFrame:Inverse()
+	local motor = Instance.new("Motor6D")
+	motor.Name, motor.Part0, motor.Part1 = name or "EquipmentGrip", bodyPart, part
+	motor.C0, motor.C1, motor.Parent = handAttachment.CFrame, weaponAttachment.CFrame, part
 	return motor
 end
 
@@ -66,7 +85,7 @@ local function createImportedWeapon(container, hand, itemId, definition, seconda
 	end
 	local gripOffset = offset * correction
 	AssetModelService.WeldModel(model)
-	attach(model.PrimaryPart, hand, gripOffset, secondary and "SecondaryGrip" or "SwordGrip")
+	attachAtGrip(model.PrimaryPart, hand, gripOffset, secondary and "SecondaryGrip" or "SwordGrip", model:GetAttribute("ImportedToolGrip"))
 	addGlow(model.PrimaryPart, definition)
 	return true
 end
@@ -76,7 +95,7 @@ local function createWeapon(container, hand, itemId, definition, secondary)
 	local offset = secondary
 		and CFrame.new(0, -0.2, -0.45) * CFrame.Angles(math.rad(-8), 0, math.rad(-8))
 		or CFrame.new(0, -0.12, -0.4) * CFrame.Angles(math.rad(-12), 0, math.rad(-8))
-	if definition.ModelProfile and createImportedWeapon(container, hand, itemId, definition, secondary, offset) then return end
+	if definition.ModelProfile and not definition.UseProceduralVisual and createImportedWeapon(container, hand, itemId, definition, secondary, offset) then return end
 	local model = Instance.new("Model")
 	model.Name, model.Parent = secondary and "SecondaryWeaponVisual" or "PrimaryWeaponVisual", container
 	model:SetAttribute("ItemId", itemId)
@@ -191,6 +210,23 @@ end
 
 function WeaponService.Start(config)
 	itemConfig = config
+	local importedNames = ReplicatedStorage:FindFirstChild("ImportedStarterItemNames")
+	local function isArchivedStarterItem(instance)
+		if not instance:IsA("Tool") or not importedNames then return false end
+		for _, marker in ipairs(importedNames:GetChildren()) do
+			if marker:IsA("StringValue") and marker.Value == instance.Name then return true end
+		end
+		return false
+	end
+	local function removeArchivedStarterTools(container)
+		if not container then return end
+		for _, child in ipairs(container:GetChildren()) do
+			if isArchivedStarterItem(child) then child:Destroy() end
+		end
+		container.ChildAdded:Connect(function(child)
+			if isArchivedStarterItem(child) then child:Destroy() end
+		end)
+	end
 	local function setup(player)
 		local connectedSlots = {}
 		local function connectEquipment(equipment)
@@ -204,11 +240,15 @@ function WeaponService.Start(config)
 			equipment.ChildAdded:Connect(function(slot) connectSlot(slot); queueRebuild(player) end)
 			queueRebuild(player)
 		end
-		player.CharacterAdded:Connect(function(character) task.defer(rebuild, player, character) end)
+		player.CharacterAdded:Connect(function(character)
+			removeArchivedStarterTools(character)
+			task.defer(rebuild, player, character)
+		end)
+		removeArchivedStarterTools(player:FindFirstChildOfClass("Backpack") or player:WaitForChild("Backpack", 5))
 		local equipment = player:FindFirstChild("Equipment")
 		if equipment then connectEquipment(equipment) end
 		player.ChildAdded:Connect(function(child) if child.Name == "Equipment" and child:IsA("Folder") then connectEquipment(child) end end)
-		if player.Character then queueRebuild(player) end
+		if player.Character then removeArchivedStarterTools(player.Character); queueRebuild(player) end
 	end
 	Players.PlayerAdded:Connect(setup)
 	for _, player in ipairs(Players:GetPlayers()) do setup(player) end

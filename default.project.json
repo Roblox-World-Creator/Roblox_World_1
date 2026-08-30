@@ -54,6 +54,13 @@
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
+      "$properties": {
+        "AutoJumpEnabled": true,
+        "CharacterJumpHeight": 7.2,
+        "CharacterJumpPower": 50,
+        "CharacterUseJumpPower": true,
+        "CharacterWalkSpeed": 16
+      },
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "$path": "src/StarterPlayer/StarterPlayerScripts"

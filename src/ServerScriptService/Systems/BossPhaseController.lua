@@ -4,10 +4,34 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BossPhaseController = {}
 local EnemyAI = require(script.Parent.EnemyAI)
 
-local function damagePlayer(player, humanoid, damage)
+local function damagePlayer(boss, player, humanoid, damage, gameConfig)
 	if player:GetAttribute("AdminGodMode") or workspace:GetServerTimeNow() < (player:GetAttribute("InvulnerableUntil") or 0) then return end
 	local defense = math.max(0, (player:GetAttribute("Defense") or 0) + (player:GetAttribute("TransformationDefense") or 0))
-	humanoid:TakeDamage(damage * 100 / (100 + defense))
+	local element = boss:GetAttribute("Element") or "Physical"
+	local resistance = math.clamp((tonumber(player:GetAttribute(element .. "Resistance")) or 0)
+		+ (tonumber(player:GetAttribute("Skill" .. element .. "Resistance")) or 0)
+		+ (tonumber(player:GetAttribute("AllResistance")) or 0), 0, 0.75)
+	damage *= (1 - resistance) * 100 / (100 + defense)
+	local targetRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	local bossRoot = boss:FindFirstChild("HumanoidRootPart")
+	local offset = targetRoot and bossRoot and (bossRoot.Position - targetRoot.Position)
+	local facingBoss = offset and offset.Magnitude > 0 and targetRoot.CFrame.LookVector:Dot(offset.Unit) > 0.15
+	if player:GetAttribute("Blocking") and facingBoss then
+		local now = workspace:GetServerTimeNow()
+		if now - (player:GetAttribute("BlockStartedAt") or 0) <= gameConfig.PerfectBlockWindow then
+			boss:SetAttribute("StunnedUntil", now + gameConfig.PerfectBlockStun * (1 - math.clamp(boss:GetAttribute("StunResistance") or 0, 0, 0.95)))
+			return
+		end
+		local stamina = player:GetAttribute("Stamina") or 0
+		if stamina >= gameConfig.BlockStaminaCost then
+			player:SetAttribute("Stamina", stamina - gameConfig.BlockStaminaCost)
+			player:SetAttribute("LastStaminaUse", now)
+			damage *= gameConfig.BlockDamageMultiplier
+		else
+			player:SetAttribute("Blocking", false)
+		end
+	end
+	humanoid:TakeDamage(damage)
 end
 
 local function getPhaseDefinition(config, phaseNumber)
@@ -48,6 +72,9 @@ local function summonMinions(boss, gameConfig)
 		minion.Name = "Rift Minion"
 		minion:SetAttribute("EnemyType", "Fast")
 		minion:SetAttribute("AttackDamage", 10)
+		minion:SetAttribute("IsWaveEnemy", boss:GetAttribute("IsWaveEnemy") == true)
+		minion:SetAttribute("RequiredLevel", boss:GetAttribute("RequiredLevel") or 1)
+		minion:SetAttribute("Element", boss:GetAttribute("Element") or "Gravity")
 		local body = Instance.new("Part")
 		body.Name = "HumanoidRootPart"
 		body.Size = Vector3.new(2, 2, 2)
@@ -57,6 +84,7 @@ local function summonMinions(boss, gameConfig)
 		local humanoid = Instance.new("Humanoid")
 		humanoid.MaxHealth, humanoid.Health, humanoid.WalkSpeed = 80, 80, 15
 		humanoid.Parent = minion
+		minion:SetAttribute("BaseWalkSpeed", humanoid.WalkSpeed)
 		minion.PrimaryPart = body
 		minion.Parent = folder
 		EnemyAI.Run(minion, core, gameConfig, false)
@@ -76,6 +104,12 @@ function BossPhaseController.Start(boss, config, gameConfig)
 	boss:SetAttribute("BaseWalkSpeed", humanoid.WalkSpeed)
 	boss:SetAttribute("AttackCooldownMultiplier", 1)
 	local currentPhase = 1
+	local function beginBossCast(duration)
+		local now = workspace:GetServerTimeNow()
+		if now < (boss:GetAttribute("BossCastingUntil") or 0) then return false end
+		boss:SetAttribute("BossCastingUntil", now + duration)
+		return true
+	end
 
 	humanoid.HealthChanged:Connect(function(health)
 		local ratio = health / math.max(humanoid.MaxHealth, 1)
@@ -95,7 +129,7 @@ function BossPhaseController.Start(boss, config, gameConfig)
 				if nextSlam == math.huge then
 					nextSlam = os.clock() + definition.SlamInterval
 				end
-				if os.clock() >= nextSlam then
+				if os.clock() >= nextSlam and beginBossCast(config.BossSlamWindup + 0.35) then
 					local origin = root.Position
 					effectsRemote:FireAllClients("BossSlamTelegraph", {
 						Origin = origin,
@@ -116,7 +150,7 @@ function BossPhaseController.Start(boss, config, gameConfig)
 								and (targetRoot.Position - root.Position).Magnitude <= config.BossSlamRadius
 								and not player:GetAttribute("AdminGodMode")
 								and workspace:GetServerTimeNow() >= (player:GetAttribute("InvulnerableUntil") or 0) then
-								damagePlayer(player, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * config.BossSlamDamageMultiplier)
+								damagePlayer(boss, player, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * config.BossSlamDamageMultiplier, gameConfig)
 							end
 						end
 					end
@@ -130,7 +164,7 @@ function BossPhaseController.Start(boss, config, gameConfig)
 	task.spawn(function()
 		local nextSpecial = os.clock() + config.BossSpecialInterval
 		while boss.Parent and humanoid.Health > 0 do
-			if os.clock() >= nextSpecial then
+			if os.clock() >= nextSpecial and beginBossCast(math.max(config.BossVortexWindup, config.BossLightningWindup, 0.35) + 0.6) then
 				local archetype = boss:GetAttribute("BossArchetype") or "Stone"
 				local targetPlayer, targetRoot
 				for _, candidate in ipairs(Players:GetPlayers()) do
@@ -144,7 +178,7 @@ function BossPhaseController.Start(boss, config, gameConfig)
 						if boss.Parent and targetPlayer.Parent and targetPlayer.Character then
 							local targetHumanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
 							local currentRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-							if targetHumanoid and currentRoot and (currentRoot.Position - target).Magnitude <= 8 then damagePlayer(targetPlayer, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * 0.8) end
+							if targetHumanoid and currentRoot and (currentRoot.Position - target).Magnitude <= 8 then damagePlayer(boss, targetPlayer, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * 0.8, gameConfig) end
 						end
 					end)
 				end
@@ -164,7 +198,7 @@ function BossPhaseController.Start(boss, config, gameConfig)
 							local offset = targetRoot and (root.Position - targetRoot.Position)
 							if targetHumanoid and targetRoot and targetHumanoid.Health > 0 and offset.Magnitude > 0 and offset.Magnitude <= config.BossVortexRadius then
 								targetRoot:ApplyImpulse((offset.Unit + Vector3.new(0, 0.15, 0)).Unit * targetRoot.AssemblyMass * 55)
-								damagePlayer(player, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * config.BossVortexDamageMultiplier)
+								damagePlayer(boss, player, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * config.BossVortexDamageMultiplier, gameConfig)
 							end
 						end
 					end
@@ -186,7 +220,7 @@ function BossPhaseController.Start(boss, config, gameConfig)
 								local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
 								if not damaged[player] and targetHumanoid and targetRoot and targetHumanoid.Health > 0 and (targetRoot.Position - position).Magnitude <= config.BossLightningRadius then
 									damaged[player] = true
-									damagePlayer(player, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * config.BossLightningDamageMultiplier)
+									damagePlayer(boss, player, targetHumanoid, (boss:GetAttribute("AttackDamage") or 1) * config.BossLightningDamageMultiplier, gameConfig)
 								end
 							end
 						end

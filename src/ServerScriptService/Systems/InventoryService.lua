@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
 
 local InventoryService = {}
 local itemConfig
@@ -11,6 +12,7 @@ local consumableReadyAt = {}
 local buffTokens = {}
 local questService
 local EQUIPMENT_SLOTS = {"Weapon", "SecondaryWeapon", "Head", "Chest", "Legs", "Boots", "Gloves", "Artifact1", "Artifact2", "Artifact3", "Core", "Cape"}
+local RARITY_COLORS = {Common = Color3.fromRGB(205, 215, 225), Uncommon = Color3.fromRGB(105, 235, 130), Rare = Color3.fromRGB(80, 175, 255), Epic = Color3.fromRGB(190, 90, 255), Legendary = Color3.fromRGB(255, 190, 55), Mythic = Color3.fromRGB(255, 75, 145)}
 
 local function response(success, message, state)
 	return {Success = success, Message = message, State = state}
@@ -81,13 +83,19 @@ local function refreshEquipmentStats(player)
 	player:SetAttribute("Energy", player:GetAttribute("MP"))
 	progression.RefreshStats(player, progressionConfig)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if humanoid and not player:GetAttribute("AdminSpeedOverride") then humanoid.WalkSpeed = 36 * (player:GetAttribute("SpeedMultiplier") or 1) + totals.Speed end
+	if humanoid and not player:GetAttribute("AdminSpeedOverride") then
+		humanoid.WalkSpeed = (player:GetAttribute("BaseMoveSpeed") or (36 * (player:GetAttribute("SpeedMultiplier") or 1) + totals.Speed))
+			* (player:GetAttribute("TransformationMoveMultiplier") or 1)
+	end
 	player:SetAttribute("EquippedWeapon", equipment.Weapon.Value)
 	local primary = itemConfig.Items[equipment.Weapon.Value]
 	local secondary = itemConfig.Items[equipment.SecondaryWeapon.Value]
 	player:SetAttribute("EquippedWeaponAbility", primary and primary.AbilityId or "")
 	player:SetAttribute("EquippedWeaponEffect", primary and primary.Passive or "")
 	player:SetAttribute("EquippedWeaponElement", primary and primary.Element or "Physical")
+	player:SetAttribute("EquippedWeaponDamageMultiplier", primary and primary.BasicAttackMultiplier or 1)
+	player:SetAttribute("EquippedWeaponAnimation", primary and (primary.AnimationStyle or primary.WeaponType) or "Unarmed")
+	player:SetAttribute("EquippedWeaponUnique", primary and primary.Unique == true or false)
 	player:SetAttribute("EquippedRangedAbility", secondary and secondary.AbilityId or "")
 	player:SetAttribute("EquippedRangedEffect", secondary and secondary.Passive or "")
 end
@@ -145,12 +153,50 @@ function InventoryService.Grant(player, itemId, quantity, silent)
 	if granted <= 0 then return false, definition.DisplayName .. " stack is full" end
 	local message = string.format("Received %d x %s", granted, definition.DisplayName)
 	if not silent then notify(player, "Loot", message, itemId, granted) end
-	if questService and definition.Category == "Material" then questService.Record(player, "Material", granted) end
+	if questService then
+		local context = {ItemId = itemId, Rarity = definition.Rarity, RealmId = player:GetAttribute("CurrentRealmId")}
+		questService.Record(player, "Collect", granted, context)
+		if definition.Category == "Material" then questService.Record(player, "Material", granted, context) end
+	end
 	return true, message
 end
 
 function InventoryService.SetQuestService(service)
 	questService = service
+end
+
+local function spawnLootDrop(owner, enemy, itemId, quantity)
+	local definition = itemConfig.Items[itemId]
+	if not definition or not enemy or not enemy.Parent then return end
+	local orb = Instance.new("Part")
+	orb.Name = "Loot_" .. itemId
+	orb.Shape = definition.Category == "Material" and Enum.PartType.Block or Enum.PartType.Ball
+	orb.Size = definition.Category == "Weapon" and Vector3.new(0.7, 3.8, 0.7) or definition.Category == "Material" and Vector3.new(1.6, 1.1, 2.2) or Vector3.new(2.2, 2.2, 2.2)
+	orb.Position = enemy:GetPivot().Position + Vector3.new(math.random(-3, 3), 2.5, math.random(-3, 3))
+	orb.Anchored, orb.CanCollide, orb.Material, orb.Color = true, false, Enum.Material.Neon, RARITY_COLORS[definition.Rarity] or Color3.new(1, 1, 1)
+	orb:SetAttribute("OwnerUserId", owner.UserId)
+	orb:SetAttribute("ItemId", itemId)
+	orb:SetAttribute("Quantity", quantity)
+	orb.Parent = workspace
+	local label = Instance.new("BillboardGui")
+	label.Name, label.Size, label.StudsOffset, label.AlwaysOnTop, label.MaxDistance, label.Parent = "ExactLootLabel", UDim2.fromOffset(190, 48), Vector3.new(0, 2.4, 0), true, 90, orb
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size, textLabel.BackgroundTransparency, textLabel.TextColor3, textLabel.TextStrokeTransparency = UDim2.fromScale(1, 1), 1, orb.Color, 0.15
+	textLabel.Font, textLabel.TextScaled, textLabel.TextWrapped, textLabel.Text, textLabel.Parent = Enum.Font.GothamBlack, true, true, string.format("%s  x%d\n[%s]", definition.DisplayName, quantity, definition.Rarity), label
+	local light = Instance.new("PointLight")
+	light.Color, light.Range, light.Brightness, light.Parent = orb.Color, 12, 2, orb
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText, prompt.ObjectText, prompt.HoldDuration, prompt.MaxActivationDistance = "Pick Up", definition.DisplayName .. "  [" .. definition.Rarity .. "]", 0, 14
+	prompt.Parent = orb
+	local claimed = false
+	prompt.Triggered:Connect(function(player)
+		if claimed or (player ~= owner and orb:GetAttribute("PublicAt") and os.clock() < orb:GetAttribute("PublicAt")) then return end
+		local success = InventoryService.Grant(player, itemId, quantity)
+		if success then claimed = true; orb:Destroy() end
+	end)
+	orb:SetAttribute("PublicAt", os.clock() + 10)
+	Debris:AddItem(orb, 60)
+	inventoryEvent:FireClient(owner, "LootWorld", {ItemId = itemId, Origin = orb.Position, Rarity = definition.Rarity})
 end
 
 function InventoryService.RollLoot(player, enemy)
@@ -161,20 +207,28 @@ function InventoryService.RollLoot(player, enemy)
 	for _, lootTable in ipairs(tables) do
 		for _, entry in ipairs(lootTable or {}) do
 			if math.random(1, 100) <= entry.Weight then
-				local success = InventoryService.Grant(player, entry.ItemId, 1)
-				if success then inventoryEvent:FireClient(player, "LootWorld", {ItemId = entry.ItemId, Origin = enemy:GetPivot().Position, Rarity = itemConfig.Items[entry.ItemId].Rarity}) end
+				spawnLootDrop(player, enemy, entry.ItemId, 1)
 			end
+		end
+	end
+	local mobDrop = itemConfig.MobDrops and itemConfig.MobDrops[enemy:GetAttribute("EnemyType")]
+	if mobDrop then
+		local tier = enemy:GetAttribute("LootTier") or "Basic"
+		local partChance = ({Basic = 0.55, Fast = 0.65, Tank = 0.8, Elite = 0.92, Boss = 1})[tier] or 0.65
+		if enemy:GetAttribute("IsElite") then partChance = math.max(partChance, 0.95) end
+		if mobDrop.Part and math.random() <= partChance then spawnLootDrop(player, enemy, mobDrop.Part, enemy:GetAttribute("IsElite") and 2 or 1) end
+		local difficultyBonus = enemy:GetAttribute("IsElite") and 1.45 or tier == "Boss" and 2 or 1
+		for _, rare in ipairs(mobDrop.Rare or {}) do
+			if math.random() * 100 <= (rare.Weight or 0) * difficultyBonus then spawnLootDrop(player, enemy, rare.ItemId, 1) end
 		end
 	end
 end
 
 function InventoryService.GrantBossLoot(player, boss)
-	InventoryService.Grant(player, "BossCore", 1)
-	if boss then inventoryEvent:FireClient(player, "LootWorld", {ItemId = "BossCore", Origin = boss:GetPivot().Position, Rarity = "Epic"}) end
+	if boss then spawnLootDrop(player, boss, "BossCore", 1) else InventoryService.Grant(player, "BossCore", 1) end
 	for _, entry in ipairs(itemConfig.LootTables.Boss) do
 		if math.random(1, 100) <= entry.Weight then
-			local success = InventoryService.Grant(player, entry.ItemId, 1)
-			if success and boss then inventoryEvent:FireClient(player, "LootWorld", {ItemId = entry.ItemId, Origin = boss:GetPivot().Position, Rarity = itemConfig.Items[entry.ItemId].Rarity}) end
+			if boss then spawnLootDrop(player, boss, entry.ItemId, 1) else InventoryService.Grant(player, entry.ItemId, 1) end
 		end
 	end
 end
@@ -196,14 +250,35 @@ function InventoryService.Sell(player, itemId)
 	local definition = itemConfig.Items[itemId]
 	local inventory, equipment = getFolders(player)
 	local stack = inventory:FindFirstChild(itemId)
-	if not definition or not definition.BuyPrice or not stack or stack.Value <= 0 then return false, "That item cannot be sold" end
+	if not definition or not stack or stack.Value <= 0 then return false, "That item cannot be sold" end
 	if stack:GetAttribute("Locked") then return false, "Unlock the item before selling it" end
 	for _, slot in ipairs(equipment:GetChildren()) do if slot:IsA("StringValue") and slot.Value == itemId then return false, "Unequip the item before selling it" end end
 	stack.Value -= 1
 	if stack.Value <= 0 then stack:Destroy() end
-	local value = math.max(1, math.floor(definition.BuyPrice * 0.35))
+	local fallbackValues = {Common = 12, Uncommon = 30, Rare = 85, Epic = 240, Legendary = 700, Mythic = 1800}
+	local value = math.max(1, math.floor(definition.SellValue or (definition.BuyPrice or fallbackValues[definition.Rarity] or 10) * (definition.BuyPrice and 0.35 or 1)))
 	progression.AddCoins(player, value)
 	return true, string.format("Sold %s for %d gold", definition.DisplayName, value)
+end
+
+function InventoryService.SellJunk(player)
+	local inventory, equipment = getFolders(player)
+	local equipped = {}
+	for _, slot in ipairs(equipment:GetChildren()) do if slot:IsA("StringValue") then equipped[slot.Value] = true end end
+	local sold, gold = 0, 0
+	local fallbackValues = {Common = 12, Uncommon = 30}
+	for _, stack in ipairs(inventory:GetChildren()) do
+		local definition = itemConfig.Items[stack.Name]
+		if definition and (fallbackValues[definition.Rarity] or definition.QuickSell) and not stack:GetAttribute("Favorite") and not stack:GetAttribute("Locked") and not equipped[stack.Name] then
+			local amount = stack.Value
+			gold += amount * math.max(1, math.floor(definition.SellValue or (definition.BuyPrice or fallbackValues[definition.Rarity] or 10) * (definition.BuyPrice and 0.35 or 1)))
+			sold += amount
+			stack:Destroy()
+		end
+	end
+	if sold == 0 then return false, "No unlocked quick-sell materials or low-rarity junk to sell" end
+	progression.AddCoins(player, gold)
+	return true, string.format("Quick-sold %d items for %d gold", sold, gold)
 end
 
 local function equip(player, itemId)
@@ -318,6 +393,7 @@ function InventoryService.Start(config, saves, progressionModule, progressionBal
 		elseif action == "Unequip" then success, message = unequip(player, payload.Slot)
 		elseif action == "Use" then success, message = useItem(player, tostring(payload.ItemId))
 		elseif action == "Craft" then success, message = craft(player, tostring(payload.ItemId))
+		elseif action == "SellJunk" then success, message = InventoryService.SellJunk(player)
 		elseif action == "Favorite" or action == "Lock" then
 			local inventory = getFolders(player)
 			local stack = inventory:FindFirstChild(tostring(payload.ItemId))

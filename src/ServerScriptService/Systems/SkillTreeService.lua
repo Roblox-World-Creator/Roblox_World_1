@@ -50,7 +50,7 @@ local function purchase(player, id)
 	local available, reason = requirementStatus(player, definition, ranks)
 	if not available then return false, "Locked: " .. reason end
 	if rank.Value >= definition.MaximumRank then return false, "Skill is already max rank" end
-	local currency = definition.Tree == "Universal" and "SkillPoints" or "ElementPoints"
+	local currency = (definition.Tree == "Universal" or definition.Tree == "Melee") and "SkillPoints" or "ElementPoints"
 	local cost = definition.Cost or 1
 	if (player:GetAttribute(currency) or 0) < cost then return false, "Not enough " .. currency end
 	player:SetAttribute(currency, (player:GetAttribute(currency) or 0) - cost)
@@ -72,7 +72,7 @@ local function setup(player, saveService)
 		value.Name = id
 		value.Value = math.clamp(math.floor(tonumber(loaded[id]) or 0), 0, definition.MaximumRank)
 		value.Parent = folder
-		if definition.Tree == "Universal" then spentUniversal += value.Value * (definition.Cost or 1) else spentElement += value.Value * (definition.Cost or 1) end
+		if definition.Tree == "Universal" or definition.Tree == "Melee" then spentUniversal += value.Value * (definition.Cost or 1) else spentElement += value.Value * (definition.Cost or 1) end
 	end
 	local level = player:GetAttribute("Level") or 1
 	local legacy = (tonumber(data.SchemaVersion) or 1) < 4

@@ -50,15 +50,22 @@ local function setupPlayer(player)
 	player:SetAttribute("QuestsReady", true)
 end
 
-function QuestService.Record(player, eventName, amount)
+function QuestService.Record(player, eventName, amount, context)
+	context = type(context) == "table" and context or {}
 	local progress, claims, active = getFolders(player)
 	for questId, definition in pairs(config) do
 		local value, claimed = progress:FindFirstChild(questId), claims:FindFirstChild(questId)
-		if definition.Event == eventName and value and claimed and active[questId] and active[questId].Value and not claimed.Value and value.Value < definition.Goal then
+		local realmMatches = not definition.RealmId or definition.RealmId == context.RealmId
+		local enemyMatches = not definition.EnemyType or definition.EnemyType == context.EnemyType
+		if definition.Event == eventName and realmMatches and enemyMatches and value and claimed and active[questId] and active[questId].Value and not claimed.Value and value.Value < definition.Goal then
 			value.Value = math.min(definition.Goal, value.Value + math.max(0, math.floor(tonumber(amount) or 1)))
 			questEvent:FireClient(player, "Progress", {QuestId = questId, Progress = value.Value, Goal = definition.Goal, Complete = value.Value >= definition.Goal})
 		end
 	end
+end
+
+function QuestService.OpenRealm(player, realmId)
+	if questEvent and player and player.Parent then questEvent:FireClient(player, "OpenRealm", {RealmId = realmId}) end
 end
 
 local function claim(player, questId)

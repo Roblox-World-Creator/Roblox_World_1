@@ -1,5 +1,5 @@
 return {
-	BaseWalkSpeed = 36,
+	BaseWalkSpeed = 16,
 	MaxMP = 100,
 	MPRegenPerSecond = 4,
 	MPRegenInterval = 0.25,
