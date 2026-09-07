@@ -56,33 +56,29 @@ end
 
 local elementalVFX = ElementVFX.Start({Parent = effectsFolder, HighQuality = highQualityEffects})
 
+local shakeState
 local function shakeCamera(origin, radius, intensity)
-	if not localPlayer:GetAttribute("CameraShakeEnabled") or not highQualityEffects() then
-		return
-	end
+	if not localPlayer:GetAttribute("CameraShakeEnabled") or not highQualityEffects() then return end
 	local character = localPlayer.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not humanoid or not root or (root.Position - origin).Magnitude > radius then
+	if not humanoid or not root or (root.Position - origin).Magnitude > radius then return end
+	local strength = math.min(1.5, intensity * (1 - (root.Position - origin).Magnitude / radius))
+	if shakeState and shakeState.Humanoid == humanoid then
+		shakeState.Strength = math.max(shakeState.Strength, strength)
+		shakeState.EndTime = os.clock() + 0.18
 		return
 	end
+	local state = {Humanoid = humanoid, Offset = humanoid.CameraOffset, Strength = strength, EndTime = os.clock() + 0.18}
+	shakeState = state
 	task.spawn(function()
-		local originalOffset = humanoid.CameraOffset
-		for step = 1, 5 do
-			if not humanoid.Parent then
-				return
-			end
-			local strength = intensity * (1 - step / 6)
-			humanoid.CameraOffset = originalOffset + Vector3.new(
-				(math.random() - 0.5) * strength,
-				(math.random() - 0.5) * strength,
-				0
-			)
+		while humanoid.Parent and os.clock() < state.EndTime and localPlayer:GetAttribute("CameraShakeEnabled") and highQualityEffects() do
+			local fade = math.clamp((state.EndTime - os.clock()) / 0.18, 0, 1)
+			humanoid.CameraOffset = state.Offset + Vector3.new((math.random() - 0.5) * state.Strength * fade, (math.random() - 0.5) * state.Strength * fade, 0)
 			task.wait(0.025)
 		end
-		if humanoid.Parent then
-			humanoid.CameraOffset = originalOffset
-		end
+		if humanoid.Parent then humanoid.CameraOffset = state.Offset end
+		if shakeState == state then shakeState = nil end
 	end)
 end
 
@@ -702,6 +698,16 @@ local function renderUltimateSignature(data)
 	shakeCamera(position, 110, 1.55)
 end
 
+local function impactLight(position, color, tier)
+	if not highQualityEffects() then return end
+	local holder = createEffectPart("ElementImpactLight", Enum.PartType.Ball, color, Vector3.one * 0.1, CFrame.new(position))
+	holder.Transparency = 1
+	local light = Instance.new("PointLight")
+	light.Color, light.Brightness, light.Range, light.Parent = color, math.min(5, 1 + tier * 0.3), math.min(60, 15 + tier * 4), holder
+	TweenService:Create(light, TweenInfo.new(0.6), {Brightness = 0, Range = 0}):Play()
+	Debris:AddItem(holder, 0.65)
+end
+
 local function renderPowerCast(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
 	elementalVFX.Burst(data.Origin, data.Element, effectColor(data), 0.65)
@@ -710,6 +716,15 @@ local function renderPowerCast(data)
 	local tier = math.clamp(math.floor(tonumber(data.Tier) or 1), 1, 11)
 	local variant = math.clamp(math.floor(tonumber(data.VisualVariant) or tier), 1, 12)
 	playEffectSound(data.Origin, data)
+	if tier >= 5 then
+		impactLight(data.Origin, color, tier)
+		task.delay(math.max(0, tonumber(data.ImpactTime) and data.ImpactTime - workspace:GetServerTimeNow() or tonumber(data.Duration) or 0), function()
+			if not workspace.CurrentCamera or (workspace.CurrentCamera.CFrame.Position - data.Target).Magnitude > visualConfig.Effects.Distance then return end
+			impactLight(data.Target, color, tier)
+			playEffectSound(data.Target, {CastType = "Radial", Element = data.Element, Tier = tier, Impact = true, SoundPitch = 0.85})
+			shakeCamera(data.Target, 70 + tier * 3, 0.4 + tier * 0.06)
+		end)
+	end
 	if data.Ultimate then
 		task.delay(math.max(0, tonumber(data.ImpactTime) and data.ImpactTime - workspace:GetServerTimeNow() or tonumber(data.Duration) or 0), function()
 			renderUltimateSignature(data)
@@ -935,13 +950,18 @@ local function renderEnemyDamaged(data)
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "LocalHitFlash"
 	highlight.Adornee = target
-	highlight.FillColor = Color3.fromRGB(255, 245, 225)
+	highlight.FillColor = ELEMENT_COLORS[data.Element] or Color3.fromRGB(255, 245, 225)
 	highlight.FillTransparency = 0.15
 	highlight.OutlineTransparency = 1
 	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
 	highlight.Parent = effectsFolder
 	Debris:AddItem(highlight, data.Heavy and 0.18 or 0.1)
 	local root = target:FindFirstChild("HumanoidRootPart")
+	if root and (data.Element == "Poison" or data.Element == "Gravity" or data.Element == "Lightning" or data.Element == "Prismatic") then
+		elementalVFX.Burst(root.Position, data.Element, effectColor(data), data.Heavy and 1.1 or 0.5)
+		local orbit = elementalVFX.Ring("ElementStatusOrbit", root.Position, 2.4, effectColor(data), 0.5)
+		if orbit then orbit.CFrame *= CFrame.Angles(math.pi / 3, 0, 0) end
+	end
 	if root and data.Element == "Ice" then
 		local frost = Instance.new("Highlight")
 		frost.Name, frost.Adornee = "FrozenEnemyShell", target
@@ -1225,7 +1245,24 @@ effectsRemote.OnClientEvent:Connect(function(effectName, data)
 		local alpha = segment.Magnitude > 0.01 and math.clamp((camera.CFrame.Position - position):Dot(segment) / segment:Dot(segment), 0, 1) or 0
 		if (camera.CFrame.Position - position:Lerp(target, alpha)).Magnitude > visualConfig.Effects.Distance then return end
 	end
-	if effectName == "SwordMove" then
+	if effectName == "ChainDash" then
+		renderLightningArc({Origin = data.Origin, Target = data.Target, Element = data.Element or "Lightning", Tier = data.Tier})
+		elementalVFX.Burst(data.Origin, data.Element, effectColor(data), 0.7)
+		playEffectSound(data.Origin, {CastType = "Chain", Element = "Lightning", SoundPitch = 1.2})
+	elseif effectName == "ChainStrike" then
+		if typeof(data.Character) ~= "Instance" then return end
+		require(script.Parent.MeleeAnimator).Play(data.Character, data.Finisher and 4 or data.Combo, "Sword")
+		local color = effectColor(data)
+		local arc = elementalVFX.Ring("BlinkChainCut", data.Origin, data.Finisher and 7 or 4, color, 0.24)
+		if arc then arc.CFrame *= CFrame.Angles(math.rad(35 + data.Combo * 35), 0, math.rad(data.Combo * 40)) end
+		elementalVFX.Burst(data.Origin, data.Element, color, data.Finisher and 1.5 or 0.6)
+		playEffectSound(data.Origin, {CastType = "Melee", Element = data.Element, SoundPitch = 0.9 + data.Combo * 0.13, Impact = true})
+		if data.Finisher then
+			impactLight(data.Origin, color, data.Tier or 1)
+			renderGroundSlam({Origin = data.Origin, Radius = 7, Element = data.Element or "Earth"})
+			shakeCamera(data.Origin, 35, 0.7)
+		end
+	elseif effectName == "SwordMove" then
 		local moves = require(ReplicatedStorage.Shared.MeleeConfig)
 		local move = moves.Moves[data.Move]
 		if not move or typeof(data.Character) ~= "Instance" then return end

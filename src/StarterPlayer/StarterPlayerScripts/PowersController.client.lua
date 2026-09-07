@@ -105,7 +105,7 @@ local function getDefinitions(state)
 	end
 	for _, name in ipairs(config.MotionOrder or {}) do
 		local definition = config.MotionPowers[name]
-		table.insert(values, {Name = name, Definition = definition, Kind = definition.Category, Unlocked = state.MotionUnlocked[name] == true, Mastery = 0})
+		table.insert(values, {Name = name, Definition = definition, Kind = definition.Category, Unlocked = state.MotionUnlocked[name] == true, Mastery = math.min(masteryLevel(name), math.max(0, math.floor(((player:GetAttribute("Level") or 1) - definition.RequiredLevel) / 5)))})
 	end
 	return values
 end
@@ -215,7 +215,7 @@ render = function()
 		icon.Text, icon.TextColor3, icon.Font, icon.TextSize, icon.Parent = iconText[element] or string.sub(string.upper(entry.Kind), 1, 4), Color3.new(1, 1, 1), Enum.Font.GothamBlack, 11, card
 		round(icon, 12)
 		local requirementText = string.format("Requires level %d and Ascendant %d", definition.RequiredLevel or 1, definition.RequiredEvolution or 0)
-		local detailText = string.format("%s — %s\n%s | %s", definition.DisplayName, definition.Description or "No description available.", requirementText, entry.Unlocked and "UNLOCKED: choose a slot, then click to equip." or "LOCKED: level, clear waves, earn gold, and evolve.")
+		local detailText = string.format("%s — %s\n%s | %s", definition.DisplayName, (definition.Description or "No description available.") .. (entry.Kind ~= "Attack" and string.format(" Mastery %d: each rank reduces stamina and cooldown by 1.5%%; train by use and gain 5 player levels per rank.", entry.Mastery) or ""), requirementText, entry.Unlocked and "UNLOCKED: choose a slot, then click to equip." or "LOCKED: level, clear waves, earn gold, and evolve.")
 		card.MouseEnter:Connect(function() info.Text = detailText end)
 		card.MouseLeave:Connect(function() info.Text = summaryText end)
 		card.SelectionGained:Connect(function() info.Text = detailText end)

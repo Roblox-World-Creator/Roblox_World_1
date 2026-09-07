@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+local MeleeConfig = require(game:GetService("ReplicatedStorage").Shared.MeleeConfig)
 
 local PlayerProgression = {}
 local activeResourceConfig
@@ -110,6 +111,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 			Equipment = {Weapon = "IronBlade"},
 			Mastery = {},
 			MeleeMasteryXP = 0,
+			ChainMasteryXP = 0,
 			Quests = {},
 			QuestClaims = {},
 			QuestActive = {},
@@ -135,6 +137,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 		player:SetAttribute("Coins", math.max(0, data.Coins))
 		player:SetAttribute("Evolution", math.max(0, data.Evolution))
 		player:SetAttribute("HighestWave", math.max(0, math.floor(tonumber(data.HighestWave) or 0)))
+		player:SetAttribute("ChainMasteryXP", math.clamp(math.floor(tonumber(data.ChainMasteryXP) or 0), 0, MeleeConfig.Chain.MaximumRank * MeleeConfig.Chain.XPPerRank))
 		player:SetAttribute("MeleeMasteryXP", math.max(0, math.floor(tonumber(data.MeleeMasteryXP) or 0)))
 		local evolutionDefinition = evolutionConfig[data.Evolution]
 		local attackMultiplier = evolutionDefinition and evolutionDefinition.AttackMultiplier or 1

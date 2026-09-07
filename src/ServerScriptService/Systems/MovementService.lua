@@ -3,6 +3,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MovementService = {}
+local MasteryService = require(script.Parent.MasteryService)
+local ProgressionConfig = require(ReplicatedStorage.Shared.ProgressionConfig)
 
 local function addDashTrail(root)
 	local attachment0 = Instance.new("Attachment")
@@ -51,6 +53,7 @@ function MovementService.Start(resourceConfig, powerService)
 	end
 
 	movementRemote.OnServerEvent:Connect(function(player, powerName)
+		if workspace:GetServerTimeNow() < (player:GetAttribute("SwordMoveBusyUntil") or 0) or player:GetAttribute("EvolutionTransforming") then return end
 		if powerName == "EagleFlight" and flightStates[player] then
 			stopEagleFlight(player)
 			feedbackRemote:FireClient(player, "CastAccepted", "EagleFlight", nil, 0)
@@ -62,6 +65,10 @@ function MovementService.Start(resourceConfig, powerService)
 			or formTravel and {Cooldown = 3, StaminaCost = 16}
 			or (powerService and powerService.GetMotionDefinition and powerService.GetMotionDefinition(powerName))
 		if not definition or (not eagleFlight and not formTravel and not powerService.IsMotionActive(player, powerName)) then return end
+		definition = table.clone(definition)
+		local mastery = MasteryService.GetLevel(player, powerName)
+		definition.Cooldown = (definition.Cooldown or 3) * (1 - mastery * ProgressionConfig.Mastery.CostReductionPerLevel)
+		definition.StaminaCost = (definition.StaminaCost or 0) * (1 - mastery * ProgressionConfig.Mastery.CostReductionPerLevel)
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -81,7 +88,7 @@ function MovementService.Start(resourceConfig, powerService)
 				root.AssemblyLinearVelocity = root.CFrame.LookVector * speed + Vector3.new(0, leap, 0)
 				task.spawn(function()
 					local finish = os.clock() + 2.15
-					while os.clock() < finish and root.Parent and humanoid.Health > 0 and player:GetAttribute("ActiveTransformation") == "Wolf" do
+					while os.clock() < finish and root.Parent and humanoid.Health > 0 and workspace:GetServerTimeNow() >= (player:GetAttribute("SwordMoveBusyUntil") or 0) and player:GetAttribute("ActiveTransformation") == "Wolf" do
 						local move = humanoid.MoveDirection
 						local direction = move.Magnitude > 0.1 and Vector3.new(move.X, 0, move.Z).Unit or root.CFrame.LookVector
 						local currentY = root.AssemblyLinearVelocity.Y
@@ -98,7 +105,7 @@ function MovementService.Start(resourceConfig, powerService)
 					parameters.FilterDescendantsInstances = {character}
 					parameters.RespectCanCollide = true
 					local finish = os.clock() + 3
-					while os.clock() < finish and root.Parent and humanoid.Health > 0 and player:GetAttribute("ActiveTransformation") == "Bear" do
+					while os.clock() < finish and root.Parent and humanoid.Health > 0 and workspace:GetServerTimeNow() >= (player:GetAttribute("SwordMoveBusyUntil") or 0) and player:GetAttribute("ActiveTransformation") == "Bear" do
 						local move = humanoid.MoveDirection
 						local direction = move.Magnitude > 0.1 and Vector3.new(move.X, 0, move.Z).Unit or root.CFrame.LookVector
 						local wall = workspace:Raycast(root.Position, direction * 4.5, parameters)
@@ -133,7 +140,7 @@ function MovementService.Start(resourceConfig, powerService)
 			task.spawn(function()
 				local state = flightStates[player]
 				local started = os.clock()
-				while state and state.Running and flightStates[player] == state and root.Parent and humanoid.Health > 0 and player:GetAttribute("ActiveTransformation") == "Eagle" do
+				while state and state.Running and flightStates[player] == state and root.Parent and humanoid.Health > 0 and workspace:GetServerTimeNow() >= (player:GetAttribute("SwordMoveBusyUntil") or 0) and player:GetAttribute("ActiveTransformation") == "Eagle" do
 					local elapsed = os.clock() - started
 					local direction = humanoid.MoveDirection
 					local horizontal = direction.Magnitude > 0.1 and Vector3.new(direction.X, 0, direction.Z).Unit or Vector3.zero
@@ -156,7 +163,7 @@ function MovementService.Start(resourceConfig, powerService)
 				local started = os.clock()
 				local duration = 3.5
 				local finish = started + duration
-				while os.clock() < finish and root.Parent and humanoid.Health > 0 do
+				while os.clock() < finish and root.Parent and humanoid.Health > 0 and workspace:GetServerTimeNow() >= (player:GetAttribute("SwordMoveBusyUntil") or 0) do
 					local direction = humanoid.MoveDirection.Magnitude > 0.1 and humanoid.MoveDirection or root.CFrame.LookVector
 					root.AssemblyLinearVelocity = direction * 58 + Vector3.new(0, 8, 0)
 					task.wait(0.08)
@@ -169,11 +176,17 @@ function MovementService.Start(resourceConfig, powerService)
 		else
 			return
 		end
+		MasteryService.Add(player, powerName, ProgressionConfig.Mastery.XPPerCast)
 		feedbackRemote:FireClient(player, "CastAccepted", powerName, nil, definition.Cooldown or 3)
 	end)
 
 	dashRemote.OnServerEvent:Connect(function(player)
+		if workspace:GetServerTimeNow() < (player:GetAttribute("SwordMoveBusyUntil") or 0) or player:GetAttribute("EvolutionTransforming") then return end
 		if powerService and not powerService.IsMotionActive(player, "PowerDash") then return end
+		local resourceConfig = table.clone(resourceConfig)
+		local scale = 1 - MasteryService.GetLevel(player, "PowerDash") * ProgressionConfig.Mastery.CostReductionPerLevel
+		resourceConfig.DashCost *= scale
+		resourceConfig.DashCooldown *= scale
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -221,11 +234,17 @@ function MovementService.Start(resourceConfig, powerService)
 		character:PivotTo(CFrame.lookAt(destination, Vector3.new(facingPoint.X, destination.Y, facingPoint.Z)))
 		addDashTrail(root)
 		effectsRemote:FireAllClients("BlinkStrike", {Origin = startPosition, Target = destination, Enemy = blinkTarget and blinkTarget.Parent})
+		MasteryService.Add(player, "PowerDash", ProgressionConfig.Mastery.XPPerCast)
 		feedbackRemote:FireClient(player, "CastAccepted", "PowerDash", resourceConfig.DashCooldown)
 	end)
 
 	dodgeRemote.OnServerEvent:Connect(function(player, requestedDirection)
+		if workspace:GetServerTimeNow() < (player:GetAttribute("SwordMoveBusyUntil") or 0) or player:GetAttribute("EvolutionTransforming") then return end
 		if powerService and not powerService.IsMotionActive(player, "Dodge") then return end
+		local resourceConfig = table.clone(resourceConfig)
+		local scale = 1 - MasteryService.GetLevel(player, "Dodge") * ProgressionConfig.Mastery.CostReductionPerLevel
+		resourceConfig.DodgeCost *= scale
+		resourceConfig.DodgeCooldown *= scale
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -268,6 +287,7 @@ function MovementService.Start(resourceConfig, powerService)
 			Direction = direction,
 			Character = character,
 		})
+		MasteryService.Add(player, "Dodge", ProgressionConfig.Mastery.XPPerCast)
 		feedbackRemote:FireClient(player, "CastAccepted", "Dodge", resourceConfig.DodgeCooldown)
 	end)
 

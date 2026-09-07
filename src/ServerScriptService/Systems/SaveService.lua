@@ -21,6 +21,7 @@ local SAVED_ATTRIBUTES = {
 	"ElementPoints",
 	"FormPoints",
 	"MeleeMasteryXP",
+	"ChainMasteryXP",
 }
 
 local function copyDefaults(defaults)

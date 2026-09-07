@@ -5,6 +5,7 @@ local SwordMoveService = {}
 
 function SwordMoveService.Start(config)
 	local cooldowns = {}
+	local chains = require(script.Parent.ChainAttackService).Start(config)
 	local api = {}
 	function api.Cast(player, id)
 		local move = type(id) == "string" and Config.Moves[id]
@@ -14,15 +15,17 @@ function SwordMoveService.Start(config)
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		if not root or not humanoid or humanoid.Health <= 0 or player:GetAttribute("EvolutionTransforming") then return end
 		local function reject(message) config.Feedback:FireClient(player, "CastRejected", message) end
+		if id == "Chain" and player:GetAttribute("EagleFlightActive") then reject("Land before starting Blink Chain"); return end
 		local skills = player:FindFirstChild("Skills")
-		local skill = skills and skills:FindFirstChild(move.Skill)
-		if not player:GetAttribute("AdminAllPowersUnlocked") and ((player:GetAttribute("Level") or 1) < move.RequiredLevel or not skill or skill.Value < 1) then reject("Unlock " .. move.DisplayName .. " in MELEE first"); return end
+		local skill = move.Skill and skills and skills:FindFirstChild(move.Skill)
+		if not player:GetAttribute("AdminAllPowersUnlocked") and ((player:GetAttribute("Level") or 1) < move.RequiredLevel or (move.Skill and (not skill or skill.Value < 1))) then reject("Unlock " .. move.DisplayName .. " in MELEE first"); return end
 		if (player:GetAttribute("EquippedWeapon") or "") == "" then reject("Equip a melee weapon first"); return end
 		local now = workspace:GetServerTimeNow()
 		if now < (player:GetAttribute("SwordMoveBusyUntil") or 0) or now < (player:GetAttribute("MeleeReadyAt") or 0) then return end
 		cooldowns[player] = cooldowns[player] or {}
 		if now < (cooldowns[player][id] or 0) then reject("Sword move cooling down"); return end
 		if (player:GetAttribute("Stamina") or 0) < move.Stamina then reject("Need more stamina"); return end
+		if id == "Chain" and not chains.CanBegin(character, root) then reject("No reachable enemies nearby"); return end
 		local recoveryScale = math.max(0.55, 1 - (player:GetAttribute("MeleeCooldownReduction") or 0))
 		cooldowns[player][id] = now + move.Cooldown * recoveryScale
 		player:SetAttribute("Sword" .. id .. "ReadyAt", cooldowns[player][id])
@@ -32,6 +35,7 @@ function SwordMoveService.Start(config)
 		player:SetAttribute("Blocking", false)
 		if id == "Lunge" then root.AssemblyLinearVelocity += root.CFrame.LookVector * 18 end
 		config.Feedback:FireClient(player, "CastAccepted", move.DisplayName)
+		if id == "Chain" then chains.Begin(player, character, root, humanoid, player:GetAttribute("EquippedWeapon")); return end
 		config.Effects:FireAllClients("SwordMove", {Character = character, Origin = root.Position, Direction = root.CFrame.LookVector, Move = id, Duration = move.Duration, Element = player:GetAttribute("EquippedWeaponElement")})
 		local weapon = player:GetAttribute("EquippedWeapon")
 		local parameters = RaycastParams.new()
@@ -56,11 +60,12 @@ function SwordMoveService.Start(config)
 		end
 	end
 	function api.Reset(player)
+		chains.Cancel(player)
 		cooldowns[player] = nil
 		for id in pairs(Config.Moves) do player:SetAttribute("Sword" .. id .. "ReadyAt", 0) end
 	end
-	local connection = Players.PlayerRemoving:Connect(function(player) cooldowns[player] = nil end)
-	function api.Destroy() connection:Disconnect(); table.clear(cooldowns) end
+	local connection = Players.PlayerRemoving:Connect(function(player) chains.Cancel(player); cooldowns[player] = nil end)
+	function api.Destroy() chains.Destroy(); connection:Disconnect(); table.clear(cooldowns) end
 	return api
 end
 

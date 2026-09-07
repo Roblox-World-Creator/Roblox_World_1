@@ -187,7 +187,7 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 			for _ = 1, math.min(6, 3 + math.floor(statusBonus * 2)) do
 				task.wait(0.75)
 				if not enemy.Parent or enemy:GetAttribute("BurnToken") ~= token then break end
-				local dotResult = damageService.ApplyEnemyDamage(player, enemy, math.max(1, amount * 0.07))
+				local dotResult = damageService.ApplyEnemyDamage(player, enemy, math.max(1, amount * (0.07 + (tonumber(player:GetAttribute("FireDotBonus")) or 0)) * (1 + statusBonus)))
 				if dotResult and dotResult.Killed then
 					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName, attackKind)
 					break
@@ -197,19 +197,21 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 	elseif element == "Ice" then
 		CrowdControlService.Slow(enemy, math.max(0.3, 0.55 - statusBonus * 0.15), 2.5 * (1 + statusBonus))
 	elseif element == "Lightning" and math.random() < 0.22 + statusBonus * 0.2 then
-		CrowdControlService.Stun(enemy, 0.35, config.StunImmunitySeconds, false)
+		CrowdControlService.Stun(enemy, 0.35 * (1 + statusBonus), config.StunImmunitySeconds, false)
 	elseif element == "Earth" and heavy then
 		CrowdControlService.Stun(enemy, 0.45 * (1 + statusBonus), config.StunImmunitySeconds, false)
 	elseif element == "Gravity" then
-		enemy:SetAttribute("CompressedUntil", workspace:GetServerTimeNow() + 1.5)
+		enemy:SetAttribute("CompressedUntil", workspace:GetServerTimeNow() + 1.5 * (1 + statusBonus))
+		CrowdControlService.Slow(enemy, 0.65, 1.5 * (1 + statusBonus))
 	elseif element == "Poison" then
+		enemy:SetAttribute("PoisonedUntil", workspace:GetServerTimeNow() + 3.75 * (1 + statusBonus))
 		local token = (enemy:GetAttribute("PoisonToken") or 0) + 1
 		enemy:SetAttribute("PoisonToken", token)
 		task.spawn(function()
-			for _ = 1, 5 do
+			for _ = 1, math.min(8, 5 + math.floor(statusBonus * 5)) do
 				task.wait(0.75)
 				if not enemy.Parent or enemy:GetAttribute("PoisonToken") ~= token then break end
-				local dot = math.max(1, amount * (0.08 + (tonumber(player:GetAttribute("PoisonDotBonus")) or 0)))
+				local dot = math.max(1, amount * (0.08 + (tonumber(player:GetAttribute("PoisonDotBonus")) or 0)) * (1 + statusBonus))
 				local dotResult = damageService.ApplyEnemyDamage(player, enemy, dot)
 				if dotResult and dotResult.Killed then
 					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName, attackKind)
@@ -218,7 +220,24 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 			end
 		end)
 	elseif element == "Prismatic" then
-		enemy:SetAttribute("DamageTakenMultiplier", math.max(enemy:GetAttribute("DamageTakenMultiplier") or 1, 1.12))
+		enemy:SetAttribute("DamageTakenMultiplier", math.max(enemy:GetAttribute("DamageTakenMultiplier") or 1, 1.12 + statusBonus * 0.1))
+	end
+	local residual = tonumber(player:GetAttribute((element or "") .. "DotBonus")) or 0
+	if residual > 0 and element ~= "Fire" and element ~= "Poison" and not result.Killed then
+		local attribute = (element or "Arcane") .. "ResidualToken"
+		local token = (enemy:GetAttribute(attribute) or 0) + 1
+		enemy:SetAttribute(attribute, token)
+		task.spawn(function()
+			for _ = 1, 3 do
+				task.wait(0.6)
+				if not player.Parent or not enemy.Parent or enemy:GetAttribute(attribute) ~= token then break end
+				local tickResult = damageService.ApplyEnemyDamage(player, enemy, math.max(1, amount * residual))
+				if tickResult and tickResult.Killed then
+					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName, attackKind)
+					break
+				end
+			end
+		end)
 	end
 	effectsRemote:FireClient(player, "DamageNumber", {
 		Target = enemy,
@@ -229,6 +248,7 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 	effectsRemote:FireAllClients("EnemyDamaged", {
 		Target = enemy,
 		Heavy = heavy == true,
+		Element = element,
 	})
 	if result.Critical and activeQuestService then
 		activeQuestService.Record(player, "CriticalHit", 1, {RealmId = enemy:GetAttribute("RealmId"), EnemyType = enemy:GetAttribute("EnemyType")})
@@ -266,6 +286,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				* getDamageMultiplier(player) * (player:GetAttribute("MeleeDamageMultiplier") or 1) * (player:GetAttribute("EquippedWeaponDamageMultiplier") or 1)
 			local result = damageEnemy(player, enemy, amount, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, heavy, nil)
 			if result and not enemy:GetAttribute("IsPractice") then trainMelee(player) end
+			return result
 		end,
 	})
 	CombatService.ResetSwordCooldowns = swordMoves.Reset

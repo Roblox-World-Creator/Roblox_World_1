@@ -39,8 +39,8 @@ for _, tree in ipairs(config.Trees) do
 			Base = isMelee and (tier == 1 and 1 or tier == 7 and 1 or 0) or ((tier == 1 or (isUniversal and (tier == 2 or tier == 3))) and 1 or 0), RequiredLevel = math.max(1, (tier - 1) * 10),
 			Prerequisites = previous and {{Id = previous, Rank = tier == 10 and 3 or 1}} or nil,
 			Description = isMelee and ({"Stronger basic strikes.", "Longer combo timing window.", "Wider melee reach.", "Armor while attacking.", "Heavier stuns.", "Faster combo recovery.", "Devastating fourth-hit finishers.", "Unlock a forward strike dash.", "Finishers release a damaging shockwave.", "Capstone: legendary prismatic melee style."})[tier]
-				or tier == 10 and "Capstone: unlock this tree's ultimate combat effect."
-				or string.format("Ranked %s bonus. Requires level %d.", string.lower(names[tier]), math.max(1, (tier - 1) * 10)),
+				or isUniversal and ({"+6% damage per rank.", "+4% maximum health per rank.", "+4% spell area per rank.", "+4% resistance per rank.", "+4% critical chance per rank.", "4% shorter spell cooldowns per rank.", "+0.75 energy regeneration per rank.", "+4% form-point drop chance per rank.", "+4% damage against enemies below 25% health per rank.", "Capstone: +5% elemental damage."})[tier]
+				or ({"+6% elemental damage per rank.", "Strengthens this element's status effect by 4% per rank.", "+4% elemental spell area per rank.", "+4% resistance to this element per rank.", "+2% elemental strike damage per rank.", "4% shorter elemental cooldowns per rank.", "+4% elemental damage penetration per rank.", tree == "Fire" and "Burns deal +4% hit damage per tick per rank." or tree == "Poison" and "Poison deals +4% hit damage per tick per rank." or "Hits leave three residual damage ticks: 4% of hit damage per rank, every 0.6s.", "+4% damage against enemies below 25% health per rank.", "Capstone: +15% elemental damage."})[tier],
 		}
 		table.insert(config.Order, id)
 		previous = id

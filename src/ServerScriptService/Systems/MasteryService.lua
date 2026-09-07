@@ -21,7 +21,9 @@ local function setupPlayer(player)
 	local folder = player:FindFirstChild("PowerMastery") or Instance.new("Folder")
 	folder.Name, folder.Parent = "PowerMastery", player
 	local loaded = (saveService.GetLoadedData(player) or {}).Mastery or {}
-	for abilityName in pairs(config.Abilities) do
+	local definitions = table.clone(config.Abilities)
+	for name, definition in pairs(config.MotionPowers) do definitions[name] = definition end
+	for abilityName in pairs(definitions) do
 		local stack = folder:FindFirstChild(abilityName) or Instance.new("NumberValue")
 		stack.Name, stack.Value, stack.Parent = abilityName, math.max(0, tonumber(loaded[abilityName]) or 0), folder
 		refresh(stack)
@@ -40,7 +42,10 @@ end
 function MasteryService.GetLevel(player, abilityName)
 	local folder = player and player:FindFirstChild("PowerMastery")
 	local stack = folder and folder:FindFirstChild(abilityName)
-	return stack and (stack:GetAttribute("Level") or 0) or 0
+	local rank = stack and (stack:GetAttribute("Level") or 0) or 0
+	local motion = config and config.MotionPowers[abilityName]
+	if motion then rank = math.min(rank, math.max(0, math.floor(((player:GetAttribute("Level") or 1) - motion.RequiredLevel) / 5))) end
+	return rank
 end
 
 function MasteryService.Start(progressionConfig, saves)

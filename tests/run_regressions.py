@@ -7,6 +7,7 @@ import argparse, subprocess, tempfile
 ROOT = Path(__file__).resolve().parents[1]
 PRELUDE = r'''
 local modules = {}
+local script = {Parent = {ChainAttackService="ChainAttackService",CrowdControlService="CrowdControlService"}}
 local function require(id) assert(modules[id], "Missing module " .. tostring(id)); return modules[id] end
 local dummy
 local mt = {__index=function(_, key) return function() return dummy end end, __mul=function() return dummy end, __add=function() return dummy end, __sub=function() return dummy end}
@@ -173,7 +174,7 @@ remotes.EvolutionRemote.OnServerEvent:Fire(player)
 check(player:GetAttribute("Evolution")==before,"Normal evolution enforces requirements")
 for _,id in ipairs(modules.MeleeConfig.Order) do
  local move=modules.MeleeConfig.Moves[id]
- check(modules.SkillTreeConfig.Nodes[move.Skill] and move.RequiredLevel <= powers.MaximumLevel,"Reachable sword move "..id)
+ check((not move.Skill or modules.SkillTreeConfig.Nodes[move.Skill]) and move.RequiredLevel <= powers.MaximumLevel,"Reachable sword move "..id)
 end
 
 local progressionService=modules.PlayerProgression
@@ -246,6 +247,81 @@ check(damageCount==4,"Insufficient stamina cannot cause damage")
 sword.Reset(player)
 check(player:GetAttribute("SwordLungeReadyAt")==0,"Admin reset clears sword cooldown display")
 
+local chainConfig=modules.MeleeConfig
+check(chainConfig.GetChainRank(0,1)==0,"Chain starts with two targets")
+check(chainConfig.GetChainRank(100,1)==0,"Chain XP cannot bypass player level")
+check(chainConfig.GetChainRank(0,100)==0,"Player level cannot bypass chain XP")
+for rank=1,5 do
+ check(chainConfig.GetChainRank(rank*20,rank*15+1)==rank,"Chain rank unlock "..rank)
+ check(chainConfig.GetChainRank(rank*20-1,rank*15+1)==rank-1,"Chain XP boundary "..rank)
+ check(chainConfig.GetChainRank(rank*20,rank*15)==rank-1,"Chain level boundary "..rank)
+end
+check(chainConfig.GetChainRank(999999,999)==5,"Chain cap remains seven targets")
+
+-- Execute the real chain service with deterministic physics stubs.
+vectorMT.__index=function(v,key)
+ if key=="Magnitude" then return math.sqrt(v.X*v.X+v.Y*v.Y+v.Z*v.Z) end
+ if key=="Unit" then return vector(v.X/v.Magnitude,v.Y/v.Magnitude,v.Z/v.Magnitude) end
+ if key=="Lerp" then return function(a,b,t) return a+(b-a)*t end end
+ if key=="Dot" then return function(a,b) return a.X*b.X+a.Y*b.Y+a.Z*b.Z end end
+end
+Vector3.zero=vector(0,0,0)
+CFrame.lookAt=function(position,target) root.Position=position;return {Position=position,LookVector=(target-position).Unit} end
+local owned=false
+function root:SetNetworkOwner() owned=true end
+function root:SetNetworkOwnershipAuto() owned=false end
+local blocked=false
+function workspace:Blockcast() return blocked and {} or nil end
+local mobs={}
+for index=1,8 do
+ local mob=object(workspace,"Model","ChainMob"..index)
+ object(mob,"Part","HumanoidRootPart").Position=vector(0,0,-index*8)
+ local hum=object(mob,"Humanoid","Humanoid");hum.Health=100
+ table.insert(mobs,mob)
+end
+local chainHits=0
+local chainService=modules.ChainAttackService.Start({GetEnemies=function() return mobs end,Effects={FireAllClients=function() end},Knockback=function() end,Damage=function() chainHits+=1;return {Amount=1} end})
+task.wait=function() clock+=0.05;return 0.05 end
+local function beginChain()
+ root.Position=vector(0,0,0);root.CFrame={LookVector=vector(0,0,-1)}
+ chainService.Begin(player,player.Character,root,humanoid,"IronBlade")
+end
+player:SetAttribute("ChainMasteryXP",0);player:SetAttribute("Level",1)
+humanoid.AutoRotate=true
+beginChain()
+check(chainHits==6,"Default chain hits two unique targets three times")
+check(player:GetAttribute("ChainMasteryXP")==2,"Chain grants one XP per damaged target")
+check(not owned and humanoid.AutoRotate and player:GetAttribute("SwordMoveBusyUntil")==0,"Chain restores ownership rotation and busy state")
+player:SetAttribute("ChainMasteryXP",100);player:SetAttribute("Level",100)
+chainHits=0;beginChain()
+check(chainHits==21,"Maximum chain visits seven targets")
+blocked=true;chainHits=0;beginChain()
+check(chainHits==0 and not owned,"Blocked player volume prevents dash and damage")
+blocked=false
+local previousWait=task.wait
+local originalChainCharacter=player.Character
+task.wait=function() player.Character=Instance.new("Model");return 0.05 end
+chainHits=0;beginChain()
+check(chainHits==0 and not owned,"Respawn during dash cancels chain and restores ownership")
+player.Character=originalChainCharacter;task.wait=previousWait
+-- A reset before the scheduled coroutine starts must not steal network ownership.
+local pending
+local oldSpawn=task.spawn
+task.spawn=function(f) pending=f end
+beginChain();chainService.Cancel(player);pending()
+check(not owned and player:GetAttribute("SwordMoveBusyUntil")==0,"Reset before chain coroutine starts leaves ownership intact")
+task.spawn=oldSpawn
+chainService.Destroy()
+local masteryService=modules.MasteryService
+masteryService.Start(powers,saves)
+check(player.PowerMastery:FindFirstChild("Dodge")~=nil,"Motion mastery is initialized alongside spells")
+masteryService.Add(player,"Dodge",powers.Mastery.XPBase)
+check(masteryService.GetLevel(player,"Dodge")==1,"Motion mastery levels with earned XP")
+player:SetAttribute("Level",1)
+check(masteryService.GetLevel(player,"Dodge")==0,"Motion mastery respects player level gate")
+player:SetAttribute("Level",6)
+check(masteryService.GetLevel(player,"Dodge")==1,"Motion rank opens at its player level threshold")
+
 print(string.format("PASS: %d configuration and server regression checks",count))
 '''
 def main():
@@ -254,7 +330,7 @@ def main():
  for name in ['ItemConfig','ProgressionConfig','EvolutionConfig','SkillTreeConfig','MeleeConfig','RealmConfig','EnemyConfig']:
   chunks.append(f'modules.{name} = (function()\n'+(ROOT/f'src/ReplicatedStorage/Shared/{name}.lua').read_text(encoding='utf-8-sig')+'\nend)()\n')
  chunks.append('shared.MeleeConfig = \"MeleeConfig\"\n')
- for name in ['InventoryService','PowerService','QuestService','EvolutionService','PlayerProgression','SwordMoveService']:
+ for name in ['InventoryService','PowerService','QuestService','EvolutionService','PlayerProgression','MasteryService','CrowdControlService','ChainAttackService','SwordMoveService']:
   chunks.append(f'modules.{name} = (function()\n'+(ROOT/f'src/ServerScriptService/Systems/{name}.lua').read_text(encoding='utf-8-sig')+'\nend)()\n')
  chunks.append(CASES)
  with tempfile.TemporaryDirectory(prefix='world-regression-') as tmp:

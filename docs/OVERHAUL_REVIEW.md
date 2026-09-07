@@ -76,3 +76,17 @@ Reference: [Roblox gamepad input](https://create.roblox.com/docs/input/gamepad),
 7. Connect an Xbox 360 controller or use Studio Controller Emulator. Visit every menu through BACK, buy a melee upgrade, assign spells, equip gear, select a sword art, scroll long catalogs, then return to combat. Verify reconnect, B navigation, text entry, and each binding above. Repeat with two clients and representative mobile performance.
 
 The Luau stub tests do not establish rendering quality, physics behavior, DataStore integration or physical controller compatibility.
+
+
+## Chain combat and progression follow-up
+
+- Default attacks now include **Blink Chain**: keyboard **H**, touch H button, or controller **Y** (initial selected art). Equip a melee weapon, close menus, and approach enemies within 26 studs.
+- Three cuts per enemy, followed by a stagger/knockback finisher. Server-selected targets cannot repeat within one cast. Walls block dashes; death, respawn, weapon changes, and admin reset cancel the sequence and restore network ownership/rotation. Unreachable targets cost no stamina when none are visible at activation.
+- Chain starts with two targets. Each rank requires another 20 successful target XP and 15 player levels: ranks unlock at LV16/31/46/61/76, reaching seven targets and +40% chain damage. Practice targets do not train chain mastery. XP saves with the player.
+- Motion powers now share saved power mastery. Successful use awards cast XP; each effective rank requires five player levels beyond the power unlock and reduces stamina/cooldown by 1.5%, up to ten ranks. Spell damage/cost mastery and level-earned passive skill points remain active.
+- Elemental Overdrive nodes now increase burn/poison ticks or add three residual elemental damage ticks. Skill descriptions state actual effects. Gravity slows, lightning status scaling, poison status timing, and prismatic vulnerability scaling are connected. Monster damage events now carry their element, enabling previously unreachable fire/ice hit visuals.
+- Chain lightning trails, angled slash rings, slam finishers, elemental monster bursts, poison smoke, and stronger high-tier sound/light impacts augment existing spell signatures. Camera shake uses one owner per humanoid and restores its baseline after overlapping impacts.
+
+Validation: 746 stubbed server/configuration regression checks, Luau compilation, Roblox LSP diagnostics, and Rojo sourcemap/build. The imported RotateP.Name encoding warning predates these changes.
+
+Studio Play checks still required: chain through clustered mobs and beside walls/terraces; interrupt by death, unequipping, and admin reset; verify saved mastery after rejoining; test Xbox Y selection and touch buttons; check high/low effect quality in a full wave, sound assets, animation timing, and multiplayer dash replication. No Studio runtime or physical controller test was available in this environment.

@@ -48,13 +48,13 @@ function ElementVFX.Start(config)
 		if not root then return end
 		local palette = Config.Elements[element]
 		local emitter = Instance.new("ParticleEmitter")
-		emitter.Texture = palette and palette.Particle or "rbxasset://textures/particles/sparkles_main.dds"
+		emitter.Texture = palette and palette.Particle or Config.Particles[element] or "rbxasset://textures/particles/sparkles_main.dds"
 		emitter.Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.65), color)
 		emitter.LightEmission = element == "Earth" and 0.1 or 0.8
 		emitter.Rate, emitter.Lifetime = 0, NumberRange.new(0.35, 1.1)
 		emitter.Speed, emitter.SpreadAngle = NumberRange.new(8 * scale, 18 * scale), Vector2.new(180, 180)
 		emitter.Drag = element == "Ice" and 5 or 3
-		emitter.Acceleration = Vector3.new(0, element == "Fire" and 16 or -12, 0)
+		emitter.Acceleration = Vector3.new(0, (element == "Fire" or element == "Poison") and 16 or element == "Gravity" and 0 or -12, 0)
 		emitter.Rotation, emitter.RotSpeed = NumberRange.new(-180, 180), NumberRange.new(-100, 100)
 		emitter.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.4 * scale), NumberSequenceKeypoint.new(0.2, 1.6 * scale), NumberSequenceKeypoint.new(1, 0)})
 		emitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(0.6, 0.4), NumberSequenceKeypoint.new(1, 1)})
@@ -73,7 +73,7 @@ function ElementVFX.Start(config)
 		trail.Transparency, trail.WidthScale = NumberSequence.new(0.15, 1), NumberSequence.new(1.5, 0)
 		trail.Parent = projectile
 		local emitter = Instance.new("ParticleEmitter")
-		emitter.Texture = palette and palette.Particle or "rbxasset://textures/particles/sparkles_main.dds"
+		emitter.Texture = palette and palette.Particle or Config.Particles[element] or "rbxasset://textures/particles/sparkles_main.dds"
 		emitter.Color, emitter.LightEmission = ColorSequence.new(color), 0.8
 		emitter.Lifetime, emitter.Rate = NumberRange.new(0.15, 0.4), quality() and 45 or 12
 		emitter.Speed, emitter.SpreadAngle = NumberRange.new(1, 4), Vector2.new(180, 180)

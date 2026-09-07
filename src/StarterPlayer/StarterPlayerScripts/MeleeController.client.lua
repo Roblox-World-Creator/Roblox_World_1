@@ -25,7 +25,7 @@ panel.BackgroundColor3, panel.Visible, panel.Parent = Color3.fromRGB(20, 26, 39)
 local close = button(panel, "X", UDim2.new(1, -48, 0, 12), UDim2.fromOffset(36, 36))
 local title = Instance.new("TextLabel")
 title.Position, title.Size, title.BackgroundTransparency, title.Parent = UDim2.fromOffset(18, 12), UDim2.new(1, -85, 0, 36), 1, panel
-title.Text, title.Font, title.TextSize, title.TextColor3 = "SWORD ARTS & MELEE", Enum.Font.GothamBlack, 23, Color3.fromRGB(255, 195, 115)
+title.Text, title.Font, title.TextSize, title.TextColor3 = "DEFAULT ATTACKS & SWORD ARTS", Enum.Font.GothamBlack, 20, Color3.fromRGB(255, 195, 115)
 local status = Instance.new("TextLabel")
 status.Position, status.Size, status.BackgroundTransparency, status.Parent = UDim2.fromOffset(18, 58), UDim2.new(1, -36, 0, 95), 1, panel
 status.TextColor3, status.TextSize, status.Font, status.TextWrapped = Color3.fromRGB(220, 230, 245), 14, Enum.Font.Gotham, true
@@ -34,7 +34,7 @@ list.Position, list.Size, list.BackgroundTransparency, list.Parent = UDim2.fromO
 list.AutomaticCanvasSize, list.CanvasSize, list.ScrollBarThickness = Enum.AutomaticSize.Y, UDim2.new(), 5
 local layout = Instance.new("UIListLayout")
 layout.Padding, layout.SortOrder, layout.Parent = UDim.new(0, 8), Enum.SortOrder.LayoutOrder, list
-local selectedMove = "Lunge"
+local selectedMove = "Chain"
 local function render()
 	local xp = player:GetAttribute("MeleeMasteryXP") or 0
 	local rank = math.min(Config.Mastery.MaximumRank, math.floor(xp / Config.Mastery.XPPerRank))
@@ -43,13 +43,16 @@ local function render()
 	local skills = player:FindFirstChild("Skills")
 	for index, id in ipairs(Config.Order) do
 		local move = Config.Moves[id]
-		local skill = skills and skills:FindFirstChild(move.Skill)
-		local unlocked = player:GetAttribute("AdminAllPowersUnlocked") or (skill and skill.Value > 0 and (player:GetAttribute("Level") or 1) >= move.RequiredLevel)
-		local card = button(list, string.format("%s [%s] | LV %d | %d stamina | %.1fs cooldown\n%s\n%s", move.DisplayName, move.Key, move.RequiredLevel, move.Stamina, move.Cooldown, move.Description, unlocked and ("READY - click to select for gamepad Y" .. (selectedMove == id and " [SELECTED]" or "")) or ("Requires " .. Skills.Nodes[move.Skill].DisplayName)), UDim2.new(), UDim2.new(1, -8, 0, 105))
+		local skill = move.Skill and skills and skills:FindFirstChild(move.Skill)
+		local unlocked = player:GetAttribute("AdminAllPowersUnlocked") or ((not move.Skill or (skill and skill.Value > 0)) and (player:GetAttribute("Level") or 1) >= move.RequiredLevel)
+		local chainRank = Config.GetChainRank(player:GetAttribute("ChainMasteryXP"), player:GetAttribute("Level"))
+		local description = move.Description
+		if id == "Chain" then description = string.format("Rank %d/%d | %d/%d XP | %d targets | +%d%% damage. Next rank: LV %d / %d XP", chainRank, Config.Chain.MaximumRank, player:GetAttribute("ChainMasteryXP") or 0, Config.Chain.MaximumRank * Config.Chain.XPPerRank, Config.Chain.BaseTargets + chainRank, chainRank * Config.Chain.DamagePerRank * 100, math.min(Config.Chain.MaximumRank, chainRank + 1) * Config.Chain.LevelsPerRank + 1, math.min(Config.Chain.MaximumRank, chainRank + 1) * Config.Chain.XPPerRank) end
+		local card = button(list, string.format("%s [%s] | LV %d | %d stamina | %.1fs cooldown\n%s\n%s", move.DisplayName, move.Key, move.RequiredLevel, move.Stamina, move.Cooldown, description, unlocked and ("READY - click to select for gamepad Y" .. (selectedMove == id and " [SELECTED]" or "")) or ("Requires " .. (move.Skill and Skills.Nodes[move.Skill].DisplayName or "player level " .. move.RequiredLevel))), UDim2.new(), UDim2.new(1, -8, 0, 105))
 		card.Name = id
 		card.LayoutOrder, card.AutoButtonColor = index, unlocked == true
 		card.Activated:Connect(function()
-			if unlocked then selectedMove = id; render() else status.Text = "Requires level " .. move.RequiredLevel .. " and " .. Skills.Nodes[move.Skill].DisplayName end
+			if unlocked then selectedMove = id; render() else status.Text = "Requires level " .. move.RequiredLevel .. " and " .. (move.Skill and Skills.Nodes[move.Skill].DisplayName or "player level " .. move.RequiredLevel) end
 		end)
 	end
 	for index, id in ipairs(Skills.Order) do
@@ -93,14 +96,14 @@ for index, id in ipairs(Config.Order) do
 		return Enum.ContextActionResult.Sink
 	end, true, 2500, Enum.KeyCode[move.Key])
 	ContextActionService:SetTitle("Sword" .. id, move.Key .. ": " .. move.DisplayName)
-	ContextActionService:SetPosition("Sword" .. id, UDim2.new(1, -260 + (index - 1) * 75, 1, -260))
+	ContextActionService:SetPosition("Sword" .. id, UDim2.new(1, -335 + (index - 1) * 75, 1, -260))
 end
 ContextActionService:BindActionAtPriority("SelectedSwordArt", function(_, state)
 	if state ~= Enum.UserInputState.Begin or menusOpen() then return Enum.ContextActionResult.Pass end
 	remote:FireServer("SwordMove", selectedMove)
 	return Enum.ContextActionResult.Sink
 end, false, 2500, Enum.KeyCode.ButtonY)
-for _, attribute in ipairs({"Level", "SkillPoints", "MeleeMasteryXP", "AdminAllPowersUnlocked"}) do
+for _, attribute in ipairs({"Level", "SkillPoints", "MeleeMasteryXP", "ChainMasteryXP", "AdminAllPowersUnlocked"}) do
 	player:GetAttributeChangedSignal(attribute):Connect(function() if panel.Visible then render() end end)
 end
 local scale = Instance.new("UIScale")
