@@ -55,7 +55,7 @@ local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(0.5, 0)
 panel.Position = UDim2.new(0.5, 0, 0, 54)
-panel.Size = UDim2.new(0.72, 0, 0.86, 0)
+panel.Size = UDim2.fromOffset(640, 680)
 panel.BackgroundColor3 = colors.Panel
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -261,7 +261,8 @@ local function actionButton(parent, text, action, payloadFactory, color)
 			task.delay(3, function() if button.Parent then button.Text = text end end)
 			return
 		end
-		local payload = payloadFactory and payloadFactory() or {}
+		local payload = {}
+		if payloadFactory then payload = payloadFactory(); if not payload then return end end
 		if action ~= "GetPlayers" then
 			payload.Target = targetBox.Text
 		end
@@ -335,11 +336,13 @@ createSection("ANIMAL TRANSFORMATIONS")
 local transformUnlockRow = createRow()
 actionButton(transformUnlockRow, "UNLOCK ALL FORMS", "UnlockAllTransformations", nil, colors.Accent)
 actionButton(transformUnlockRow, "RETURN TO HUMAN", "SetTransformation", function() return {FormId = ""} end)
-local transformRow1 = createRow()
-actionButton(transformRow1, "WOLF FORM", "SetTransformation", function() return {FormId = "Wolf"} end, Color3.fromRGB(70, 125, 180))
-actionButton(transformRow1, "BEAR FORM", "SetTransformation", function() return {FormId = "Bear"} end, Color3.fromRGB(135, 85, 50))
-local transformRow2 = createRow()
-actionButton(transformRow2, "EAGLE FORM", "SetTransformation", function() return {FormId = "Eagle"} end, Color3.fromRGB(175, 145, 65))
+local transformationConfig = require(ReplicatedStorage.Shared.TransformationConfig)
+for _, formId in ipairs(transformationConfig.Order) do
+	local row = createRow()
+	local definition = transformationConfig.Forms[formId]
+	actionButton(row, "USE " .. string.upper(definition.DisplayName), "SetTransformation", function() return {FormId = formId} end, definition.Color:Lerp(colors.Panel, 0.4))
+	actionButton(row, "UNLOCK FORM", "UnlockTransformation", function() return {FormId = formId} end)
+end
 
 createSection("ELEMENTAL REALMS")
 local realmRow1 = createRow()
@@ -378,7 +381,7 @@ enemyCatalog.CanvasSize = UDim2.new()
 enemyCatalog.Parent = controls
 round(enemyCatalog, 8)
 local enemyCatalogLayout = Instance.new("UIGridLayout")
-enemyCatalogLayout.CellSize, enemyCatalogLayout.CellPadding, enemyCatalogLayout.FillDirectionMaxCells = UDim2.fromOffset(116, 108), UDim2.fromOffset(6, 6), 4
+enemyCatalogLayout.CellSize, enemyCatalogLayout.CellPadding, enemyCatalogLayout.FillDirectionMaxCells = UDim2.new(0.25, -9, 0, 108), UDim2.fromOffset(6, 6), 4
 enemyCatalogLayout.Parent = enemyCatalog
 local enemyCatalogPadding = Instance.new("UIPadding")
 enemyCatalogPadding.PaddingTop = UDim.new(0, 7)
@@ -409,6 +412,7 @@ local function refreshEnemyCatalog()
 		if query == "" or string.find(haystack, query, 1, true) then
 			shown += 1
 			local card = Instance.new("TextButton")
+			card.Name = enemyId
 			card.Size = UDim2.fromOffset(116, 108)
 			card.BackgroundColor3 = selectedEnemyId == enemyId and colors.Success:Lerp(colors.PanelLight, 0.48) or colors.PanelLight
 			card.BorderSizePixel = 0
@@ -449,6 +453,25 @@ local creatureRow = createRow()
 actionButton(creatureRow, "SPAWN SELECTED", "SpawnEnemy", function() return {EnemyType = selectedEnemyId} end, colors.Success)
 actionButton(creatureRow, "SELECTED AS BOSS", "SpawnEnemy", function() return {EnemyType = selectedEnemyId, BossMode = true} end, colors.Danger)
 refreshEnemyCatalog()
+local bossRow = createRow()
+local bossCatalogButton = Instance.new("TextButton")
+bossCatalogButton.Text, bossCatalogButton.Parent = "LOAD NAMED BOSSES", bossRow
+styleButton(bossCatalogButton, colors.Accent)
+local bossList = Instance.new("Frame")
+bossList.Size, bossList.AutomaticSize, bossList.BackgroundTransparency, bossList.Parent = UDim2.new(1, -6, 0, 0), Enum.AutomaticSize.Y, 1, controls
+local bossLayout = Instance.new("UIListLayout")
+bossLayout.Padding, bossLayout.Parent = UDim.new(0, 6), bossList
+bossCatalogButton.Activated:Connect(function()
+	local result = invoke("GetSpawnCatalog")
+	if not result or not result.Success then return end
+	for _, child in ipairs(bossList:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+	for _, entry in ipairs(result.Data or {}) do
+		if string.sub(entry.Id, 1, 5) == "Boss:" then
+			local button = actionButton(bossList, "SPAWN " .. entry.Name, "SpawnEnemy", function() return {EnemyType = entry.Id} end, colors.Danger)
+			button.Size = UDim2.new(1, -6, 0, 40)
+		end
+	end
+end)
 
 local cleanupRow = createRow()
 actionButton(cleanupRow, "CLEAR PRACTICE ENEMIES", "ClearPracticeEnemies", nil, colors.Danger)
@@ -465,6 +488,15 @@ actionButton(row7, "LIST PLAYERS", "GetPlayers")
 createSection("ITEM GRANTS")
 local itemSearch = createTextBox("Search item name, type, rarity, or element", "")
 local quantityBox = createTextBox("Quantity (1-25 per grant)", "1")
+local quantityPresets = createRow()
+quantityPresets:FindFirstChildOfClass("UIGridLayout").CellSize = UDim2.new(0.25, -6, 1, 0)
+quantityPresets:FindFirstChildOfClass("UIGridLayout").FillDirectionMaxCells = 4
+for _, amount in ipairs({1, 5, 10, 25}) do
+	local preset = Instance.new("TextButton")
+	preset.Text, preset.Parent = "x" .. amount, quantityPresets
+	styleButton(preset)
+	preset.Activated:Connect(function() quantityBox.Text = tostring(amount) end)
+end
 local grantCategories = {"All", "Weapon", "Gun", "Rifle", "Armor", "Artifact", "Consumable", "Material"}
 local grantCategoryIndex = 1
 local selectedGrantItem = "HealthPotion"
@@ -479,12 +511,20 @@ local function choiceButton(text)
 	return button
 end
 local categoryButton = choiceButton("TYPE: ALL")
+local categoryChoices = Instance.new("Frame")
+categoryChoices.Size, categoryChoices.BackgroundTransparency, categoryChoices.Parent = UDim2.new(1, -6, 0, 72), 1, controls
+local categoryGrid = Instance.new("UIGridLayout")
+categoryGrid.CellSize, categoryGrid.CellPadding, categoryGrid.FillDirectionMaxCells, categoryGrid.Parent = UDim2.new(0.25, -5, 0, 32), UDim2.fromOffset(6, 6), 4, categoryChoices
+categoryButton.Visible = false
 local itemSortModes = {"Name", "Level", "Rarity", "Stats"}
 local itemSortIndex = 1
 local itemSortButton = choiceButton("SORT ITEMS: NAME")
-local selectedItemLabel = choiceButton("SELECTED: HEALTH CORE")
+local selectedItemLabel = choiceButton("SELECTED: HEALTH CORE | max stack 99")
 selectedItemLabel.AutoButtonColor = false
-local targetChoiceButton = choiceButton("TARGET: ME")
+local targetChoiceButton = choiceButton("GRANT TO: ME")
+local function updateGrantTarget() targetChoiceButton.Text = "GRANT TO: " .. (targetBox.Text ~= "" and targetBox.Text or "me") end
+targetBox:GetPropertyChangedSignal("Text"):Connect(updateGrantTarget)
+updateGrantTarget()
 local catalog = Instance.new("ScrollingFrame")
 catalog.Size, catalog.BackgroundColor3, catalog.BorderSizePixel = UDim2.new(1, -6, 0, 220), Color3.fromRGB(15, 20, 31), 0
 catalog.ScrollBarThickness, catalog.AutomaticCanvasSize, catalog.CanvasSize, catalog.Parent = 5, Enum.AutomaticSize.Y, UDim2.new(), controls
@@ -525,6 +565,7 @@ local function refreshGrantItems()
 		if categoryMatch and (query == "" or string.find(haystack, query, 1, true)) then
 			shown += 1
 			local card = Instance.new("TextButton")
+			card.Name = itemId
 			card.Size, card.TextWrapped, card.TextXAlignment, card.TextYAlignment = UDim2.new(1, -4, 0, 58), true, Enum.TextXAlignment.Left, Enum.TextYAlignment.Center
 			card.BackgroundColor3 = selectedGrantItem == itemId and colors.Success:Lerp(colors.PanelLight, 0.45) or colors.PanelLight
 			card.BorderSizePixel, card.TextColor3, card.Font, card.TextSize = 0, itemConfig.RarityColors[definition.Rarity] or colors.Text, Enum.Font.GothamBold, 11
@@ -536,7 +577,8 @@ local function refreshGrantItems()
 			card.Parent = catalog
 			card.Activated:Connect(function()
 				selectedGrantItem = itemId
-				selectedItemLabel.Text = "SELECTED: " .. string.upper(definition.DisplayName)
+				selectedItemLabel.Text = string.format("%s | Stack %d | Lv %d", definition.DisplayName, definition.MaximumStack, definition.RequiredLevel or 1)
+				quantityBox.Text = tostring(math.min(tonumber(quantityBox.Text) or 1, definition.MaximumStack, 25))
 				refreshGrantItems()
 			end)
 		end
@@ -545,11 +587,18 @@ local function refreshGrantItems()
 		local empty = Instance.new("TextLabel") empty.Size, empty.BackgroundTransparency, empty.Text, empty.TextColor3, empty.Parent = UDim2.new(1, -4, 0, 42), 1, "No items match this filter.", colors.Muted, catalog
 	end
 end
-categoryButton.Activated:Connect(function()
-	grantCategoryIndex = grantCategoryIndex % #grantCategories + 1
-	categoryButton.Text = "TYPE: " .. string.upper(grantCategories[grantCategoryIndex])
-	refreshGrantItems()
-end)
+for index, category in ipairs(grantCategories) do
+	local button = Instance.new("TextButton")
+	button.Text, button.Parent = category, categoryChoices
+	styleButton(button)
+	button.Activated:Connect(function()
+		grantCategoryIndex = index
+		for _, child in ipairs(categoryChoices:GetChildren()) do if child:IsA("TextButton") then child.BackgroundColor3 = child == button and colors.Success:Lerp(colors.Panel, 0.4) or colors.PanelLight end end
+		catalog.CanvasPosition = Vector2.zero
+		refreshGrantItems()
+	end)
+end
+
 itemSortButton.Activated:Connect(function()
 	itemSortIndex = itemSortIndex % #itemSortModes + 1
 	itemSortButton.Text = "SORT ITEMS: " .. string.upper(itemSortModes[itemSortIndex])
@@ -566,7 +615,9 @@ targetChoiceButton.Activated:Connect(function()
 end)
 local itemRow = createRow()
 actionButton(itemRow, "GRANT ITEM", "GrantItem", function()
-	return {ItemId = selectedGrantItem, Quantity = quantityBox.Text}
+	local quantity = tonumber(quantityBox.Text)
+	if not quantity or quantity % 1 ~= 0 or quantity < 1 or quantity > 25 then setStatus("Quantity must be a whole number from 1 to 25", false); return nil end
+	return {ItemId = selectedGrantItem, Quantity = math.min(quantity, itemConfig.Items[selectedGrantItem].MaximumStack)}
 end, colors.Accent)
 refreshGrantItems()
 
@@ -611,7 +662,7 @@ local function adminGamepadAction(actionName, inputState)
 	return Enum.ContextActionResult.Pass
 end
 
-ContextActionService:BindActionAtPriority("AdminPanelChord", adminGamepadAction, false, 3200, Enum.KeyCode.DPadUp)
+-- Controller admin access is through BACK > ADMIN.
 ContextActionService:BindActionAtPriority("AdminPanelClose", adminGamepadAction, false, 2900, Enum.KeyCode.ButtonB)
 ContextActionService:BindActionAtPriority("AdminBlockCombat", adminGamepadAction, false, 2900, Enum.KeyCode.ButtonX, Enum.KeyCode.ButtonY, Enum.KeyCode.ButtonR2, Enum.KeyCode.ButtonL2, Enum.KeyCode.ButtonL3, Enum.KeyCode.ButtonL1, Enum.KeyCode.ButtonR1)
 
@@ -620,3 +671,12 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		panel.Visible = not panel.Visible
 	end
 end)
+
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = panel
+local function resizeAdmin()
+	local camera = workspace.CurrentCamera
+	if camera then uiScale.Scale = math.min(1, (camera.ViewportSize.X - 24) / panel.Size.X.Offset, (camera.ViewportSize.Y - 70) / 680) end
+end
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeAdmin) end
+resizeAdmin()

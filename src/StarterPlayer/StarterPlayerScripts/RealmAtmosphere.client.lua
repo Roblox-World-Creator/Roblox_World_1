@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -9,8 +10,10 @@ local VFX = require(script.Parent:WaitForChild("ElementVFX"))
 local player = Players.LocalPlayer
 local folder = Instance.new("Folder")
 folder.Name, folder.Parent = "RealmAtmosphereEffects", workspace
-local atmosphere = Instance.new("Atmosphere")
-atmosphere.Name, atmosphere.Density, atmosphere.Parent = "RealmHaze", 0, Lighting
+local existingAtmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+local atmosphere = existingAtmosphere or Instance.new("Atmosphere")
+local baseline = {Density = existingAtmosphere and atmosphere.Density or 0, Color = atmosphere.Color, Decay = atmosphere.Decay, Haze = atmosphere.Haze}
+if not existingAtmosphere then atmosphere.Name, atmosphere.Density, atmosphere.Parent = "RealmHaze", 0, Lighting end
 local grade = Instance.new("ColorCorrectionEffect")
 grade.Name, grade.Parent = "RealmColor", Lighting
 local bloom = Instance.new("BloomEffect")
@@ -43,13 +46,12 @@ local function register(object)
 	emitter.Size = NumberSequence.new(2, 0)
 	sources[object] = emitter
 end
-connections[#connections + 1] = workspace.DescendantAdded:Connect(register)
-connections[#connections + 1] = workspace.DescendantRemoving:Connect(function(object)
+connections[#connections + 1] = CollectionService:GetInstanceAddedSignal("RealmAmbientSource"):Connect(register)
+connections[#connections + 1] = CollectionService:GetInstanceRemovedSignal("RealmAmbientSource"):Connect(function(object)
 	local emitter = sources[object]
 	if emitter then sources[object] = nil; emitter:Destroy() end
 end)
-local realmsFolder = workspace:FindFirstChild("ElementalRealms")
-if realmsFolder then for _, object in ipairs(realmsFolder:GetDescendants()) do register(object) end end
+for _, object in ipairs(CollectionService:GetTagged("RealmAmbientSource")) do register(object) end
 local current, elapsed, stormTime = nil, 0, 0
 local hazeTween, gradeTween
 connections[#connections + 1] = RunService.Heartbeat:Connect(function(dt)
@@ -68,7 +70,7 @@ connections[#connections + 1] = RunService.Heartbeat:Connect(function(dt)
 		precipitation:Clear()
 		if hazeTween then hazeTween:Cancel() end
 		if gradeTween then gradeTween:Cancel() end
-		hazeTween = TweenService:Create(atmosphere, TweenInfo.new(Config.Weather.Transition), {Density = palette and palette.Density or 0, Color = palette and palette.Mist or Color3.new(1, 1, 1), Decay = palette and palette.Mist or Color3.new(1, 1, 1), Haze = palette and 1.2 or 0})
+		hazeTween = TweenService:Create(atmosphere, TweenInfo.new(Config.Weather.Transition), {Density = palette and palette.Density or baseline.Density, Color = palette and palette.Mist or baseline.Color, Decay = palette and palette.Mist or baseline.Decay, Haze = palette and 1.2 or baseline.Haze})
 		gradeTween = TweenService:Create(grade, TweenInfo.new(Config.Weather.Transition), {TintColor = palette and palette.Tint or Color3.new(1, 1, 1), Contrast = palette and 0.06 or 0, Saturation = palette and 0.08 or 0})
 		hazeTween:Play(); gradeTween:Play()
 		if palette then
@@ -100,5 +102,6 @@ script.Destroying:Connect(function()
 	for _, emitter in pairs(sources) do emitter:Destroy() end
 	if hazeTween then hazeTween:Cancel() end
 	if gradeTween then gradeTween:Cancel() end
-	atmosphere:Destroy(); grade:Destroy(); bloom:Destroy(); folder:Destroy()
+	if existingAtmosphere then for property, value in pairs(baseline) do atmosphere[property] = value end else atmosphere:Destroy() end
+	grade:Destroy(); bloom:Destroy(); folder:Destroy()
 end)

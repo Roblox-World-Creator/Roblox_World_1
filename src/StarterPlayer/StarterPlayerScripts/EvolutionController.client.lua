@@ -20,8 +20,8 @@ open.BackgroundColor3 = Color3.fromRGB(215, 145, 55)
 open.Parent = gui
 local panel = Instance.new("Frame")
 panel.Name = "EvolutionPanel"
-panel.Size = UDim2.fromOffset(430, 330)
-panel.Position = UDim2.new(0.35, 0, 0.5, 0)
+panel.Size = UDim2.fromOffset(430, 410)
+panel.Position = UDim2.fromScale(0.5, 0.53)
 panel.AnchorPoint = Vector2.new(0.5, 0.5)
 panel.BackgroundColor3 = Color3.fromRGB(20, 26, 40)
 panel.Visible = false
@@ -37,7 +37,7 @@ title.TextSize = 20
 title.Parent = panel
 local status = Instance.new("TextLabel")
 status.Position = UDim2.fromOffset(18, 58)
-status.Size = UDim2.new(1, -36, 0, 180)
+status.Size = UDim2.new(1, -36, 0, 250)
 status.BackgroundTransparency = 1
 status.TextColor3 = Color3.fromRGB(220, 230, 245)
 status.TextWrapped = true
@@ -87,3 +87,19 @@ ContextActionService:BindActionAtPriority("EvolutionClose", function(_, inputSta
 	return Enum.ContextActionResult.Pass
 end, false, 3100, Enum.KeyCode.ButtonB)
 for _, attribute in ipairs({"Evolution", "Level", "HighestWave", "Coins", "CanEvolve"}) do player:GetAttributeChangedSignal(attribute):Connect(render) end
+
+remote.OnClientEvent:Connect(function(success, message)
+	render()
+	if not success then status.Text = tostring(message) .. "\n\n" .. status.Text end
+end)
+local close = Instance.new("TextButton")
+close.Position, close.Size, close.Text, close.Parent = UDim2.new(1, -42, 0, 10), UDim2.fromOffset(30, 30), "X", panel
+close.Activated:Connect(function() panel.Visible = false end)
+local scale = Instance.new("UIScale")
+scale.Parent = panel
+local function resizeEvolution()
+	local camera = workspace.CurrentCamera
+	if camera then scale.Scale = math.min(1, (camera.ViewportSize.X - 24) / 430, (camera.ViewportSize.Y - 90) / 410) end
+end
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeEvolution) end
+resizeEvolution()

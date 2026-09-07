@@ -1033,7 +1033,9 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 				local position = realm.Destination + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
 				position = RealmScenery.GroundPosition(workspace.ElementalRealms:FindFirstChild(activeRealmId), position)
 				local levelScale = 1 + (realm.RecommendedLevel or 1) * 0.035
-				local realmEnemy, realmHumanoid = createEnemy(enemyType, definition, levelScale, 1 + (realm.RecommendedLevel or 1) * 0.018, 0, position, enemyFolder)
+				local eliteName = index % 6 == 0 and "Giant" or nil
+				local eliteDefinition = eliteName and waveConfig.EliteModifiers[eliteName]
+				local realmEnemy, realmHumanoid = createEnemy(enemyType, definition, levelScale, 1 + (realm.RecommendedLevel or 1) * 0.018, 0, position, enemyFolder, eliteName, eliteDefinition)
 				realmEnemy:SetAttribute("IsRealmMob", true)
 				realmEnemy:SetAttribute("RealmId", activeRealmId)
 				realmEnemy:SetAttribute("RequiredLevel", realm.RecommendedLevel)

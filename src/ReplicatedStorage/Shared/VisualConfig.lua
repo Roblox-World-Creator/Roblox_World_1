@@ -1,7 +1,7 @@
 -- Presentation only: combat ranges, damage and cooldowns remain server-owned.
 return {
 	Scenery = {Outposts = 6, OutpostRadius = 0.31, TerraceWidth = 72, RampLength = 90, RampWidth = 26, Mountains = 28, AmbientRange = 240},
-	Effects = {Distance = 320, MaxParts = 420, ArcSegments = 18, LowArcSegments = 9, BurstCount = 32, LowBurstCount = 10},
+	Effects = {Distance = 320, MaxParts = 420, MaxGroups = 48, ArcSegments = 18, LowArcSegments = 9, BurstCount = 32, LowBurstCount = 10},
 	Weather = {UpdateInterval = 0.2, Transition = 2, Rate = 36, LowRate = 8, StormInterval = 7},
 	Elements = {
 		Fire = {Rock = Color3.fromRGB(54, 43, 41), Surface = Color3.fromRGB(80, 55, 47), Accent = Color3.fromRGB(255, 102, 25), Mist = Color3.fromRGB(164, 101, 76), Tint = Color3.fromRGB(255, 228, 202), Material = Enum.Material.Basalt, Height = 18, Density = 0.32, Particle = "rbxasset://textures/particles/fire_main.dds"},

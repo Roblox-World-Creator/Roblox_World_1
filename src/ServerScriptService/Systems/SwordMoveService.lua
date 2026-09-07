@@ -30,6 +30,8 @@ function SwordMoveService.Start(config)
 		player:SetAttribute("Stamina", player:GetAttribute("Stamina") - move.Stamina)
 		player:SetAttribute("LastStaminaUse", now)
 		player:SetAttribute("Blocking", false)
+		if id == "Lunge" then root.AssemblyLinearVelocity += root.CFrame.LookVector * 18 end
+		config.Feedback:FireClient(player, "CastAccepted", move.DisplayName)
 		config.Effects:FireAllClients("SwordMove", {Character = character, Origin = root.Position, Direction = root.CFrame.LookVector, Move = id, Duration = move.Duration, Element = player:GetAttribute("EquippedWeaponElement")})
 		local weapon = player:GetAttribute("EquippedWeapon")
 		local parameters = RaycastParams.new()

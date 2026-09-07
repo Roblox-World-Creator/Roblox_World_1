@@ -164,11 +164,12 @@ end
 local function apply(player, id)
 	local definition = id and config.Forms[id]
 	local character, humanoid = player.Character, player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if not character or not humanoid then return false, "Character unavailable" end
+	if not character or not humanoid or humanoid.Health <= 0 then return false, "Character unavailable" end
 	clearVisual(character)
 	active[player] = definition and id or nil
 	player:SetAttribute("ActiveTransformation", definition and id or "")
 	if id ~= "Eagle" then player:SetAttribute("EagleFlightActive", false) end
+	player:SetAttribute("TransformationHealthMultiplier", definition and (definition.StatModifiers.Health or 1) or 1)
 	player:SetAttribute("TransformationMoveMultiplier", definition and (definition.StatModifiers.MoveSpeed or 1) or 1)
 	player:SetAttribute("TransformationDefense", definition and (definition.StatModifiers.Defense or 0) or 0)
 	player:SetAttribute("TransformationCriticalChance", definition and (definition.StatModifiers.CriticalChance or 0) or 0)
@@ -283,6 +284,7 @@ function TransformationService.Start(transformationConfig, saveService)
 		player.CharacterAdded:Connect(function() task.delay(0.25, function() if active[player] then apply(player, active[player]) end end) end)
 	end
 	remote.OnServerInvoke = function(player, action, payload)
+		payload = type(payload) == "table" and payload or {}
 		if action == "GetState" then return {Success = true, State = state(player)} end
 		if action == "Toggle" then local id = tostring(payload and payload.FormId or ""); if active[player] == id then id = "" end; local ok, message = TransformationService.Set(player, id); return {Success = ok, Message = message, State = state(player)} end
 		if action == "PurchaseSkill" then local ok, message = purchaseSkill(player, tostring(payload and payload.FormId), tostring(payload and payload.SkillId)); return {Success = ok, Message = message, State = state(player)} end

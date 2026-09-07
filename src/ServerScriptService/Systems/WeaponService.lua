@@ -192,6 +192,22 @@ local function rebuild(player, character)
 	local rightHand = character:FindFirstChild(rightName) or character:WaitForChild(rightName, 5)
 	local leftHand = character:FindFirstChild(leftName) or character:WaitForChild(leftName, 5)
 	if primaryDefinition and rightHand then createWeapon(container, rightHand, primary.Value, primaryDefinition, false) end
+	local primaryModel = container:FindFirstChild("PrimaryWeaponVisual")
+	if primaryModel and primaryModel.PrimaryPart then
+		local blade = primaryModel.PrimaryPart
+		if not primaryModel:FindFirstChildWhichIsA("Trail", true) then
+			local top, bottom = Instance.new("Attachment"), Instance.new("Attachment")
+			local length = (primaryDefinition.WeaponSize or Vector3.new(1, 4, 1)).Y
+			top.Position, bottom.Position = Vector3.new(0, length * 0.5, 0), Vector3.new(0, -length * 0.3, 0)
+			top.Parent, bottom.Parent = blade, blade
+			local trail = Instance.new("Trail")
+			trail.Name, trail.Attachment0, trail.Attachment1 = "SwordMotionTrail", top, bottom
+			trail.Color = ColorSequence.new(primaryDefinition.WeaponColor or Color3.new(1, 1, 1))
+			trail.Transparency, trail.Lifetime, trail.LightEmission, trail.FaceCamera = NumberSequence.new(0.25, 1), 0.18, 0.8, true
+			trail.Parent = blade
+		end
+		for _, object in ipairs(primaryModel:GetDescendants()) do if object:IsA("Trail") then object.Enabled = false end end
+	end
 	if secondaryDefinition and leftHand then createWeapon(container, leftHand, secondary.Value, secondaryDefinition, true) end
 	player:SetAttribute("EquippedWeaponKind", secondaryDefinition and (secondaryDefinition.WeaponKind or "Ranged") or "Melee")
 	for _, slot in ipairs(equipment:GetChildren()) do

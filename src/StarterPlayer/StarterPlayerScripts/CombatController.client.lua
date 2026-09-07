@@ -205,7 +205,20 @@ local function cycleAbility(direction)
 	selectAbility(available[(position - 1 + direction) % #available + 1])
 end
 
+local function combatMenuOpen()
+	if GuiService.SelectedObject and GuiService.SelectedObject:GetAttribute("MenuSourceGui") then return true end
+	if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then return true end
+	for _, screen in ipairs(player.PlayerGui:GetChildren()) do
+		if screen:IsA("ScreenGui") and screen.Enabled then
+			for _, child in ipairs(screen:GetChildren()) do
+				if child:IsA("GuiObject") and child.Visible and string.find(child.Name, "Panel", 1, true) then return true end
+			end
+		end
+	end
+	return false
+end
 local function castAbility(name, mode)
+	if combatMenuOpen() then return end
 	if name == "PowerDash" then
 		if (cooldownEnds[name] or 0) <= os.clock() then
 			dashRemote:FireServer()
@@ -397,6 +410,15 @@ local function playImmediateMeleeAnimation()
 end
 
 local function requestMelee(ignorePointerCheck)
+	if combatMenuOpen() then return end
+	if workspace:GetServerTimeNow() < (player:GetAttribute("SwordMoveBusyUntil") or 0) then return end
+	for _, screen in ipairs(player.PlayerGui:GetChildren()) do
+		if screen:IsA("ScreenGui") and screen.Enabled then
+			for _, child in ipairs(screen:GetChildren()) do
+				if child:IsA("GuiObject") and child.Visible and string.find(child.Name, "Panel", 1, true) then return end
+			end
+		end
+	end
 	if GuiService.MenuIsOpen or UserInputService:GetFocusedTextBox() then return end
 	if not ignorePointerCheck then
 		for _, object in ipairs(player.PlayerGui:GetGuiObjectsAtPosition(mouse.X, mouse.Y)) do
@@ -468,7 +490,12 @@ end
 shared = ReplicatedStorage:WaitForChild("Shared")
 
 feedbackRemote.OnClientEvent:Connect(function(kind, xp, coins, duration)
-	if kind == "CastRejected" then
+	if kind == "CooldownsReset" then
+		for name in pairs(progressionConfig.Abilities) do cooldownEnds[name] = nil end
+		cooldownEnds.Melee, cooldownEnds.RangedWeapon = nil, nil
+		localMeleeReadyAt, lastMeleeRequest = 0, 0
+		return
+	elseif kind == "CastRejected" then
 		feedbackMessage = "CAST BLOCKED: " .. tostring(xp)
 		feedbackExpires = os.clock() + 2
 		return
@@ -618,11 +645,12 @@ abilities:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeHotbar)
 resizeHotbar()
 
 local function handleAction(actionName, inputState)
+	if combatMenuOpen() then return Enum.ContextActionResult.Pass end
 	if inputState ~= Enum.UserInputState.Begin then
 		return Enum.ContextActionResult.Pass
 	end
 	local playerGui = player:FindFirstChildOfClass("PlayerGui")
-	for _, guiName in ipairs({"InventoryUI", "QuestLog", "AdminControls", "CombatSettings", "PowersUI", "EvolutionUI", "AscensionUI"}) do
+	for _, guiName in ipairs({"MeleeUI", "InventoryUI", "QuestLog", "AdminControls", "CombatSettings", "PowersUI", "EvolutionUI", "AscensionUI"}) do
 		local gui = playerGui and playerGui:FindFirstChild(guiName)
 		if gui then
 			for _, child in ipairs(gui:GetChildren()) do
@@ -645,7 +673,8 @@ local function handleAction(actionName, inputState)
 	elseif actionName == "StandardJump" then
 		requestStandardJump()
 	elseif actionName == "ActionPower" then
-		castAbility(abilityList[selectedAbilityIndex][1], "Ranged")
+		local motion = attributeList("ActiveMotion")
+		if motion[1] then castAbility(motion[1]) end
 	elseif actionName == "UltimatePower" then
 		local ultimate = player:GetAttribute("ActiveUltimate")
 		if type(ultimate) == "string" and ultimate ~= "" then castAbility(ultimate, "Ultimate") end
@@ -679,6 +708,7 @@ UserInputService.LastInputTypeChanged:Connect(updateInputHints)
 updateInputHints(UserInputService:GetLastInputType())
 
 local function handleBlock(_, inputState)
+	if inputState == Enum.UserInputState.Begin and combatMenuOpen() then return Enum.ContextActionResult.Pass end
 	if inputState == Enum.UserInputState.Begin then
 		combatRemote:FireServer("Block", true)
 		return Enum.ContextActionResult.Sink
@@ -697,8 +727,10 @@ ContextActionService:BindActionAtPriority("CastClosePower", handleAction, false,
 ContextActionService:BindActionAtPriority("MeleeAttack", handleAction, true, combatPriority, Enum.KeyCode.ButtonX)
 ContextActionService:BindActionAtPriority("StandardJump", handleAction, false, combatPriority + 10, Enum.KeyCode.ButtonA)
 ContextActionService:BindActionAtPriority("ActionPower", handleAction, false, combatPriority, Enum.KeyCode.ButtonL3)
-ContextActionService:BindActionAtPriority("UltimatePower", handleAction, false, combatPriority, Enum.KeyCode.ButtonR3)
-ContextActionService:BindActionAtPriority("RangedWeapon", handleAction, true, combatPriority, Enum.KeyCode.E)
+ContextActionService:BindActionAtPriority("UltimatePower", handleAction, true, combatPriority, Enum.KeyCode.ButtonR3, Enum.KeyCode.X)
+ContextActionService:BindActionAtPriority("RangedWeapon", handleAction, true, combatPriority, Enum.KeyCode.E, Enum.KeyCode.DPadRight)
+ContextActionService:SetTitle("UltimatePower", "ULTIMATE")
+ContextActionService:SetPosition("UltimatePower", UDim2.new(1, -70, 1, -325))
 ContextActionService:SetTitle("RangedWeapon", "FIRE")
 ContextActionService:SetPosition("RangedWeapon", UDim2.new(1, -70, 1, -170))
 ContextActionService:SetTitle("MeleeAttack", "ATTACK")
@@ -706,12 +738,12 @@ ContextActionService:SetPosition("MeleeAttack", UDim2.new(1, -70, 1, -110))
 ContextActionService:BindAction("PowerDash", handleAction, true, Enum.KeyCode.Q)
 ContextActionService:SetTitle("PowerDash", "DASH")
 ContextActionService:SetPosition("PowerDash", UDim2.new(1, -150, 1, -170))
-ContextActionService:BindAction("Evolve", handleAction, true, Enum.KeyCode.ButtonY)
+ContextActionService:BindAction("Evolve", handleAction, false)
 ContextActionService:SetTitle("Evolve", "EVOLVE")
 ContextActionService:SetPosition("Evolve", UDim2.new(1, -230, 1, -170))
 ContextActionService:BindAction("Dodge", handleAction, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonB)
 ContextActionService:SetTitle("Dodge", "DODGE")
 ContextActionService:SetPosition("Dodge", UDim2.new(1, -150, 1, -100))
-ContextActionService:BindAction("Block", handleBlock, true, Enum.KeyCode.F)
+ContextActionService:BindAction("Block", handleBlock, true, Enum.KeyCode.F, Enum.KeyCode.DPadUp)
 ContextActionService:SetTitle("Block", "BLOCK")
 ContextActionService:SetPosition("Block", UDim2.new(1, -230, 1, -100))

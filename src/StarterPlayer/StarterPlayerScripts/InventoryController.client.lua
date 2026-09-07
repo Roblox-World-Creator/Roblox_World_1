@@ -504,12 +504,18 @@ local function selectItem(itemId)
 	itemName.Text, itemName.TextColor3 = definition.DisplayName, config.RarityColors[definition.Rarity]
 	local equippedSlot
 	for slot, equippedId in pairs(state.Equipment or {}) do if equippedId == itemId then equippedSlot = slot break end end
+	local owned
+	for _, entry in ipairs(state.Items or {}) do if entry.Id == itemId then owned = entry; break end end
 	local recipe = config.Recipes[itemId]
 	local recipeText = ""
 	local compareText = ""
 	if recipe then
 		local ingredients = {}
-		for ingredientId, amount in pairs(recipe.Ingredients) do table.insert(ingredients, amount .. "x " .. config.Items[ingredientId].DisplayName) end
+		for ingredientId, amount in pairs(recipe.Ingredients) do
+			local count, protected = 0, false
+			for _, entry in ipairs(state.Items or {}) do if entry.Id == ingredientId then count, protected = entry.Count, entry.Locked or entry.Favorite; break end end
+			table.insert(ingredients, string.format("%s %d/%d%s", config.Items[ingredientId].DisplayName, count, amount, protected and " [PROTECTED]" or ""))
+		end
 		recipeText = "\nRecipe: " .. table.concat(ingredients, ", ")
 	end
 	if definition.EquipSlot and not equippedSlot then
@@ -530,17 +536,19 @@ local function selectItem(itemId)
 		actions.PRIMARY.Text, actions.PRIMARY.Visible = "BUY " .. tostring(definition.BuyPrice or 0), definition.BuyPrice ~= nil
 	else
 		actions.PRIMARY.Text = definition.Consumable and "USE" or definition.EquipSlot and "EQUIP" or "DETAILS"
-		actions.PRIMARY.Visible = definition.Consumable ~= nil or definition.EquipSlot ~= nil
+		actions.PRIMARY.Visible = owned ~= nil and (definition.Consumable ~= nil or definition.EquipSlot ~= nil)
 	end
 	if not selectedItem then
 		for _, item in ipairs(state.Items or {}) do
 			if config.Items[item.Id] then selectedItem = item.Id break end
 		end
 	end
-	actions.FAVORITE.Visible = currentTab == "Inventory"
-	actions.LOCK.Visible = currentTab == "Inventory"
+	actions.FAVORITE.Visible = currentTab == "Inventory" and owned ~= nil
+	actions.FAVORITE.Text = owned and owned.Favorite and "UNFAVORITE" or "FAVORITE"
+	actions.LOCK.Visible = currentTab == "Inventory" and owned ~= nil
+	actions.LOCK.Text = owned and owned.Locked and "UNLOCK" or "LOCK"
 	actions.CRAFT.Visible = currentTab ~= "Store" and recipe ~= nil
-	actions.SELL.Visible = currentTab == "Inventory"
+	actions.SELL.Visible = currentTab == "Inventory" and owned ~= nil
 	actions["SELL JUNK"].Visible = currentTab == "Inventory"
 	actions.UNEQUIP.Visible = currentTab == "Inventory" and equippedSlot ~= nil
 	refreshEquippedSummary()
@@ -658,6 +666,18 @@ refresh = function()
 	for categoryFilter, button in pairs(storeCategoryButtons) do
 		button.BackgroundColor3 = categoryFilter == filter and Color3.fromRGB(65, 125, 185) or Color3.fromRGB(42, 52, 73)
 	end
+	if not showCharacter then
+		if not selectedItem or not list:FindFirstChild(selectedItem) then
+			selectedItem = nil
+			for _, card in ipairs(list:GetChildren()) do if card:IsA("GuiButton") then selectedItem = card.Name; break end end
+		end
+		if selectedItem then selectItem(selectedItem)
+		else
+			itemName.Text, description.Text = "No matching items", "Change the filter or search. Quick supplies: 7 health, 8 mana, 9 serum."
+			for _, action in pairs(actions) do action.Visible = false end
+		end
+	end
+
 end
 
 for _, tabName in ipairs({"Inventory", "Character", "Crafting", "Store"}) do
@@ -749,12 +769,13 @@ close.Activated:Connect(function() panel.Visible = false end)
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
 	if input.KeyCode == Enum.KeyCode.B then toggle()
-	elseif input.KeyCode == Enum.KeyCode.Three then invoke(inventoryRemote, "Use", {ItemId = "HealthPotion"})
-	elseif input.KeyCode == Enum.KeyCode.Four then invoke(inventoryRemote, "Use", {ItemId = "ManaPotion"})
-	elseif input.KeyCode == Enum.KeyCode.Five then invoke(inventoryRemote, "Use", {ItemId = "BattleSerum"}) end
+	elseif input.KeyCode == Enum.KeyCode.Seven then invoke(inventoryRemote, "Use", {ItemId = "HealthPotion"})
+	elseif input.KeyCode == Enum.KeyCode.Eight then invoke(inventoryRemote, "Use", {ItemId = "ManaPotion"})
+	elseif input.KeyCode == Enum.KeyCode.Nine then invoke(inventoryRemote, "Use", {ItemId = "BattleSerum"}) end
 end)
 
 local function gamepadMenuAction(actionName, inputState)
+	if string.sub(actionName, 1, 5) == "Quick" and GuiService.SelectedObject then return Enum.ContextActionResult.Pass end
 	if inputState ~= Enum.UserInputState.Begin then return Enum.ContextActionResult.Pass end
 	if actionName == "InventoryToggle" then
 		toggle()
@@ -790,7 +811,7 @@ ContextActionService:BindActionAtPriority("InventoryNextTab", gamepadMenuAction,
 ContextActionService:BindActionAtPriority("InventoryPreviousTab", gamepadMenuAction, false, 3000, Enum.KeyCode.ButtonL1)
 ContextActionService:BindActionAtPriority("QuickHealthCore", gamepadMenuAction, false, 2500, Enum.KeyCode.DPadLeft)
 ContextActionService:BindActionAtPriority("QuickManaCrystal", gamepadMenuAction, false, 2500, Enum.KeyCode.DPadDown)
-ContextActionService:BindActionAtPriority("QuickBattleSerum", gamepadMenuAction, false, 2500, Enum.KeyCode.DPadRight)
+-- Serum remains available on key 9 and through the inventory; D-pad right fires the ranged weapon.
 inventoryEvent.OnClientEvent:Connect(function(kind, data)
 	if kind == "LootWorld" and typeof(data.Origin) == "Vector3" then
 		local color = config.RarityColors[data.Rarity] or Color3.new(1, 1, 1)

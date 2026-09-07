@@ -111,6 +111,7 @@ function SkillTreeService.Start(skillConfig, saveService, progressionService, pl
 	config, progression, progressionConfig = skillConfig, progressionService, playerProgressionConfig
 	local remote = ReplicatedStorage.Remotes:WaitForChild("SkillRemote")
 	remote.OnServerInvoke = function(player, action, payload)
+		payload = type(payload) == "table" and payload or {}
 		if action == "GetState" then return {Success = true, State = state(player)} end
 		if action == "Purchase" then local ok, message = purchase(player, tostring(payload and payload.SkillId)); return {Success = ok, Message = message, State = state(player)} end
 		return {Success = false, Message = "Unknown skill action", State = state(player)}

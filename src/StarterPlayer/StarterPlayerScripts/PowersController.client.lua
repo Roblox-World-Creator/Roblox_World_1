@@ -176,7 +176,9 @@ render = function()
 	if not currentState then return end
 	filterButton.Text, sortButton.Text = "FILTER: " .. filterValues[filterIndex], "SORT: " .. sortValues[sortIndex]
 	for label, button in pairs(levelButtons) do button.BackgroundColor3 = label == levelBand and Color3.fromRGB(62, 125, 165) or colors.Card end
-	local summaryText = string.format("Main %d/6 | Travel: %s | Special: %s | Ultimate [R3]: %s\nRT aimed/ranged | LT local-area | L3 selected action | A jump | B dodge. Select a slot, then a power.", #currentState.Attacks, currentState.Motion[1] or "EMPTY", currentState.Motion[2] or "EMPTY", currentState.Ultimate ~= "" and currentState.Ultimate or "EMPTY")
+	local attackCount = 0
+	for _, name in ipairs(currentState.Attacks) do if name ~= "" then attackCount += 1 end end
+	local summaryText = string.format("Main %d/6 | Travel: %s | Special: %s | Ultimate [R3]: %s\nRT aimed/ranged | LT local-area | L3 selected action | A jump | B dodge. Select a slot, then a power.", attackCount, currentState.Motion[1] or "EMPTY", currentState.Motion[2] or "EMPTY", currentState.Ultimate ~= "" and currentState.Ultimate or "EMPTY")
 	info.Text = summaryText
 	renderSlots()
 	for _, child in ipairs(list:GetChildren()) do if child:IsA("GuiButton") or child:IsA("TextLabel") then child:Destroy() end end
@@ -195,6 +197,7 @@ render = function()
 	for _, entry in ipairs(entries) do if matches(entry) then
 		local active = table.find(currentState.Attacks, entry.Name) or table.find(currentState.Motion, entry.Name) or currentState.Ultimate == entry.Name
 		local card = Instance.new("TextButton")
+		card.Name = entry.Name
 		card.Size, card.TextXAlignment, card.TextYAlignment, card.TextWrapped = UDim2.fromOffset(128, 128), Enum.TextXAlignment.Center, Enum.TextYAlignment.Bottom, true
 		card.Font, card.TextSize = Enum.Font.GothamBold, 12
 		local definition = entry.Definition
@@ -254,3 +257,12 @@ for _, attribute in ipairs({"Level", "Evolution", "AdminAllPowersUnlocked", "Pow
 		if panel.Visible then currentState = request("GetState"); render() end
 	end)
 end
+
+local responsive = Instance.new("UIScale")
+responsive.Parent = panel
+local function resizePowers()
+	local camera = workspace.CurrentCamera
+	if camera then responsive.Scale = math.min(1, (camera.ViewportSize.X - 24) / 590, (camera.ViewportSize.Y - 90) / 600) end
+end
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resizePowers) end
+resizePowers()

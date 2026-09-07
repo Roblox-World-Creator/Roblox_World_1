@@ -8,7 +8,7 @@ function ElementVFX.Start(config)
 	local folder, quality = config.Parent, config.HighQuality
 	local active = 0
 	local function holder(position, lifetime)
-		if active >= Config.Effects.MaxParts then return nil end
+		if active >= Config.Effects.MaxGroups then return nil end
 		local object = Instance.new("Part")
 		object.Name, object.Size, object.Position = "ElementVFX", Vector3.one * 0.05, position
 		object.Anchored, object.CanCollide, object.CanTouch, object.CanQuery = true, false, false, false

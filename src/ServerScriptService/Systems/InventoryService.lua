@@ -96,6 +96,7 @@ local function refreshEquipmentStats(player)
 	player:SetAttribute("EquippedWeaponDamageMultiplier", primary and primary.BasicAttackMultiplier or 1)
 	player:SetAttribute("EquippedWeaponAnimation", primary and (primary.AnimationStyle or primary.WeaponType) or "Unarmed")
 	player:SetAttribute("EquippedWeaponUnique", primary and primary.Unique == true or false)
+	player:SetAttribute("EquippedRangedElement", secondary and secondary.Element or "Physical")
 	player:SetAttribute("EquippedRangedAbility", secondary and secondary.AbilityId or "")
 	player:SetAttribute("EquippedRangedEffect", secondary and secondary.Passive or "")
 end

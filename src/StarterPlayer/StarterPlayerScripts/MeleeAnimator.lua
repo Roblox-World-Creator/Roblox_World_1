@@ -69,6 +69,9 @@ function MeleeAnimator.Play(character, combo, style, moveId)
 				else
 					transform = pose.To:Lerp(CFrame.identity, (elapsed - strikeEnd) / (animation.Duration - strikeEnd))
 				end
+				if animation.MoveId == "Whirlwind" and (pose.Motor.Name == "Root" or pose.Motor.Name == "RootJoint") then
+					transform = CFrame.Angles(0, math.clamp((elapsed - animation.Windup) / (animation.Duration - animation.Windup), 0, 1) * math.pi * 2, 0)
+				end
 				pose.Motor.Transform = pose.Rest * transform
 			end
 			for _, trail in ipairs(animation.Trails) do if trail.Parent then trail.Enabled = elapsed >= animation.Windup and elapsed < strikeEnd end end

@@ -94,7 +94,7 @@ local function settingsGamepadAction(actionName, inputState)
 	return Enum.ContextActionResult.Pass
 end
 
-ContextActionService:BindActionAtPriority("SettingsPanelToggle", settingsGamepadAction, false, 2800, Enum.KeyCode.ButtonR3)
+-- Controller settings access is through BACK > SETTINGS; right-stick click casts the ultimate.
 ContextActionService:BindActionAtPriority("SettingsPanelClose", settingsGamepadAction, false, 2800, Enum.KeyCode.ButtonB)
 ContextActionService:BindActionAtPriority("SettingsBlockCombat", settingsGamepadAction, false, 2800, Enum.KeyCode.ButtonX, Enum.KeyCode.ButtonY, Enum.KeyCode.ButtonR2, Enum.KeyCode.ButtonL2, Enum.KeyCode.ButtonL3, Enum.KeyCode.ButtonL1, Enum.KeyCode.ButtonR1)
 

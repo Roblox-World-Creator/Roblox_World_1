@@ -30,10 +30,11 @@ local stroke = Instance.new("UIStroke") stroke.Color, stroke.Transparency, strok
 local padding = Instance.new("UIPadding")
 padding.PaddingLeft, padding.PaddingRight, padding.PaddingTop, padding.PaddingBottom, padding.Parent = UDim.new(0, 7), UDim.new(0, 7), UDim.new(0, 5), UDim.new(0, 5), dock
 local layout = Instance.new("UIListLayout")
-layout.FillDirection, layout.VerticalAlignment, layout.HorizontalAlignment, layout.Padding, layout.SortOrder, layout.Parent = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, Enum.HorizontalAlignment.Right, UDim.new(0, 6), Enum.SortOrder.LayoutOrder, dock
+layout.FillDirection, layout.VerticalAlignment, layout.HorizontalAlignment, layout.Padding, layout.SortOrder, layout.Parent = Enum.FillDirection.Horizontal, Enum.VerticalAlignment.Center, Enum.HorizontalAlignment.Left, UDim.new(0, 6), Enum.SortOrder.LayoutOrder, dock
 
-local menuGuiNames = {PowersUI = true, InventoryUI = true, QuestLog = true, EvolutionUI = true, AscensionUI = true, AdminControls = true, CombatSettings = true}
+local menuGuiNames = {MeleeUI = true, PowersUI = true, InventoryUI = true, QuestLog = true, EvolutionUI = true, AscensionUI = true, AdminControls = true, CombatSettings = true}
 local menuDefinitions = {
+	MELEE = {Order = 2, Label = "MELEE", Width = 68},
 	POWERS = {Order = 1, Label = "POWERS", Width = 70},
 	SKILLS = {Order = 2, Label = "SKILLS", Width = 68},
 	BAG = {Order = 3, Label = "GEAR", Width = 66},
@@ -53,10 +54,10 @@ local function updateLayout()
 		-- after SETTINGS on iPad because its children were left-aligned.
 		local availableWidth = math.max(240, width - 112)
 		dock.AnchorPoint = Vector2.new(1, 0)
-		dock.Position, dock.Size = UDim2.new(1, -8, 0, 4), UDim2.fromOffset(math.min(620, availableWidth), 48)
+		dock.Position, dock.Size = UDim2.new(1, -8, 0, 4), UDim2.fromOffset(math.min(710, availableWidth), 48)
 	else
 		dock.AnchorPoint = Vector2.new(1, 0)
-		dock.Position, dock.Size = UDim2.new(1, -8, 0, 4), UDim2.fromOffset(620, 44)
+		dock.Position, dock.Size = UDim2.new(1, -8, 0, 4), UDim2.fromOffset(710, 44)
 	end
 end
 

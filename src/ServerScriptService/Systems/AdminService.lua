@@ -122,6 +122,11 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 	end
 
 	remote.OnServerInvoke = function(player, action, payload)
+		payload = type(payload) == "table" and payload or {}
+		for _, value in pairs(payload) do
+			local numeric = (type(value) == "string" or type(value) == "number") and tonumber(value)
+			if numeric and (numeric ~= numeric or math.abs(numeric) == math.huge) then return response(false, "Enter a finite number") end
+		end
 		if action == "Unlock" then
 			local result = authorize(player, payload and payload.Code, config)
 			player:SetAttribute("AdminAuthorized", result.Success)
@@ -206,7 +211,7 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 			if not target then return response(false, "Target player not found or ambiguous") end
 			target:SetAttribute("AdminSpeedOverride", nil)
 			local humanoid = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
-			if humanoid then humanoid.WalkSpeed = 36 * (target:GetAttribute("SpeedMultiplier") or 1) + (target:GetAttribute("EquipmentSpeed") or 0) end
+			if humanoid then humanoid.WalkSpeed = (target:GetAttribute("BaseMoveSpeed") or 36) * (target:GetAttribute("TransformationMoveMultiplier") or 1) end
 			return response(true, target.Name .. " speed restored")
 		elseif action == "Respawn" then
 			if not target then return response(false, "Target player not found or ambiguous") end
@@ -230,7 +235,7 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 			if not target or not progression or not progressionConfig then return response(false, "Target or progression service unavailable") end
 			local requestedLevel = tonumber(payload.Level)
 			if not requestedLevel then return response(false, "Enter a valid level") end
-			local level = math.clamp(math.floor(requestedLevel), 1, 100)
+			local level = math.clamp(math.floor(requestedLevel), 1, progressionConfig.MaximumLevel or 100)
 			target:SetAttribute("Level", level)
 			target:SetAttribute("XP", 0)
 			progression.RefreshStats(target, progressionConfig)
@@ -266,6 +271,7 @@ function AdminService.Start(config, waveDefense, inventoryService, itemConfig, e
 		elseif action == "ResetCooldowns" then
 			if not target or not combatService then return response(false, "Target or combat service unavailable") end
 			local success, message = combatService.ResetCooldowns(target)
+			if combatService.ResetSwordCooldowns then combatService.ResetSwordCooldowns(target) end
 			return response(success, message .. " for " .. target.Name)
 		elseif action == "TeleportRealm" then
 			if not target or not target.Character then return response(false, "Target character unavailable") end

@@ -1,6 +1,11 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Visuals = require(ReplicatedStorage.Shared.VisualConfig)
 local RealmScenery = {}
+local CollectionService = game:GetService("CollectionService")
+local function markAmbient(object, element)
+	object:SetAttribute("AmbientElement", element)
+	CollectionService:AddTag(object, "RealmAmbientSource")
+end
 
 local function part(parent, name, size, frame, color, material, solid, className)
 	local object = Instance.new(className or "Part")
@@ -39,26 +44,45 @@ function RealmScenery.Start(config)
 			make("OutpostRamp", Vector3.new(layout.RampWidth, height, layout.RampLength), ramp, palette.Surface, nil, true, "WedgePart")
 		end
 		local top = frame * CFrame.new(width * 0.32, height, 0)
+		if definition.Element == "Fire" or definition.Element == "Earth" then
+			local waterColor = definition.Element == "Fire" and palette.Accent or Color3.fromRGB(100, 193, 205)
+			local material = definition.Element == "Fire" and Enum.Material.Neon or Enum.Material.Glass
+			local cascade = make(definition.Element == "Fire" and "LavaFall" or "SpringWaterfall", Vector3.new(11, height, 0.6), frame * CFrame.new(width / 2 + 0.4, height / 2, 4) * CFrame.Angles(0, math.pi / 2, 0), waterColor, material)
+			cascade.Transparency = definition.Element == "Fire" and 0.12 or 0.3
+			local pool = make("CascadePool", Vector3.new(0.25, 28, 20), frame * CFrame.new(width / 2 + 9, 0.2, 4) * CFrame.Angles(0, 0, math.pi / 2), waterColor, material)
+			pool.Shape, pool.Transparency = Enum.PartType.Cylinder, 0.25
+			markAmbient(pool, definition.Element)
+		elseif definition.Element == "Ice" then
+			local pond = make("FrozenTarn", Vector3.new(0.2, 30, 24), frame * CFrame.new(width / 2 + 15, 0.2, 0) * CFrame.Angles(0, 0, math.pi / 2), Color3.fromRGB(109, 186, 214), Enum.Material.Ice)
+			pond.Shape, pond.Transparency = Enum.PartType.Cylinder, 0.2
+			for crack = 1, 5 do
+				make("GlacialVein", Vector3.new(0.2, 0.15, 12), frame * CFrame.new(width / 2 + 10 + crack * 2, 0.4, 0) * CFrame.Angles(0, crack * 0.6, 0), palette.Accent, Enum.Material.Neon)
+			end
+		else
+			for rock = 1, 4 do
+				make("SuspendedStormStone", Vector3.new(9, 12, 9), top * CFrame.new(math.cos(rock * 1.57) * 22, 40 + rock * 3, math.sin(rock * 1.57) * 22) * CFrame.Angles(rock * 0.4, rock, 0.3), nil, nil, false, "WedgePart")
+			end
+		end
 		if definition.Element == "Fire" then
 			local basin = make("Caldera", Vector3.new(7, 26, 26), top * CFrame.new(0, 3.5, 0) * CFrame.Angles(0, 0, math.pi / 2))
 			basin.Shape = Enum.PartType.Cylinder
 			local lava = make("MoltenCaldera", Vector3.new(0.4, 20, 20), top * CFrame.new(0, 7.2, 0) * CFrame.Angles(0, 0, math.pi / 2), palette.Accent, Enum.Material.Neon)
 			lava.Shape = Enum.PartType.Cylinder
-			lava:SetAttribute("AmbientElement", "Fire")
+			markAmbient(lava, "Fire")
 		elseif definition.Element == "Ice" then
 			for shard = 1, 5 do
 				make("GlacierCrown", Vector3.new(4, 15 + shard * 3, 7), top * CFrame.new((shard - 3) * 4, 8, 0) * CFrame.Angles(0, shard, (shard - 3) * 0.16), palette.Accent, Enum.Material.Ice, false, "WedgePart")
 			end
 			local mist = make("FrostSource", Vector3.one, top, palette.Accent)
 			mist.Transparency = 1
-			mist:SetAttribute("AmbientElement", "Ice")
+			markAmbient(mist, "Ice")
 		elseif definition.Element == "Lightning" then
 			for _, side in ipairs({-1, 1}) do
 				make("StormArchPillar", Vector3.new(5, 30, 5), top * CFrame.new(side * 11, 15, 0))
 			end
 			make("StormArchLintel", Vector3.new(30, 5, 7), top * CFrame.new(0, 31, 0))
 			local core = make("StormConductor", Vector3.new(2, 12, 2), top * CFrame.new(0, 30, 0), palette.Accent, Enum.Material.Neon)
-			core:SetAttribute("AmbientElement", "Lightning")
+			markAmbient(core, "Lightning")
 		else
 			make("AncientCedar", Vector3.new(8, 34, 8), top * CFrame.new(0, 17, 0), Color3.fromRGB(83, 60, 39), Enum.Material.Wood)
 			for branch = 1, 5 do
@@ -67,7 +91,7 @@ function RealmScenery.Start(config)
 			end
 			local pollen = make("GrovePollen", Vector3.one, top * CFrame.new(0, 14, 0))
 			pollen.Transparency = 1
-			pollen:SetAttribute("AmbientElement", "Earth")
+			markAmbient(pollen, "Earth")
 		end
 		-- Move the existing district sign and plaza onto their new terrace.
 		local biome = parent:FindFirstChild("ProceduralBiome")

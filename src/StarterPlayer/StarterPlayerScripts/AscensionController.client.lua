@@ -8,6 +8,10 @@ local transformationConfig = require(ReplicatedStorage.Shared.TransformationConf
 local skillRemote = ReplicatedStorage.Remotes:WaitForChild("SkillRemote")
 local transformationRemote = ReplicatedStorage.Remotes:WaitForChild("TransformationRemote")
 local movementRemote = ReplicatedStorage.Remotes:WaitForChild("MovementRemote")
+local function call(remote, action, payload)
+	local ok, result = pcall(function() return remote:InvokeServer(action, payload) end)
+	return ok and result or {Success = false, Message = "Server unavailable; try again"}
+end
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.DisplayOrder, gui.Parent = "AscensionUI", false, 128, player:WaitForChild("PlayerGui")
 
@@ -66,7 +70,7 @@ for index, id in ipairs(quickOrder) do
 	button.Parent, quickButtons[id] = quickForms, button
 	button.Activated:Connect(function()
 		if not formIsUnlocked(id) then return end
-		local response = transformationRemote:InvokeServer("Toggle", {FormId = id})
+		local response = call(transformationRemote, "Toggle", {FormId = id})
 		if response and response.Message then button:SetAttribute("LastResult", response.Message) end
 		refreshQuickForms()
 	end)
@@ -95,6 +99,14 @@ local function makePanel(name, titleText)
 	title.TextColor3, title.TextXAlignment, title.Font, title.TextSize, title.Parent = Color3.fromRGB(115, 220, 255), Enum.TextXAlignment.Left, Enum.Font.GothamBlack, 19, panel
 	local close = Instance.new("TextButton") close.Position, close.Size, close.Text, close.Parent = UDim2.new(1, -48, 0, 9), UDim2.fromOffset(36, 36), "X", panel styleButton(close, Color3.fromRGB(188, 58, 73))
 	close.Activated:Connect(function() panel.Visible = false end)
+	local scale = Instance.new("UIScale")
+	scale.Parent = panel
+	local function resize()
+		local camera = workspace.CurrentCamera
+		if camera then scale.Scale = math.min(1, (camera.ViewportSize.X - 24) / 760, (camera.ViewportSize.Y - 90) / 590) end
+	end
+	if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize) end
+	resize()
 	return panel
 end
 
@@ -129,7 +141,7 @@ for _, tree in ipairs(skillConfig.Trees) do
 end
 
 renderSkills = function()
-	local result = skillRemote:InvokeServer("GetState")
+	local result = call(skillRemote, "GetState")
 	if not result or not result.State then return end
 	local state = result.State
 	skillStatus.Text = string.format("Skill Points: %d     Element Points: %d     Tree: %s", state.SkillPoints, state.ElementPoints, selectedTree)
@@ -160,9 +172,9 @@ renderSkills = function()
 			round(value, 9)
 			value.Activated:Connect(function()
 				if maximum then return end
-				local purchase = skillRemote:InvokeServer("Purchase", {SkillId = id})
-				skillStatus.Text = purchase.Message or "Skill request complete"
+				local purchase = call(skillRemote, "Purchase", {SkillId = id})
 				renderSkills()
+				skillStatus.Text = purchase.Message or "Skill request complete"
 			end)
 		end
 	end
@@ -204,12 +216,13 @@ player:GetAttributeChangedSignal("EagleFlightActive"):Connect(updateFlightContro
 player:GetAttributeChangedSignal("FormTravelUnlocked"):Connect(updateFlightControl)
 updateFlightControl()
 local function renderForms()
-	local result = transformationRemote:InvokeServer("GetState")
+	local result = call(transformationRemote, "GetState")
 	if not result or not result.State then return end
 	for _, child in ipairs(formList:GetChildren()) do if child:IsA("GuiButton") then child:Destroy() end end
 	local state = result.State
 	eagleFlightButton.Visible = state.Active == "Eagle" and player:GetAttribute("FormTravelUnlocked") == true
 	formStatus.Text = state.Active ~= "" and ("Active: " .. state.Active .. "  •  click again to return") or "Active: Ascendant  •  choose an unlocked spirit form"
+	formStatus.Text ..= string.format("\nForm points: %d | Earn from enemy kills; elites can award 2.", state.FormPoints or 0)
 	for _, id in ipairs(transformationConfig.Order) do
 		local definition, unlocked = transformationConfig.Forms[id], state.Unlocked[id]
 		local value = Instance.new("TextButton")
@@ -219,9 +232,9 @@ local function renderForms()
 		value.TextColor3, value.AutoButtonColor, value.Parent = unlocked and Color3.new(1, 1, 1) or Color3.fromRGB(130, 135, 150), unlocked, formList
 		value.Activated:Connect(function()
 			if not unlocked then formStatus.Text = "Locked until level " .. definition.RequiredLevel; return end
-			local response = transformationRemote:InvokeServer("Toggle", {FormId = id})
-			formStatus.Text = response.Message or "Transformation updated"
+			local response = call(transformationRemote, "Toggle", {FormId = id})
 			renderForms()
+			formStatus.Text = response.Message or "Transformation updated"
 		end)
 		for _, skill in ipairs(definition.Skills or {}) do
 			local owned = state.Skills and state.Skills[skill.Id]
@@ -232,9 +245,9 @@ local function renderForms()
 			skillButton.AutoButtonColor, skillButton.Parent = unlocked and not owned, formList
 			skillButton.Activated:Connect(function()
 				if owned or not unlocked then return end
-				local response = transformationRemote:InvokeServer("PurchaseSkill", {FormId = id, SkillId = skill.Id})
-				formStatus.Text = response.Message or "Form skill updated"
+				local response = call(transformationRemote, "PurchaseSkill", {FormId = id, SkillId = skill.Id})
 				renderForms()
+				formStatus.Text = response.Message or "Form skill updated"
 			end)
 		end
 	end

@@ -36,7 +36,6 @@ end
 
 local function setStats(player, config)
 	local level = player:GetAttribute("Level") or config.StartingLevel
-	local previousMaxHealth = player:GetAttribute("MaxHealth") or config.StartingMaxHealth
 	player:SetAttribute("XPRequired", xpRequired(config, level))
 	local evolution = player:GetAttribute("Evolution") or 0
 	local attackMultiplier = player:GetAttribute("AttackMultiplier") or 1
@@ -52,8 +51,10 @@ local function setStats(player, config)
 		+ (player:GetAttribute("EquipmentAttack") or 0)))
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		humanoid.MaxHealth = maxHealth
-		humanoid.Health = math.min(maxHealth, humanoid.Health + math.max(0, maxHealth - previousMaxHealth))
+		local transformedMax = maxHealth * (player:GetAttribute("TransformationHealthMultiplier") or 1)
+		local previous = humanoid.MaxHealth
+		humanoid.MaxHealth = transformedMax
+		if humanoid.Health > 0 then humanoid.Health = math.min(transformedMax, humanoid.Health + math.max(0, transformedMax - previous)) end
 	end
 	applyMovementStats(player, config)
 end

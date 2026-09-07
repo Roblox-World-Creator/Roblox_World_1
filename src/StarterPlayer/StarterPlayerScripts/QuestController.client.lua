@@ -125,7 +125,7 @@ local function gamepad(actionName, inputState)
 	if actionName == "QuestBlockCombat" and panel.Visible then return Enum.ContextActionResult.Sink end
 	return Enum.ContextActionResult.Pass
 end
-ContextActionService:BindActionAtPriority("QuestToggle", gamepad, false, 3100, Enum.KeyCode.DPadUp)
+-- Controller quest access is through BACK > QUESTS; D-pad up holds block.
 ContextActionService:BindActionAtPriority("QuestClose", gamepad, false, 3100, Enum.KeyCode.ButtonB)
 ContextActionService:BindActionAtPriority("QuestBlockCombat", gamepad, false, 3100, Enum.KeyCode.ButtonX, Enum.KeyCode.ButtonY, Enum.KeyCode.ButtonR2, Enum.KeyCode.ButtonL2, Enum.KeyCode.ButtonL3, Enum.KeyCode.ButtonL1, Enum.KeyCode.ButtonR1)
 event.OnClientEvent:Connect(function(kind, data)

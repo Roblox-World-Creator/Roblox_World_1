@@ -1218,13 +1218,31 @@ effectsRemote.OnClientEvent:Connect(function(effectName, data)
 	local camera = workspace.CurrentCamera
 	local position = typeof(data.Origin) == "Vector3" and data.Origin or nil
 	local target = typeof(data.Target) == "Vector3" and data.Target or position
+	if position and #effectsFolder:GetChildren() >= visualConfig.Effects.MaxParts then return end
 	-- Cull only spatial effects; announcements and UI still reach every player.
 	if camera and position and target then
 		local segment = target - position
 		local alpha = segment.Magnitude > 0.01 and math.clamp((camera.CFrame.Position - position):Dot(segment) / segment:Dot(segment), 0, 1) or 0
 		if (camera.CFrame.Position - position:Lerp(target, alpha)).Magnitude > visualConfig.Effects.Distance then return end
 	end
-	if effectName == "PowerCast" then
+	if effectName == "SwordMove" then
+		local moves = require(ReplicatedStorage.Shared.MeleeConfig)
+		local move = moves.Moves[data.Move]
+		if not move or typeof(data.Character) ~= "Instance" then return end
+		require(script.Parent.MeleeAnimator).Play(data.Character, 4, data.Move == "Lunge" and "Spear" or "Sword", data.Move)
+		elementalVFX.Burst(data.Origin + Vector3.new(0, 2, 0), data.Element, effectColor(data), 0.6)
+		for index = 1, move.Hits or 1 do
+			task.delay(move.Windup + (index - 1) * (move.HitInterval or 0), function()
+				local root = data.Character:FindFirstChild("HumanoidRootPart")
+				if not root then return end
+				local position = root.Position + root.CFrame.LookVector * (data.Move == "Whirlwind" and 0 or 5)
+				local arc = elementalVFX.Ring("SwordArtArc", position, move.Range * 0.7, effectColor(data), 0.32)
+				if arc and data.Move == "Cleave" then arc.CFrame *= CFrame.Angles(math.pi / 2, 0, 0) end
+				elementalVFX.Burst(position, data.Element, effectColor(data), data.Move == "Cleave" and 1.7 or 0.8)
+				playEffectSound(position, {CastType = "Melee", Element = data.Element, Impact = true})
+			end)
+		end
+	elseif effectName == "PowerCast" then
 		renderPowerCast(data)
 	elseif effectName == "PowerLocal" then
 		renderLocalPower(data)

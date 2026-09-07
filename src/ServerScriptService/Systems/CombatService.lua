@@ -139,7 +139,7 @@ local function applyStun(enemy, duration, config, force)
 	CrowdControlService.Stun(enemy, duration, config.StunImmunitySeconds, force)
 end
 
-local function grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName)
+local function grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName, attackKind)
 	if enemy:GetAttribute("BossWave") or enemy:GetAttribute("RewardGranted") then return end
 	enemy:SetAttribute("RewardGranted", true)
 	local xp = enemy:GetAttribute("RewardXP") or 0
@@ -156,14 +156,14 @@ local function grantEnemyKillRewards(player, enemy, config, progression, feedbac
 		activeQuestService.Record(player, "Kill", 1, context)
 		activeQuestService.Record(player, "RealmKill", 1, context)
 		activeQuestService.Record(player, "EnemyKill", 1, context)
-		activeQuestService.Record(player, abilityName and "PowerKill" or "MeleeKill", 1, context)
+		activeQuestService.Record(player, attackKind == "Melee" and "MeleeKill" or attackKind == "Ranged" and "RangedKill" or abilityName and "PowerKill" or "MeleeKill", 1, context)
 		if enemy:GetAttribute("IsElite") then activeQuestService.Record(player, "EliteKill", 1, context) end
 	end
 end
 
-local function damageEnemy(player, enemy, amount, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, heavy, abilityName)
+local function damageEnemy(player, enemy, amount, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, heavy, abilityName, attackKind)
 	local ability = abilityName and config.Abilities[abilityName]
-	local element = ability and ability.Element or player:GetAttribute("EquippedWeaponElement")
+	local element = ability and ability.Element or player:GetAttribute(attackKind == "Ranged" and "EquippedRangedElement" or "EquippedWeaponElement")
 	local enemyElement = enemy:GetAttribute("Element")
 	local elementDefinition = element and ElementConfig.Elements[element]
 	if elementDefinition and enemyElement == elementDefinition.OpposedBy then
@@ -189,7 +189,7 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 				if not enemy.Parent or enemy:GetAttribute("BurnToken") ~= token then break end
 				local dotResult = damageService.ApplyEnemyDamage(player, enemy, math.max(1, amount * 0.07))
 				if dotResult and dotResult.Killed then
-					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName)
+					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName, attackKind)
 					break
 				end
 			end
@@ -212,7 +212,7 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 				local dot = math.max(1, amount * (0.08 + (tonumber(player:GetAttribute("PoisonDotBonus")) or 0)))
 				local dotResult = damageService.ApplyEnemyDamage(player, enemy, dot)
 				if dotResult and dotResult.Killed then
-					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName)
+					grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName, attackKind)
 					break
 				end
 			end
@@ -234,7 +234,7 @@ local function damageEnemy(player, enemy, amount, config, progression, feedbackR
 		activeQuestService.Record(player, "CriticalHit", 1, {RealmId = enemy:GetAttribute("RealmId"), EnemyType = enemy:GetAttribute("EnemyType")})
 	end
 	if abilityName and activeMasteryService then activeMasteryService.Add(player, abilityName, result.Amount * config.Mastery.XPPerDamage) end
-	if result.Killed then grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName) end
+	if result.Killed then grantEnemyKillRewards(player, enemy, config, progression, feedbackRemote, inventoryService, abilityName, attackKind) end
 	return result
 end
 
@@ -269,6 +269,13 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		end,
 	})
 	CombatService.ResetSwordCooldowns = swordMoves.Reset
+	CombatService.ResetCooldowns = function(player)
+		abilityCooldowns[player], meleeStates[player], rangedReadyAt[player] = {}, nil, nil
+		swordMoves.Reset(player)
+		player:SetAttribute("MeleeReadyAt", 0)
+		feedbackRemote:FireClient(player, "CooldownsReset")
+		return true, "Spell, melee, sword art, and ranged weapon cooldowns reset"
+	end
 
 	local function validCharacter(player)
 		local character = player.Character
@@ -301,7 +308,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 				if not player.Parent then return end
 				for _, enemy in ipairs(getEnemiesInRadius(impact, 5)) do
 					local weaponAbility = player:GetAttribute("EquippedRangedAbility")
-					damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, config.Abilities[weaponAbility] and weaponAbility or nil)
+					damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, false, config.Abilities[weaponAbility] and weaponAbility or nil, "Ranged")
 				end
 			end)
 			return
@@ -384,7 +391,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local isFinisher = comboIndex == #config.MeleeCombo
 			if isFinisher then damage *= player:GetAttribute("MeleeFinisherMultiplier") or 1 end
 			local weaponAbility = player:GetAttribute("EquippedWeaponAbility")
-			local result = damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, isFinisher, config.Abilities[weaponAbility] and weaponAbility or nil)
+			local result = damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, isFinisher, config.Abilities[weaponAbility] and weaponAbility or nil, "Melee")
 			if result then
 				if not enemy:GetAttribute("IsPractice") then trainMelee(player) end
 				applyStun(enemy, (comboDefinition.Stun or 0) + (player:GetAttribute("MeleeStunBonus") or 0), config, isFinisher)
