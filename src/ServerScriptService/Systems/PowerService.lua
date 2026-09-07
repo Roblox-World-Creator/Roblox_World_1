@@ -24,7 +24,9 @@ end
 local function validAttacks(player, values)
 	if type(values) ~= "table" or #values > 6 then return false end
 	local seen = {}
-	for _, name in ipairs(values) do
+	for key, name in pairs(values) do
+		if type(key) ~= "number" or key % 1 ~= 0 or key < 1 or key > 6 or type(name) ~= "string" then return false end
+		if name == "" then continue end
 		local definition = config.Abilities[name]
 		if type(name) ~= "string" or seen[name] or not definition or not unlocked(player, definition) then return false end
 		seen[name] = true
@@ -65,7 +67,9 @@ local function setup(player, saveService)
 		if saved.Ultimate ~= nil and validUltimate(player, saved.Ultimate) then loadout.Ultimate = saved.Ultimate or "" end
 	end
 	loadouts[player] = loadout
+	for index = 1, 6 do loadout.Attacks[index] = loadout.Attacks[index] or "" end
 	setAttributes(player, loadout)
+	player:SetAttribute("PowersReady", true)
 end
 
 function PowerService.IsActive(player, abilityName)
@@ -92,8 +96,8 @@ function PowerService.Start(progressionConfig, saveService)
 	for _, player in ipairs(Players:GetPlayers()) do task.spawn(setup, player, saveService) end
 
 	remote.OnServerInvoke = function(player, action, payload)
-		local loadout = loadouts[player] or defaultLoadout(player)
-		loadouts[player] = loadout
+		local loadout = loadouts[player]
+		if not loadout or not player:GetAttribute("PowersReady") then return {Success = false, Message = "Powers are still loading"} end
 		if action == "GetState" then
 			local unlockedPowers, unlockedMotion = {}, {}
 			for name, ability in pairs(config.Abilities) do unlockedPowers[name] = unlocked(player, ability) end
@@ -105,6 +109,7 @@ function PowerService.Start(progressionConfig, saveService)
 		if not validMotion(player, payload.Motion) then return {Success = false, Message = "Slot 7 requires Mobility and slot 8 requires Technique"} end
 		if not validUltimate(player, payload.Ultimate) then return {Success = false, Message = "Ultimate slot contains a locked power"} end
 		loadout = {Attacks = copy(payload.Attacks), Motion = copy(payload.Motion), Ultimate = payload.Ultimate or ""}
+		for index = 1, 6 do loadout.Attacks[index] = payload.Attacks[index] or "" end
 		loadouts[player] = loadout
 		setAttributes(player, loadout)
 		return {Success = true, Message = "Power loadout saved", Attacks = copy(loadout.Attacks), Motion = copy(loadout.Motion), Ultimate = loadout.Ultimate}

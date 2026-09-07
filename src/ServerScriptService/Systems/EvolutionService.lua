@@ -48,6 +48,7 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 	end
 
 	local function evolve(player, forced)
+		if not player:GetAttribute("DataLoaded") then return false, "Player data is still loading" end
 		if busy[player] then
 			return false, "Evolution already in progress"
 		end
@@ -64,7 +65,7 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 			return false, "Character is not ready"
 		end
 		busy[player] = true
-		player:SetAttribute("Coins", (player:GetAttribute("Coins") or 0) - requirement.Coins)
+		if not forced then player:SetAttribute("Coins", (player:GetAttribute("Coins") or 0) - requirement.Coins) end
 		player:SetAttribute("Evolution", nextEvolution)
 		player:SetAttribute("AttackMultiplier", requirement.AttackMultiplier)
 		player:SetAttribute("HealthMultiplier", requirement.HealthMultiplier)
@@ -91,8 +92,7 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 		humanoid.WalkSpeed = 0
 		task.wait(config.TransformationSeconds)
 		if humanoid.Parent and humanoid.Health > 0 then
-			humanoid.WalkSpeed = player:GetAttribute("AdminSpeedOverride")
-				or resourceConfig.BaseWalkSpeed * requirement.SpeedMultiplier + (player:GetAttribute("EquipmentSpeed") or 0)
+			progression.RefreshStats(player, progressionConfig)
 			humanoid.MaxHealth = player:GetAttribute("MaxHealth") or humanoid.MaxHealth
 			humanoid.Health = humanoid.MaxHealth
 		end
@@ -102,7 +102,8 @@ function EvolutionService.Start(config, progressionConfig, progression, resource
 		return true, "Evolved to Ascendant " .. tostring(nextEvolution)
 	end
 	remote.OnServerEvent:Connect(function(player)
-		evolve(player, false)
+		local success, message = evolve(player, false)
+		if player.Parent then remote:FireClient(player, success, message) end
 	end)
 	function EvolutionService.ForceEvolve(player)
 		return evolve(player, true)

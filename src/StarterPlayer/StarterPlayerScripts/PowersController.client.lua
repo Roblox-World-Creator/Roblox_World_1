@@ -94,6 +94,7 @@ local function request(action, payload)
 	local ok, result = pcall(function() return remote:InvokeServer(action, payload) end)
 	if not ok then info.Text = "Power server unavailable"; return nil end
 	if result and result.Message then info.Text = result.Message end
+	if not result or not result.Success then return nil end
 	return result
 end
 local function getDefinitions(state)
@@ -159,8 +160,8 @@ local function assign(entry)
 			info.Text = "Select a combat or ultimate slot first"; return
 		else
 			local existing = table.find(attacks, entry.Name)
-			local target = math.min(selectedSlot, #attacks + 1)
-			if existing and existing ~= target and target <= #attacks then attacks[existing], attacks[target] = attacks[target], attacks[existing]
+			local target = selectedSlot
+			if existing and existing ~= target then attacks[existing], attacks[target] = attacks[target] or "", attacks[existing]
 			elseif not existing then attacks[target] = entry.Name end
 		end
 	else
@@ -236,3 +237,20 @@ end
 local function toggle() panel.Visible = not panel.Visible; if panel.Visible then currentState = request("GetState"); render(); GuiService.SelectedObject = close else GuiService.SelectedObject = nil end end
 open.Activated:Connect(toggle) close.Activated:Connect(toggle)
 UserInputService.InputBegan:Connect(function(input, processed) if not processed and input.KeyCode == Enum.KeyCode.P then toggle() end end)
+
+local clear = Instance.new("TextButton")
+clear.Position, clear.Size, clear.Text, clear.Parent = UDim2.fromOffset(340, 230), UDim2.new(1, -358, 0, 36), "CLEAR SLOT", panel
+style(clear)
+hint.Visible = false
+clear.Activated:Connect(function()
+	if not currentState then return end
+	if selectedSlot == 7 or selectedSlot == 8 then info.Text = "Travel and special slots require an action. Choose a replacement below."; return end
+	local attacks, ultimate = table.clone(currentState.Attacks), currentState.Ultimate
+	if selectedSlot == 9 then ultimate = "" else attacks[selectedSlot] = "" end
+	if save(attacks, currentState.Motion, ultimate) then render() end
+end)
+for _, attribute in ipairs({"Level", "Evolution", "AdminAllPowersUnlocked", "PowersReady"}) do
+	player:GetAttributeChangedSignal(attribute):Connect(function()
+		if panel.Visible then currentState = request("GetState"); render() end
+	end)
+end

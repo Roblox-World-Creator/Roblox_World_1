@@ -157,7 +157,7 @@ local feedbackMessage = ""
 local feedbackExpires = 0
 local function attributeList(name)
 	local values = {}
-	for _, value in ipairs(string.split(player:GetAttribute(name) or "", ",")) do if value ~= "" then table.insert(values, value) end end
+	for _, value in ipairs(string.split(player:GetAttribute(name) or "", ",")) do if value ~= "" or name == "ActiveAttacks" then table.insert(values, value) end end
 	return values
 end
 
@@ -187,7 +187,7 @@ local function isAbilityAvailable(entry)
 	local unlocked = definition and (player:GetAttribute("AdminAllPowersUnlocked")
 		or ((player:GetAttribute("Level") or 1) >= (definition.RequiredLevel or 1)
 			and (player:GetAttribute("Evolution") or 0) >= (definition.RequiredEvolution or 0)))
-	return unlocked and (active == ",," or string.find(active, "," .. name .. ",", 1, true) ~= nil)
+	return unlocked and string.find(active, "," .. name .. ",", 1, true) ~= nil
 end
 
 local function cycleAbility(direction)
@@ -382,61 +382,18 @@ local lastMeleeRequest = 0
 local localMeleeIndex = 0
 local localMeleeAt = 0
 local localMeleeReadyAt = 0
-local localSwingToken = 0
+local MeleeAnimator = require(script.Parent:WaitForChild("MeleeAnimator"))
 
 local function playImmediateMeleeAnimation()
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not character or not humanoid or humanoid.Health <= 0 then return end
 	local now = os.clock()
-	localMeleeIndex = now - localMeleeAt > progressionConfig.MeleeComboReset and 1 or (localMeleeIndex % #progressionConfig.MeleeCombo) + 1
+	local window = progressionConfig.MeleeComboReset + (player:GetAttribute("MeleeComboWindowBonus") or 0)
+	localMeleeIndex = now - localMeleeAt > window and 1 or (localMeleeIndex % #progressionConfig.MeleeCombo) + 1
 	localMeleeAt = now
 	player:SetAttribute("LocalMeleeCombo", localMeleeIndex)
-	local grip = character:FindFirstChild("SwordGrip", true)
-	local shoulder = character:FindFirstChild("RightShoulder", true) or character:FindFirstChild("Right Shoulder", true)
-	if (not grip or not grip:IsA("Motor6D")) and (not shoulder or not shoulder:IsA("Motor6D")) then return end
-	local startPoses = {
-		CFrame.Angles(math.rad(-18), math.rad(-24), math.rad(72)),
-		CFrame.Angles(math.rad(-8), math.rad(28), math.rad(-68)),
-		CFrame.Angles(math.rad(-78), math.rad(-10), math.rad(26)),
-		CFrame.new(0, 0, 0.45) * CFrame.Angles(math.rad(-82), 0, 0),
-	}
-	local endPoses = {
-		CFrame.Angles(math.rad(18), math.rad(28), math.rad(-58)),
-		CFrame.Angles(math.rad(12), math.rad(-26), math.rad(58)),
-		CFrame.Angles(math.rad(42), math.rad(12), math.rad(-24)),
-		CFrame.new(0, 0, -1.25) * CFrame.Angles(math.rad(-88), 0, 0),
-	}
-	local style = player:GetAttribute("EquippedWeaponAnimation") or "Sword"
-	if style == "Spear" then
-		startPoses[localMeleeIndex] = CFrame.new(0, 0, 0.8) * CFrame.Angles(math.rad(-86), 0, math.rad(localMeleeIndex % 2 == 0 and 8 or -8))
-		endPoses[localMeleeIndex] = CFrame.new(0, 0, -1.8 - localMeleeIndex * 0.18) * CFrame.Angles(math.rad(-88), 0, 0)
-	elseif style == "Hammer" or style == "Greatsword" then
-		startPoses[localMeleeIndex] = CFrame.Angles(math.rad(-105), math.rad((localMeleeIndex - 2) * 9), math.rad(18))
-		endPoses[localMeleeIndex] = CFrame.new(0, -0.4, -0.7) * CFrame.Angles(math.rad(42), 0, math.rad(-12))
-	elseif style == "Katana" then
-		startPoses[localMeleeIndex] = CFrame.Angles(math.rad(-12), math.rad(localMeleeIndex % 2 == 0 and 42 or -42), math.rad(localMeleeIndex % 2 == 0 and -82 or 82))
-		endPoses[localMeleeIndex] = CFrame.Angles(math.rad(8), math.rad(localMeleeIndex % 2 == 0 and -35 or 35), math.rad(localMeleeIndex % 2 == 0 and 76 or -76))
-	end
-	localSwingToken += 1
-	local token = localSwingToken
-	local combo = localMeleeIndex
-	local duration = combo == 4 and 0.2 or 0.16
-	if grip and grip:IsA("Motor6D") then
-		grip.Transform = startPoses[combo]
-		TweenService:Create(grip, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transform = endPoses[combo]}):Play()
-	end
-	if shoulder and shoulder:IsA("Motor6D") then
-		shoulder.Transform = combo == 4 and CFrame.Angles(math.rad(-55), 0, math.rad(8)) or CFrame.Angles(math.rad(-28), math.rad(combo % 2 == 0 and -22 or 22), math.rad(combo % 2 == 0 and -18 or 18))
-		TweenService:Create(shoulder, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Transform = combo == 4 and CFrame.Angles(math.rad(-86), 0, 0) or CFrame.Angles(math.rad(-12), math.rad(combo % 2 == 0 and 28 or -28), math.rad(combo % 2 == 0 and 24 or -24)),
-		}):Play()
-	end
-	task.delay(duration + 0.02, function()
-		if token ~= localSwingToken then return end
-		if grip and grip.Parent then TweenService:Create(grip, TweenInfo.new(0.14, Enum.EasingStyle.Quad), {Transform = CFrame.identity}):Play() end
-		if shoulder and shoulder.Parent then TweenService:Create(shoulder, TweenInfo.new(0.14, Enum.EasingStyle.Quad), {Transform = CFrame.identity}):Play() end
-	end)
+	MeleeAnimator.Play(character, localMeleeIndex, player:GetAttribute("EquippedWeaponAnimation") or "Sword")
 end
 
 local function requestMelee(ignorePointerCheck)
@@ -596,7 +553,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		or input.KeyCode == Enum.KeyCode.Four or input.KeyCode == Enum.KeyCode.Five or input.KeyCode == Enum.KeyCode.Six then
 		local keySlots = {[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4, [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6}
 		local active = attributeList("ActiveAttacks")
-		if active[keySlots[input.KeyCode]] then castAbility(active[keySlots[input.KeyCode]]) end
+		if active[keySlots[input.KeyCode]] and active[keySlots[input.KeyCode]] ~= "" then castAbility(active[keySlots[input.KeyCode]]) end
 	elseif input.KeyCode == Enum.KeyCode.Q then
 		local motion = attributeList("ActiveMotion")
 		if motion[1] then castAbility(motion[1]) end

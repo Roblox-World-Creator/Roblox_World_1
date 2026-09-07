@@ -6,6 +6,8 @@ local TweenService = game:GetService("TweenService")
 local effectsRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("AbilityEffects")
 local localPlayer = Players.LocalPlayer
 local progressionConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ProgressionConfig"))
+local visualConfig = require(ReplicatedStorage.Shared.VisualConfig)
+local ElementVFX = require(script.Parent:WaitForChild("ElementVFX"))
 local effectsFolder = workspace:FindFirstChild("ClientEffects") or Instance.new("Folder")
 effectsFolder.Name = "ClientEffects"
 effectsFolder.Parent = workspace
@@ -51,6 +53,8 @@ end
 local function highQualityEffects()
 	return localPlayer:GetAttribute("EffectQuality") ~= "LOW"
 end
+
+local elementalVFX = ElementVFX.Start({Parent = effectsFolder, HighQuality = highQualityEffects})
 
 local function shakeCamera(origin, radius, intensity)
 	if not localPlayer:GetAttribute("CameraShakeEnabled") or not highQualityEffects() then
@@ -132,6 +136,11 @@ local function playEffectSound(position, data)
 end
 
 local function renderRing(name, position, radius, color, duration)
+	-- Filled hostile telegraphs retain their readable danger footprint.
+	if not string.find(name, "Telegraph", 1, true) and name ~= "EnemyAttackWarning" then
+		local arc = elementalVFX.Ring(name, position, radius, color, duration)
+		if arc then return arc end
+	end
 	local ring = createEffectPart(
 		name,
 		Enum.PartType.Cylinder,
@@ -247,6 +256,7 @@ end
 
 local function renderFireImpact(position, radius, ability)
 	radius = math.clamp(radius, 3, 45)
+	elementalVFX.Burst(position, "Fire", ELEMENT_COLORS.Fire, math.clamp(radius / 5, 1, 3))
 	-- A scorched footprint makes fire magic feel anchored to the battlefield instead of
 	-- disappearing as soon as the projectile lands.
 	local patchCount = highQualityEffects() and 10 or 6
@@ -298,6 +308,7 @@ local function renderFireImpact(position, radius, ability)
 end
 
 local function renderIceImpact(position, radius, ability)
+	elementalVFX.Burst(position, "Ice", ELEMENT_COLORS.Ice, math.clamp(radius / 5, 1, 3))
 	radius = math.clamp(radius, 3, 45)
 	local sheetCount = highQualityEffects() and 12 or 7
 	for index = 1, sheetCount do
@@ -396,6 +407,7 @@ local function renderEnergyBolt(data)
 	if data.Element == "Ice" then projectile.Material = Enum.Material.Glass end
 	if data.Element == "Earth" then projectile.Material = Enum.Material.Slate end
 	if data.Element == "Lightning" or data.Element == "Gravity" then projectile.Material = Enum.Material.Neon end
+	elementalVFX.Projectile(projectile, data.Element, projectileColor)
 	local light = Instance.new("PointLight")
 	light.Color = projectileColor
 	light.Brightness = 2
@@ -427,7 +439,7 @@ local function renderEnergyBolt(data)
 	duration = math.clamp(duration, data.Element == "Lightning" and 0.24 or 0.18, 2)
 	local tween = TweenService:Create(projectile, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
 		Position = data.Target,
-		Size = Vector3.new(2.1, 2.1, 2.1),
+		Size = projectileSize * 1.15,
 	})
 	tween:Play()
 	if data.Element == "Fire" and highQualityEffects() then
@@ -469,6 +481,7 @@ local function renderEnergyBolt(data)
 			if data.Element == "Fire" then renderFireImpact(data.Target, tonumber(data.Radius) or 4, data.Ability)
 			elseif data.Element == "Ice" then renderIceImpact(data.Target, tonumber(data.Radius) or 4, data.Ability)
 			else
+				elementalVFX.Burst(data.Target, data.Element, projectileColor, 1.2)
 				renderImpact(data.Target, tonumber(data.Radius) or 4)
 				if data.Element == "Lightning" then
 					local splashRadius = math.max(7, tonumber(data.Radius) or 7)
@@ -499,7 +512,7 @@ local function renderEnergyBolt(data)
 			end
 			soundData.Impact = true
 			playEffectSound(data.Target, soundData)
-			renderRing("EnergyImpactOuter", data.Target, (tonumber(data.Radius) or 4) * 1.8, Color3.fromRGB(80, 220, 255), 0.55)
+			renderRing("EnergyImpactOuter", data.Target, (tonumber(data.Radius) or 4) * 1.8, projectileColor, 0.55)
 			if highQualityEffects() then
 				for index = 1, 4 do
 					task.delay(index * 0.035, function()
@@ -691,6 +704,7 @@ end
 
 local function renderPowerCast(data)
 	if typeof(data.Origin) ~= "Vector3" or typeof(data.Target) ~= "Vector3" then return end
+	elementalVFX.Burst(data.Origin, data.Element, effectColor(data), 0.65)
 	local color = POWER_COLORS[data.Ability] or ELEMENT_COLORS[data.Element] or ENERGY_COLOR
 	local radius = data.Mode == "Close" and 5 or 2.5
 	local tier = math.clamp(math.floor(tonumber(data.Tier) or 1), 1, 11)
@@ -739,6 +753,7 @@ local function renderPowerCast(data)
 		local traveler = createEffectPart((data.Element or "Arcane") .. "PowerTravel", shape, color, size, travelCFrame)
 		traveler.Transparency = 0.12
 		traveler.Material = data.Element == "Earth" and Enum.Material.Rock or data.Element == "Ice" and Enum.Material.Glass or Enum.Material.Neon
+		elementalVFX.Projectile(traveler, data.Element, color)
 		local light = Instance.new("PointLight")
 		light.Color, light.Brightness, light.Range, light.Parent = color, 2.5, 10 + tier, traveler
 		if highQualityEffects() then
@@ -876,40 +891,7 @@ local function renderMelee(data)
 	-- The owning client poses its weapon immediately when input begins. Replicated
 	-- posing remains here for every other observer so attacks still read in multiplayer.
 	if character == localPlayer.Character then return end
-	local grip = typeof(character) == "Instance" and character:FindFirstChild("SwordGrip", true)
-	if grip and grip:IsA("Motor6D") then
-		local startPoses = {
-			CFrame.Angles(math.rad(-18), math.rad(-24), math.rad(72)),
-			CFrame.Angles(math.rad(-8), math.rad(28), math.rad(-68)),
-			CFrame.Angles(math.rad(-78), math.rad(-10), math.rad(26)),
-			CFrame.new(0, 0, 0.45) * CFrame.Angles(math.rad(-82), 0, 0),
-		}
-		local endPoses = {
-			CFrame.Angles(math.rad(18), math.rad(28), math.rad(-58)),
-			CFrame.Angles(math.rad(12), math.rad(-26), math.rad(58)),
-			CFrame.Angles(math.rad(42), math.rad(12), math.rad(-24)),
-			CFrame.new(0, 0, -1.25) * CFrame.Angles(math.rad(-88), 0, 0),
-		}
-		grip.Transform = startPoses[combo]
-		local duration = combo == 4 and 0.19 or 0.16
-		local swing = TweenService:Create(grip, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Transform = endPoses[combo],
-		})
-		local shoulder = character:FindFirstChild("RightShoulder", true) or character:FindFirstChild("Right Shoulder", true)
-		if shoulder and shoulder:IsA("Motor6D") then
-			shoulder.Transform = combo == 4 and CFrame.Angles(math.rad(-55), 0, math.rad(8)) or CFrame.Angles(math.rad(-28), math.rad(combo % 2 == 0 and -22 or 22), math.rad(combo % 2 == 0 and -18 or 18))
-			TweenService:Create(shoulder, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Transform = combo == 4 and CFrame.Angles(math.rad(-86), 0, 0) or CFrame.Angles(math.rad(-12), math.rad(combo % 2 == 0 and 28 or -28), math.rad(combo % 2 == 0 and 24 or -24)),
-			}):Play()
-		end
-		swing:Play()
-		swing.Completed:Connect(function()
-			if grip.Parent then
-				TweenService:Create(grip, TweenInfo.new(0.14, Enum.EasingStyle.Quad), {Transform = CFrame.identity}):Play()
-			end
-			if shoulder and shoulder.Parent then TweenService:Create(shoulder, TweenInfo.new(0.14, Enum.EasingStyle.Quad), {Transform = CFrame.identity}):Play() end
-		end)
-	end
+	require(script.Parent.MeleeAnimator).Play(character, combo, style)
 end
 
 local function renderDamageNumber(data)
@@ -1181,6 +1163,7 @@ end
 
 local function renderGroundSlam(data)
 	if typeof(data.Origin) ~= "Vector3" then return end
+	elementalVFX.Burst(data.Origin, "Earth", ELEMENT_COLORS.Earth, 2)
 	local radius = tonumber(data.Radius) or 16
 	for index = 1, highQualityEffects() and 3 or 2 do
 		task.delay((index - 1) * 0.07, function() renderRing("SeismicShockwave", data.Origin - Vector3.new(0, 2.2, 0), radius * (0.65 + index * 0.28), Color3.fromRGB(135, 210, 105), 0.42) end)
@@ -1231,6 +1214,15 @@ end
 effectsRemote.OnClientEvent:Connect(function(effectName, data)
 	if type(data) ~= "table" then
 		return
+	end
+	local camera = workspace.CurrentCamera
+	local position = typeof(data.Origin) == "Vector3" and data.Origin or nil
+	local target = typeof(data.Target) == "Vector3" and data.Target or position
+	-- Cull only spatial effects; announcements and UI still reach every player.
+	if camera and position and target then
+		local segment = target - position
+		local alpha = segment.Magnitude > 0.01 and math.clamp((camera.CFrame.Position - position):Dot(segment) / segment:Dot(segment), 0, 1) or 0
+		if (camera.CFrame.Position - position:Lerp(target, alpha)).Magnitude > visualConfig.Effects.Distance then return end
 	end
 	if effectName == "PowerCast" then
 		renderPowerCast(data)

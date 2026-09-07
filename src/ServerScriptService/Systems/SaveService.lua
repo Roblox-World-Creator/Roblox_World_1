@@ -8,6 +8,7 @@ local store
 local config
 local sessions = {}
 local saving = {}
+local loadFailed = {}
 local persistentStorageEnabled = false
 
 local SAVED_ATTRIBUTES = {
@@ -19,6 +20,7 @@ local SAVED_ATTRIBUTES = {
 	"SkillPoints",
 	"ElementPoints",
 	"FormPoints",
+	"MeleeMasteryXP",
 }
 
 local function copyDefaults(defaults)
@@ -100,6 +102,11 @@ function SaveService.Load(player, defaults)
 	local success, saved = retry("Player data load", function()
 		return store:GetAsync("Player_" .. player.UserId)
 	end)
+	if not success then
+		loadFailed[player] = true
+		player:SetAttribute("SaveLoadFailed", true)
+		player:Kick("Your saved progress could not be loaded. Please rejoin; your existing save has not been changed.")
+	end
 	if success and type(saved) == "table" then
 		for key, defaultValue in pairs(defaults) do
 			if typeof(saved[key]) == typeof(defaultValue) then
@@ -113,7 +120,7 @@ function SaveService.Load(player, defaults)
 end
 
 function SaveService.Save(player)
-	if not sessions[player] or saving[player] then
+	if not sessions[player] or saving[player] or loadFailed[player] or not player:GetAttribute("DataLoaded") or not player:GetAttribute("InventoryReady") then
 		return false
 	end
 
@@ -135,7 +142,7 @@ function SaveService.Save(player)
 	payload.QuestHistory = serializeValueFolder(player, "QuestHistory")
 	local function attributeList(name)
 		local result = {}
-		for _, value in ipairs(string.split(player:GetAttribute(name) or "", ",")) do if value ~= "" then table.insert(result, value) end end
+		for _, value in ipairs(string.split(player:GetAttribute(name) or "", ",")) do if value ~= "" or name == "ActiveAttacks" then table.insert(result, value) end end
 		return result
 	end
 	payload.PowerLoadout = {Attacks = attributeList("ActiveAttacks"), Motion = attributeList("ActiveMotion"), Ultimate = player:GetAttribute("ActiveUltimate") or ""}
@@ -174,6 +181,7 @@ function SaveService.Start(saveConfig)
 	Players.PlayerRemoving:Connect(function(player)
 		SaveService.Save(player)
 		sessions[player] = nil
+		loadFailed[player] = nil
 	end)
 
 	task.spawn(function()

@@ -108,6 +108,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 			},
 			Equipment = {Weapon = "IronBlade"},
 			Mastery = {},
+			MeleeMasteryXP = 0,
 			Quests = {},
 			QuestClaims = {},
 			QuestActive = {},
@@ -133,6 +134,7 @@ function PlayerProgression.Start(config, resourceConfig, evolutionConfig, saveSe
 		player:SetAttribute("Coins", math.max(0, data.Coins))
 		player:SetAttribute("Evolution", math.max(0, data.Evolution))
 		player:SetAttribute("HighestWave", math.max(0, math.floor(tonumber(data.HighestWave) or 0)))
+		player:SetAttribute("MeleeMasteryXP", math.max(0, math.floor(tonumber(data.MeleeMasteryXP) or 0)))
 		local evolutionDefinition = evolutionConfig[data.Evolution]
 		local attackMultiplier = evolutionDefinition and evolutionDefinition.AttackMultiplier or 1
 		local healthMultiplier = evolutionDefinition and evolutionDefinition.HealthMultiplier or 1

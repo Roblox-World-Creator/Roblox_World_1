@@ -129,9 +129,16 @@ local function setupPlayer(player)
 		createStack(inventory, "HealthPotion", {Count = 3})
 		createStack(inventory, "ManaPotion", {Count = 2})
 	end
+	local restored = {}
 	for slotName, itemId in pairs(type(data.Equipment) == "table" and data.Equipment or {}) do
 		local slot = equipment:FindFirstChild(slotName)
-		if slot and itemConfig.Items[itemId] and inventory:FindFirstChild(itemId) then slot.Value = itemId end
+		local definition = itemConfig.Items[itemId]
+		local stack = inventory:FindFirstChild(itemId)
+		local compatible = definition and (definition.EquipSlot == slotName or (definition.EquipSlot == "Artifact" and string.match(slotName, "^Artifact[123]$")))
+		if slot and compatible and stack and stack.Value > 0 and not restored[itemId]
+			and (player:GetAttribute("Level") or 1) >= (definition.RequiredLevel or 1) then
+			slot.Value, restored[itemId] = itemId, true
+		end
 	end
 	if equipment.Weapon.Value == "" and inventory:FindFirstChild("IronBlade") then equipment.Weapon.Value = "IronBlade" end
 	player:SetAttribute("ConsumableDamageMultiplier", 1)
@@ -142,7 +149,10 @@ end
 function InventoryService.Grant(player, itemId, quantity, silent)
 	local definition = itemConfig and itemConfig.Items[itemId]
 	if not definition or not player or not player.Parent then return false, "Unknown item or player" end
-	quantity = math.clamp(math.floor(tonumber(quantity) or 1), 1, 25)
+	if not player:GetAttribute("InventoryReady") then return false, "Inventory is still loading" end
+	quantity = tonumber(quantity) or 1
+	if quantity ~= quantity or math.abs(quantity) == math.huge then return false, "Enter a finite quantity" end
+	quantity = math.clamp(math.floor(quantity), 1, 25)
 	local inventory = getFolders(player)
 	local stack = inventory:FindFirstChild(itemId)
 	if not stack and #inventory:GetChildren() >= itemConfig.Capacity then return false, "Inventory is full" end
@@ -158,7 +168,18 @@ function InventoryService.Grant(player, itemId, quantity, silent)
 		questService.Record(player, "Collect", granted, context)
 		if definition.Category == "Material" then questService.Record(player, "Material", granted, context) end
 	end
-	return true, message
+	return true, message, granted
+end
+
+function InventoryService.CanGrant(player, itemId, quantity)
+	if not player:GetAttribute("InventoryReady") then return false, "Inventory is still loading" end
+	local definition = itemConfig.Items[itemId]
+	if not definition then return false, "Unknown reward item" end
+	local inventory = getFolders(player)
+	local stack = inventory:FindFirstChild(itemId)
+	if not stack and #inventory:GetChildren() >= itemConfig.Capacity then return false, "Free an inventory slot to claim the reward" end
+	if (stack and stack.Value or 0) + quantity > definition.MaximumStack then return false, "Make room in your " .. definition.DisplayName .. " stack" end
+	return true
 end
 
 function InventoryService.SetQuestService(service)
@@ -191,8 +212,19 @@ local function spawnLootDrop(owner, enemy, itemId, quantity)
 	local claimed = false
 	prompt.Triggered:Connect(function(player)
 		if claimed or (player ~= owner and orb:GetAttribute("PublicAt") and os.clock() < orb:GetAttribute("PublicAt")) then return end
-		local success = InventoryService.Grant(player, itemId, quantity)
-		if success then claimed = true; orb:Destroy() end
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if not root or not humanoid or humanoid.Health <= 0 or (root.Position - orb.Position).Magnitude > prompt.MaxActivationDistance + 3 then return end
+		local success, _, granted = InventoryService.Grant(player, itemId, quantity)
+		if success then
+			quantity -= granted
+			if quantity <= 0 then claimed = true; orb:Destroy()
+			else
+				orb:SetAttribute("Quantity", quantity)
+				textLabel.Text = string.format("%s  x%d\n[%s]", definition.DisplayName, quantity, definition.Rarity)
+			end
+		end
 	end)
 	orb:SetAttribute("PublicAt", os.clock() + 10)
 	Debris:AddItem(orb, 60)
@@ -234,6 +266,7 @@ function InventoryService.GrantBossLoot(player, boss)
 end
 
 function InventoryService.Buy(player, itemId)
+	if not player:GetAttribute("InventoryReady") then return false, "Inventory is still loading" end
 	local definition = itemConfig.Items[itemId]
 	local price = definition and definition.BuyPrice
 	if not price then return false, "That item is not sold here" end
@@ -247,11 +280,12 @@ function InventoryService.Buy(player, itemId)
 end
 
 function InventoryService.Sell(player, itemId)
+	if not player:GetAttribute("InventoryReady") then return false, "Inventory is still loading" end
 	local definition = itemConfig.Items[itemId]
 	local inventory, equipment = getFolders(player)
 	local stack = inventory:FindFirstChild(itemId)
 	if not definition or not stack or stack.Value <= 0 then return false, "That item cannot be sold" end
-	if stack:GetAttribute("Locked") then return false, "Unlock the item before selling it" end
+	if stack:GetAttribute("Locked") or stack:GetAttribute("Favorite") then return false, "Remove the lock and favorite before selling it" end
 	for _, slot in ipairs(equipment:GetChildren()) do if slot:IsA("StringValue") and slot.Value == itemId then return false, "Unequip the item before selling it" end end
 	stack.Value -= 1
 	if stack.Value <= 0 then stack:Destroy() end
@@ -269,14 +303,14 @@ function InventoryService.SellJunk(player)
 	local fallbackValues = {Common = 12, Uncommon = 30}
 	for _, stack in ipairs(inventory:GetChildren()) do
 		local definition = itemConfig.Items[stack.Name]
-		if definition and (fallbackValues[definition.Rarity] or definition.QuickSell) and not stack:GetAttribute("Favorite") and not stack:GetAttribute("Locked") and not equipped[stack.Name] then
+		if definition and definition.Category ~= "Consumable" and definition.Category ~= "Material" and fallbackValues[definition.Rarity] and not stack:GetAttribute("Favorite") and not stack:GetAttribute("Locked") and not equipped[stack.Name] then
 			local amount = stack.Value
 			gold += amount * math.max(1, math.floor(definition.SellValue or (definition.BuyPrice or fallbackValues[definition.Rarity] or 10) * (definition.BuyPrice and 0.35 or 1)))
 			sold += amount
 			stack:Destroy()
 		end
 	end
-	if sold == 0 then return false, "No unlocked quick-sell materials or low-rarity junk to sell" end
+	if sold == 0 then return false, "No spare common/uncommon equipment to sell; materials and supplies are kept" end
 	progression.AddCoins(player, gold)
 	return true, string.format("Quick-sold %d items for %d gold", sold, gold)
 end
@@ -320,6 +354,7 @@ local function useItem(player, itemId)
 	consumableReadyAt[player] = consumableReadyAt[player] or {}
 	if os.clock() < (consumableReadyAt[player][itemId] or 0) then return false, "Consumable is cooling down" end
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then return false, "Character is not ready" end
 	if consumable.Kind == "Health" then
 		if not humanoid or humanoid.Health <= 0 or humanoid.Health >= humanoid.MaxHealth then return false, "Health is already full" end
 		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + consumable.Amount)
@@ -366,9 +401,14 @@ local function craft(player, itemId)
 	for ingredientId, required in pairs(recipe.Ingredients) do
 		local stack = inventory:FindFirstChild(ingredientId)
 		if not stack or stack.Value < required then return false, "Missing crafting materials" end
+		if stack:GetAttribute("Locked") or stack:GetAttribute("Favorite") then return false, "Unlock and unfavorite crafting materials first" end
 	end
 	local output = inventory:FindFirstChild(itemId)
-	if not output and #inventory:GetChildren() >= itemConfig.Capacity then return false, "Inventory is full" end
+	local freedSlots = 0
+	for ingredientId, required in pairs(recipe.Ingredients) do
+		if inventory[ingredientId].Value == required then freedSlots += 1 end
+	end
+	if not output and #inventory:GetChildren() - freedSlots >= itemConfig.Capacity then return false, "Inventory is full" end
 	if output and output.Value + recipe.Quantity > definition.MaximumStack then return false, "Output stack is full" end
 	for ingredientId, required in pairs(recipe.Ingredients) do
 		local stack = inventory[ingredientId]

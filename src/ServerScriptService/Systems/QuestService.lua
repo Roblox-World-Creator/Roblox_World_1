@@ -75,6 +75,10 @@ local function claim(player, questId)
 	if not definition or not value or value.Value < definition.Goal then return false, "Quest is not complete" end
 	if not active:FindFirstChild(questId) or not active[questId].Value then return false, "Quest is not active" end
 	if claimed.Value then return false, "Quest reward already claimed" end
+	if definition.RewardItem then
+		local canGrant, message = inventoryService.CanGrant(player, definition.RewardItem, definition.RewardQuantity or 1)
+		if not canGrant then return false, message .. "; your quest reward is still available" end
+	end
 	claimed.Value = true
 	active[questId].Value = false
 	history[questId].Value += 1

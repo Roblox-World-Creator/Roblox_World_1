@@ -5,6 +5,7 @@ local BossPhaseController = require(script.Parent.BossPhaseController)
 local AssetModelService = require(script.Parent.AssetModelService)
 local MobAnimationService = require(script.Parent.MobAnimationService)
 local RealmConfig = require(ReplicatedStorage.Shared.RealmConfig)
+local RealmScenery = require(script.Parent.RealmScenery)
 
 local WaveDefense = {}
 local runtimeState
@@ -374,6 +375,7 @@ local function createElementalRealms(portalHome, questService)
 			addLabel(marker, definition.DisplayName .. " OUTPOST " .. district, Vector3.new(0, 11, 0))
 		end
 
+		RealmScenery.Start({Parent = realm, Definition = definition, Index = realmNumber})
 		local transit = getOrCreateFolder(realm, "RealmTransit")
 		local destinations = {
 			{Id = "Hub", Name = "SAFE HUB", Target = HUB_SPAWN, Color = Color3.fromRGB(80, 220, 255)},
@@ -1029,6 +1031,7 @@ function WaveDefense.Start(gameConfig, enemyConfig, waveConfig, progressionConfi
 				local minimumRadius = (realm.SafeRadius or 72) + 38
 				local radius = minimumRadius + ((index - 1) * 79) % math.max(1, boardRadius - minimumRadius - 70)
 				local position = realm.Destination + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+				position = RealmScenery.GroundPosition(workspace.ElementalRealms:FindFirstChild(activeRealmId), position)
 				local levelScale = 1 + (realm.RecommendedLevel or 1) * 0.035
 				local realmEnemy, realmHumanoid = createEnemy(enemyType, definition, levelScale, 1 + (realm.RecommendedLevel or 1) * 0.018, 0, position, enemyFolder)
 				realmEnemy:SetAttribute("IsRealmMob", true)

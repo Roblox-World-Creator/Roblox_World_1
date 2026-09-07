@@ -252,6 +252,23 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 	activeAbilityCooldowns = abilityCooldowns
 	local meleeStates = {}
 	local rangedReadyAt = {}
+	local meleeConfig = require(ReplicatedStorage.Shared.MeleeConfig)
+	local function masteryMultiplier(player)
+		return 1 + math.min(meleeConfig.Mastery.MaximumRank, math.floor((player:GetAttribute("MeleeMasteryXP") or 0) / meleeConfig.Mastery.XPPerRank)) * meleeConfig.Mastery.DamagePerRank
+	end
+	local function trainMelee(player)
+		player:SetAttribute("MeleeMasteryXP", math.min(meleeConfig.Mastery.MaximumRank * meleeConfig.Mastery.XPPerRank, (player:GetAttribute("MeleeMasteryXP") or 0) + meleeConfig.Mastery.XPPerHit))
+	end
+	local swordMoves = require(script.Parent.SwordMoveService).Start({
+		Effects = effectsRemote, Feedback = feedbackRemote, GetEnemies = getEnemiesInRadius, Knockback = applyKnockback,
+		Damage = function(player, enemy, multiplier, heavy)
+			local amount = (player:GetAttribute("AttackPower") or config.MeleeDamage) * multiplier * masteryMultiplier(player)
+				* getDamageMultiplier(player) * (player:GetAttribute("MeleeDamageMultiplier") or 1) * (player:GetAttribute("EquippedWeaponDamageMultiplier") or 1)
+			local result = damageEnemy(player, enemy, amount, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, heavy, nil)
+			if result and not enemy:GetAttribute("IsPractice") then trainMelee(player) end
+		end,
+	})
+	CombatService.ResetSwordCooldowns = swordMoves.Reset
 
 	local function validCharacter(player)
 		local character = player.Character
@@ -261,6 +278,8 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 	end
 
 	combatRemote.OnServerEvent:Connect(function(player, action, value)
+		if action == "SwordMove" then swordMoves.Cast(player, value); return end
+		if workspace:GetServerTimeNow() < (player:GetAttribute("SwordMoveBusyUntil") or 0) then return end
 		if action == "Ranged" then
 			local valid, root = validCharacter(player)
 			local kind = player:GetAttribute("EquippedWeaponKind")
@@ -320,6 +339,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 		local comboDefinition = config.MeleeCombo[state.Index]
 		state.LastAttack = now
 		state.ReadyAt = now + comboDefinition.Cooldown * math.max(0.55, 1 - (player:GetAttribute("MeleeCooldownReduction") or 0))
+		player:SetAttribute("MeleeReadyAt", workspace:GetServerTimeNow() + state.ReadyAt - now)
 		meleeStates[player] = state
 		player:SetAttribute("Blocking", false)
 		player:SetAttribute("MeleeGuardUntil", workspace:GetServerTimeNow() + 0.42)
@@ -352,11 +372,12 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local currentCharacter = player.Character
 			local currentHumanoid = currentCharacter and currentCharacter:FindFirstChildOfClass("Humanoid")
 			local currentRoot = currentCharacter and currentCharacter:FindFirstChild("HumanoidRootPart")
-			if not currentHumanoid or not currentRoot or currentHumanoid.Health <= 0 then return end
+			if currentCharacter ~= root.Parent or not currentHumanoid or not currentRoot or currentHumanoid.Health <= 0 then return end
 			local meleeRange = config.MeleeRange + (player:GetAttribute("MeleeRangeBonus") or 0)
 			for _, enemy in ipairs(getEnemiesInMeleeCone(currentRoot, meleeRange)) do
 			local damage = (player:GetAttribute("AttackPower") or config.MeleeDamage)
 				* comboDefinition.DamageMultiplier
+				* masteryMultiplier(player)
 				* getDamageMultiplier(player)
 				* (player:GetAttribute("MeleeDamageMultiplier") or 1)
 				* (player:GetAttribute("EquippedWeaponDamageMultiplier") or 1)
@@ -365,6 +386,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 			local weaponAbility = player:GetAttribute("EquippedWeaponAbility")
 			local result = damageEnemy(player, enemy, damage, config, progression, feedbackRemote, damageService, effectsRemote, inventoryService, isFinisher, config.Abilities[weaponAbility] and weaponAbility or nil)
 			if result then
+				if not enemy:GetAttribute("IsPractice") then trainMelee(player) end
 				applyStun(enemy, (comboDefinition.Stun or 0) + (player:GetAttribute("MeleeStunBonus") or 0), config, isFinisher)
 				applyKnockback(enemy, currentRoot.Position, comboDefinition.Knockback)
 				local form = player:GetAttribute("ActiveTransformation")
@@ -407,6 +429,7 @@ function CombatService.Start(config, progression, damageService, inventoryServic
 	end)
 
 	abilityRemote.OnServerEvent:Connect(function(player, abilityName, requestedTarget, requestedMode)
+		if workspace:GetServerTimeNow() < (player:GetAttribute("SwordMoveBusyUntil") or 0) then return end
 		local ability = config.Abilities[abilityName]
 		local ultimateCast = requestedMode == "Ultimate" and player:GetAttribute("ActiveUltimate") == abilityName
 		local mode = requestedMode == "Close" and "Close" or "Ranged"
